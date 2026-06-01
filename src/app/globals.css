@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+:root {
+  --wc-green: #3cac3b;
+  --wc-blue: #2a398d;
+  --wc-red: #e61d25;
+}
+
+body {
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
