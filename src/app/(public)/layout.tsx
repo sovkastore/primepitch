@@ -13,7 +13,7 @@ export default function PublicLayout({
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
-      <BottomNav />
+      {/* BottomNav removed */}
       <Analytics />
     </>
   );

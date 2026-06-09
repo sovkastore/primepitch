@@ -130,6 +130,32 @@ export default function WatchPage() {
         // Only load streams for live matches
         if (status === "live") {
           const streamData: Stream[] = await streamPromise;
+
+          // Check for admin stream overrides
+          try {
+            const overrideRes = await fetch(`/api/stream-override/${rawId}`);
+            const { overrides, replace_original } = await overrideRes.json();
+
+            if (Array.isArray(overrides) && overrides.length > 0) {
+              const overrideStreams: Stream[] = overrides.map((o: { embed_url: string; source: string; server_label: string }, i: number) => ({
+                id: `override-${i}`,
+                streamNo: i + 1,
+                language: o.server_label || "English",
+                hd: true,
+                embedUrl: o.embed_url,
+                source: o.source || "fallback",
+              }));
+
+              if (replace_original) {
+                setStreams(overrideStreams);
+              } else {
+                setStreams([...overrideStreams, ...streamData]);
+              }
+              setActiveStream(0);
+              return;
+            }
+          } catch {}
+
           setStreams(streamData);
         }
 
@@ -340,7 +366,7 @@ export default function WatchPage() {
           <div className="space-y-2">
             {streams.length > 0 ? streams.map((s, i) => (
               <button
-                key={s.streamNo}
+                key={`${s.id || s.source}-${i}`}
                 onClick={() => setActiveStream(i)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
                   i === activeStream
@@ -357,7 +383,9 @@ export default function WatchPage() {
                 </div>
                 <div className="flex-1 text-left">
                   <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-gray-900">Server {s.streamNo}</span>
+                    <span className="text-[13px] font-bold text-gray-900">
+                      {s.id?.startsWith("override") ? `Stream ${i + 1}` : `Server ${s.streamNo}`}
+                    </span>
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                       s.hd ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-500/20 text-gray-400"
                     }`}>
@@ -365,7 +393,7 @@ export default function WatchPage() {
                     </span>
                   </div>
                   <p className="text-[11px] text-gray-500 mt-0.5">
-                    {s.hd ? "1080p" : "720p"} &middot; {s.language || "English"}
+                    {s.language || "English"}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
