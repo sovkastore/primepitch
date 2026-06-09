@@ -6,8 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "build:cf": "npx @opennextjs/cloudflare build",
-    "preview:cf": "npx wrangler pages dev",
-    "deploy": "npx @opennextjs/cloudflare build && npx wrangler pages deploy",
+    "preview:cf": "npx @opennextjs/cloudflare build && npx wrangler dev",
+    "deploy": "npx @opennextjs/cloudflare build && npx wrangler deploy",
     "start": "next start",
     "lint": "eslint"
   },

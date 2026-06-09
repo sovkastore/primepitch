@@ -1,8 +1,13 @@
 {
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
   "name": "primepitch",
-  "compatibility_flags": ["nodejs_compat"],
   "compatibility_date": "2025-04-01",
-  "pages_build_output_dir": ".open-next/cloudflare",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
   "vars": {
     "NEXT_PUBLIC_SUPABASE_URL": "https://lcahzqvrsqxievglvkib.supabase.co",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_pjCMeOEDhirgIYFS3ZsHlw_EJLphMcW"
