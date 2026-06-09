@@ -28,8 +28,7 @@ export default function AdminLoginPage() {
       return;
     }
 
-    router.push("/admin");
-    router.refresh();
+    window.location.href = "/admin";
   }
 
   return (
