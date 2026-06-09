@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET() {
   try {
@@ -8,12 +8,12 @@ export async function GET() {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
     // Today's visitors
-    const { count: todayViews } = await supabaseAdmin
+    const { count: todayViews } = await getSupabaseAdmin()
       .from("page_views")
       .select("*", { count: "exact", head: true })
       .gte("created_at", todayStart);
 
-    const { data: todayUnique } = await supabaseAdmin
+    const { data: todayUnique } = await getSupabaseAdmin()
       .from("page_views")
       .select("visitor_id")
       .gte("created_at", todayStart);
@@ -21,19 +21,19 @@ export async function GET() {
 
     // Live viewers (active in last 5 min)
     const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
-    const { count: liveViewers } = await supabaseAdmin
+    const { count: liveViewers } = await getSupabaseAdmin()
       .from("active_viewers")
       .select("*", { count: "exact", head: true })
       .gte("last_seen", fiveMinAgo);
 
     // Match views today
-    const { count: matchViewsToday } = await supabaseAdmin
+    const { count: matchViewsToday } = await getSupabaseAdmin()
       .from("match_views")
       .select("*", { count: "exact", head: true })
       .gte("created_at", todayStart);
 
     // Total views (7d)
-    const { count: weekViews } = await supabaseAdmin
+    const { count: weekViews } = await getSupabaseAdmin()
       .from("page_views")
       .select("*", { count: "exact", head: true })
       .gte("created_at", weekAgo);
@@ -42,14 +42,14 @@ export async function GET() {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0];
-    const { data: dailyStats } = await supabaseAdmin
+    const { data: dailyStats } = await getSupabaseAdmin()
       .from("daily_stats")
       .select("date, total_views, unique_visitors, match_views")
       .gte("date", thirtyDaysAgo)
       .order("date", { ascending: true });
 
     // Sport breakdown (last 7 days)
-    const { data: sportData } = await supabaseAdmin
+    const { data: sportData } = await getSupabaseAdmin()
       .from("match_views")
       .select("sport")
       .gte("created_at", weekAgo);
@@ -60,7 +60,7 @@ export async function GET() {
     });
 
     // Top 10 matches today
-    const { data: topMatches } = await supabaseAdmin
+    const { data: topMatches } = await getSupabaseAdmin()
       .from("match_views")
       .select("match_id, match_title, sport")
       .gte("created_at", todayStart);

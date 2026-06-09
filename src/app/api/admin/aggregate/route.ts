@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const dayEnd = `${targetDate}T23:59:59.999Z`;
 
     // Page views for that day
-    const { data: pvData } = await supabaseAdmin
+    const { data: pvData } = await getSupabaseAdmin()
       .from("page_views")
       .select("visitor_id")
       .gte("created_at", dayStart)
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const uniqueVisitors = new Set(pvData?.map((r) => r.visitor_id)).size;
 
     // Match views
-    const { data: mvData } = await supabaseAdmin
+    const { data: mvData } = await getSupabaseAdmin()
       .from("match_views")
       .select("match_id, match_title, sport")
       .gte("created_at", dayStart)
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const topMatch = Object.entries(matchCountMap).sort(([, a], [, b]) => b.count - a.count)[0];
 
     // Upsert into daily_stats
-    await supabaseAdmin.from("daily_stats").upsert(
+    await getSupabaseAdmin().from("daily_stats").upsert(
       {
         date: targetDate,
         total_views: totalViews,

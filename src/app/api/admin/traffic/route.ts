@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,14 +8,14 @@ export async function GET(request: NextRequest) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
     // Daily stats from aggregated table
-    const { data: dailyStats } = await supabaseAdmin
+    const { data: dailyStats } = await getSupabaseAdmin()
       .from("daily_stats")
       .select("*")
       .gte("date", since.split("T")[0])
       .order("date", { ascending: true });
 
     // Top pages
-    const { data: pageData } = await supabaseAdmin
+    const { data: pageData } = await getSupabaseAdmin()
       .from("page_views")
       .select("path")
       .gte("created_at", since);
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       .map(([path, views]) => ({ path, views }));
 
     // Device breakdown
-    const { data: deviceData } = await supabaseAdmin
+    const { data: deviceData } = await getSupabaseAdmin()
       .from("page_views")
       .select("device_type")
       .gte("created_at", since);
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Referrer breakdown
-    const { data: refData } = await supabaseAdmin
+    const { data: refData } = await getSupabaseAdmin()
       .from("page_views")
       .select("referrer")
       .gte("created_at", since)

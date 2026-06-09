@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   try {
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     }
 
     // Insert match view
-    await supabaseAdmin.from("match_views").insert({
+    await getSupabaseAdmin().from("match_views").insert({
       visitor_id,
       match_id,
       source,
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     });
 
     // Upsert active viewer
-    await supabaseAdmin.from("active_viewers").upsert(
+    await getSupabaseAdmin().from("active_viewers").upsert(
       {
         visitor_id,
         match_id,

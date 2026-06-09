@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const limit = 20;
     const offset = (page - 1) * limit;
 
-    let query = supabaseAdmin.from("match_views").select("*", { count: "exact" });
+    let query = getSupabaseAdmin().from("match_views").select("*", { count: "exact" });
 
     if (sport) query = query.eq("sport", sport);
     if (from) query = query.gte("created_at", from);
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1);
 
     // Aggregate by match_id
-    const allQuery = supabaseAdmin
+    const allQuery = getSupabaseAdmin()
       .from("match_views")
       .select("match_id, match_title, sport, duration_sec, visitor_id, created_at");
     if (sport) allQuery.eq("sport", sport);

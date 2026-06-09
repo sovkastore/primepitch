@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET() {
   try {
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
     // Total active viewers
-    const { data: activeData } = await supabaseAdmin
+    const { data: activeData } = await getSupabaseAdmin()
       .from("active_viewers")
       .select("visitor_id, match_id, path, last_seen")
       .gte("last_seen", fiveMinAgo);
@@ -34,7 +34,7 @@ export async function GET() {
       .map(([path, viewers]) => ({ path, viewers }));
 
     // Recent activity (last 20 page views)
-    const { data: recentData } = await supabaseAdmin
+    const { data: recentData } = await getSupabaseAdmin()
       .from("page_views")
       .select("path, device_type, created_at")
       .order("created_at", { ascending: false })
