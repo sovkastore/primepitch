@@ -2,131 +2,65 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { SPORT_LABELS } from "@/lib/api";
 
-const NAV_SPORTS = [
-  { id: "football", label: "Football" },
-  { id: "basketball", label: "Basketball" },
-  { id: "fight", label: "UFC" },
-  { id: "motor-sports", label: "F1" },
-  { id: "tennis", label: "Tennis" },
-  { id: "cricket", label: "Cricket" },
+const ALL_SPORTS = [
+  "football", "basketball", "american-football", "ufc", "wwe", "boxing",
+  "motor-sports", "tennis", "cricket", "hockey", "baseball", "rugby",
+  "golf", "darts", "billiards", "afl", "other",
 ];
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
 
   return (
-    <nav className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10">
-      <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-1 shrink-0">
-          <span className="text-xl font-extrabold tracking-tight text-white">
-            PULSE
-          </span>
-          <span className="text-xl font-extrabold tracking-tight text-emerald-400">
-            SPORTS
-          </span>
-        </Link>
-
-        {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-1 ml-8">
-          {NAV_SPORTS.map((s) => (
-            <Link
-              key={s.id}
-              href={`/${s.id}`}
-              className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            >
-              {s.label}
-            </Link>
-          ))}
-          <div className="relative">
-            <button
-              onClick={() => setMoreOpen(!moreOpen)}
-              className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            >
-              More ▾
-            </button>
-            {moreOpen && (
-              <div className="absolute top-full right-0 mt-1 bg-zinc-900 border border-white/10 rounded-lg py-1 min-w-[140px] shadow-xl">
-                {[
-                  { id: "american-football", label: "NFL" },
-                  { id: "hockey", label: "Hockey" },
-                  { id: "baseball", label: "Baseball" },
-                  { id: "rugby", label: "Rugby" },
-                  { id: "golf", label: "Golf" },
-                  { id: "darts", label: "Darts" },
-                ].map((s) => (
-                  <Link
-                    key={s.id}
-                    href={`/${s.id}`}
-                    onClick={() => setMoreOpen(false)}
-                    className="block px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10"
-                  >
-                    {s.label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right side */}
-        <div className="flex items-center gap-3">
-          <Link
-            href="/?filter=live"
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-red-600/20 border border-red-500/30 text-red-400 text-sm font-medium rounded-full"
-          >
-            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-            LIVE
-          </Link>
-
-          {/* Mobile hamburger */}
+    <>
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-gray-200">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-6 h-14 flex items-center justify-between">
+          {/* Left: Hamburger (mobile) */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="md:hidden text-white p-1"
+            className="md:hidden text-gray-500 hover:text-gray-900 w-8 h-8 flex items-center justify-center relative z-[1000]"
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              {mobileOpen ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              )}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d={mobileOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
+              />
             </svg>
           </button>
-        </div>
-      </div>
 
-      {/* Mobile menu */}
+          {/* Center: Logo */}
+          <Link href="/" className="flex items-center gap-1">
+            <span className="text-lg font-extrabold text-gray-900 tracking-tight">PRIME</span>
+            <span className="text-lg font-extrabold tracking-tight text-gradient">PITCH</span>
+            <svg className="w-4 h-4 text-emerald-500 ml-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+            </svg>
+          </Link>
+
+          {/* Right spacer */}
+          <div className="w-8" />
+        </div>
+      </nav>
+
+      {/* Mobile fullscreen menu — outside nav to avoid stacking context */}
       {mobileOpen && (
-        <div className="md:hidden bg-zinc-950 border-t border-white/10 px-4 py-3 space-y-1">
-          {[...NAV_SPORTS, { id: "american-football", label: "NFL" }, { id: "hockey", label: "Hockey" }, { id: "baseball", label: "Baseball" }].map((s) => (
+        <div className="md:hidden fixed inset-0 top-14 bg-white z-[999] px-4 py-3 space-y-0.5 overflow-y-auto">
+          {ALL_SPORTS.map((id) => (
             <Link
-              key={s.id}
-              href={`/${s.id}`}
+              key={id}
+              href={`/${id}`}
               onClick={() => setMobileOpen(false)}
-              className="block px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
             >
-              {s.label}
+              {SPORT_LABELS[id] || id}
             </Link>
           ))}
         </div>
       )}
-    </nav>
+    </>
   );
 }

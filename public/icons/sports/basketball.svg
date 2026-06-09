@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Clean basketball -->
+  <circle cx="32" cy="32" r="26" stroke="#fff" stroke-width="2.5" fill="none"/>
+  <!-- Vertical seam -->
+  <path d="M32 6 C24 16 24 48 32 58" stroke="#fff" stroke-width="1.5" fill="none"/>
+  <path d="M32 6 C40 16 40 48 32 58" stroke="#fff" stroke-width="1.5" fill="none"/>
+  <!-- Horizontal seam -->
+  <line x1="6" y1="32" x2="58" y2="32" stroke="#fff" stroke-width="1.5"/>
+  <!-- Diagonal seams -->
+  <path d="M10 16 C22 24 42 24 54 16" stroke="#fff" stroke-width="1.5" fill="none"/>
+  <path d="M10 48 C22 40 42 40 54 48" stroke="#fff" stroke-width="1.5" fill="none"/>
+</svg>

@@ -1,5 +1,10 @@
 const BASE_URL = "https://streamed.pk/api";
 
+export interface MatchTeam {
+  name: string;
+  badge?: string;
+}
+
 export interface Match {
   id: string;
   title: string;
@@ -7,6 +12,11 @@ export interface Match {
   date: number;
   sources: { source: string; id: string }[];
   popular?: boolean;
+  poster?: string;
+  teams?: {
+    home?: MatchTeam;
+    away?: MatchTeam;
+  };
 }
 
 export interface Stream {
@@ -74,13 +84,22 @@ export function getTimeInfo(match: Match): string {
   if (diffMin > 0) {
     const hrs = Math.floor(diffMin / 60);
     const mins = Math.round(diffMin % 60);
+    if (hrs > 24) {
+      const days = Math.floor(hrs / 24);
+      return `In ${days}d`;
+    }
     if (hrs > 0) return `In ${hrs}h ${mins}m`;
     return `In ${mins}m`;
   }
   if (diffMin > -180) {
-    return `${Math.abs(Math.round(diffMin))}' in`;
+    return "Live";
   }
   return "Ended";
+}
+
+export function getUpcomingTime(match: Match): string {
+  const d = new Date(match.date);
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 export const SPORT_ICONS: Record<string, string> = {
@@ -91,6 +110,9 @@ export const SPORT_ICONS: Record<string, string> = {
   baseball: "\u26BE",
   "motor-sports": "\uD83C\uDFCE\uFE0F",
   fight: "\uD83E\uDD4A",
+  ufc: "\uD83E\uDD4A",
+  wwe: "\uD83C\uDFAD",
+  boxing: "\uD83E\uDD4A",
   tennis: "\uD83C\uDFBE",
   rugby: "\uD83C\uDFC9",
   golf: "\u26F3",
@@ -109,6 +131,9 @@ export const SPORT_LABELS: Record<string, string> = {
   baseball: "Baseball",
   "motor-sports": "F1 / NASCAR",
   fight: "UFC / Boxing",
+  ufc: "UFC",
+  wwe: "WWE",
+  boxing: "Boxing",
   tennis: "Tennis",
   rugby: "Rugby",
   golf: "Golf",
@@ -118,3 +143,17 @@ export const SPORT_LABELS: Record<string, string> = {
   cricket: "Cricket",
   other: "Other",
 };
+
+export function getBadgeUrl(badge: string): string {
+  return `https://streamed.pk/api/images/proxy/${badge}.webp`;
+}
+
+export function getPosterUrl(poster: string): string {
+  return `https://streamed.pk${poster}`;
+}
+
+export function getWatchHref(match: Match): string {
+  const s = match.sources?.[0];
+  if (!s) return "#";
+  return `/watch/${encodeURIComponent(s.source)}--${encodeURIComponent(s.id)}`;
+}

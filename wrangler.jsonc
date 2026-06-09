@@ -1,0 +1,10 @@
+{
+  "name": "primepitch",
+  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_date": "2024-09-23",
+  "pages_build_output_dir": ".open-next/cloudflare",
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://lcahzqvrsqxievglvkib.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_pjCMeOEDhirgIYFS3ZsHlw_EJLphMcW"
+  }
+}

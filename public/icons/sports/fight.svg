@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Octagon -->
+  <polygon points="22,8 42,8 56,22 56,42 42,56 22,56 8,42 8,22" stroke="#fff" stroke-width="2.5" fill="none"/>
+  <!-- Bold text UFC -->
+  <text x="32" y="38" text-anchor="middle" fill="#fff" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="16" letter-spacing="-0.5">UFC</text>
+</svg>

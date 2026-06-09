@@ -1,15 +1,60 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Pulse Sports — Watch Live Sports Free",
+  title: {
+    default: "PrimePitch \u2014 Watch Live Sports Free",
+    template: "%s | PrimePitch",
+  },
   description:
-    "Watch live football, basketball, UFC, F1, and more. FIFA World Cup 2026 — all matches, all free.",
+    "Watch live football, basketball, UFC, F1, and more. FIFA World Cup 2026 \u2014 all matches, all free. primepitch.live",
+  keywords: [
+    "live sports", "free sports streaming", "football live", "FIFA World Cup 2026",
+    "basketball live", "UFC live", "F1 live", "watch sports free", "PrimePitch",
+  ],
+  authors: [{ name: "PrimePitch" }],
+  creator: "PrimePitch",
+  metadataBase: new URL("https://primepitch.live"),
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://primepitch.live",
+    siteName: "PrimePitch",
+    title: "PrimePitch \u2014 Watch Live Sports Free",
+    description:
+      "Watch live football, basketball, UFC, F1, and more. FIFA World Cup 2026 \u2014 all matches, all free.",
+    images: [
+      {
+        url: "/icon-512.png",
+        width: 512,
+        height: 512,
+        alt: "PrimePitch Logo",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "PrimePitch \u2014 Watch Live Sports Free",
+    description:
+      "Watch live football, basketball, UFC, F1, and more. FIFA World Cup 2026 \u2014 all matches, all free.",
+    images: ["/icon-512.png"],
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  manifest: "/site.webmanifest",
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
@@ -19,12 +64,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${inter.className} antialiased min-h-screen flex flex-col`}
-      >
-        <Navbar />
-        <main className="flex-1">{children}</main>
-        <Footer />
+      <body className={`${inter.className} antialiased min-h-screen flex flex-col bg-white text-gray-900`}>
+        {children}
       </body>
     </html>
   );

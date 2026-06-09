@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Ball -->
+  <circle cx="32" cy="32" r="24" stroke="#fff" stroke-width="2.5" fill="none"/>
+  <!-- Stitching left -->
+  <path d="M20 10 Q14 22 16 32 Q18 42 24 52" stroke="#e10600" stroke-width="2" fill="none"/>
+  <line x1="16" y1="16" x2="22" y2="18" stroke="#e10600" stroke-width="1.2"/>
+  <line x1="14" y1="24" x2="20" y2="24.5" stroke="#e10600" stroke-width="1.2"/>
+  <line x1="14" y1="32" x2="20" y2="32" stroke="#e10600" stroke-width="1.2"/>
+  <line x1="14" y1="40" x2="20" y2="39.5" stroke="#e10600" stroke-width="1.2"/>
+  <line x1="18" y1="47" x2="23" y2="45" stroke="#e10600" stroke-width="1.2"/>
+  <!-- Stitching right -->
+  <path d="M44 10 Q50 22 48 32 Q46 42 40 52" stroke="#e10600" stroke-width="2" fill="none"/>
+  <line x1="48" y1="16" x2="42" y2="18" stroke="#e10600" stroke-width="1.2"/>
+  <line x1="50" y1="24" x2="44" y2="24.5" stroke="#e10600" stroke-width="1.2"/>
+  <line x1="50" y1="32" x2="44" y2="32" stroke="#e10600" stroke-width="1.2"/>
+  <line x1="50" y1="40" x2="44" y2="39.5" stroke="#e10600" stroke-width="1.2"/>
+  <line x1="46" y1="47" x2="41" y2="45" stroke="#e10600" stroke-width="1.2"/>
+</svg>

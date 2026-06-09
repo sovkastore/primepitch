@@ -1,0 +1,91 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const NAV_ITEMS = [
+  { label: "Overview", href: "/admin", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" },
+  { label: "Matches", href: "/admin/matches", icon: "M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
+  { label: "Traffic", href: "/admin/traffic", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
+  { label: "Live Monitor", href: "/admin/live", icon: "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" },
+  { label: "Settings", href: "/admin/settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" },
+];
+
+export default function AdminSidebar({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const pathname = usePathname();
+
+  const isActive = (href: string) =>
+    href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+
+  return (
+    <>
+      {/* Mobile backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      <aside
+        className={`fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 z-50 transform transition-transform lg:translate-x-0 lg:static lg:z-auto ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="h-14 flex items-center px-5 border-b border-gray-100">
+          <Link href="/admin" className="flex items-center gap-1" onClick={onClose}>
+            <span className="text-lg font-extrabold text-gray-900">PRIME</span>
+            <span className="text-lg font-extrabold text-emerald-500">PITCH</span>
+          </Link>
+          <span className="ml-2 text-[9px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+            ADMIN
+          </span>
+        </div>
+
+        <nav className="p-3 space-y-0.5">
+          {NAV_ITEMS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onClose}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-colors ${
+                isActive(item.href)
+                  ? "bg-emerald-50 text-emerald-600"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              }`}
+            >
+              <svg
+                className="w-5 h-5 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+              </svg>
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-100">
+          <Link
+            href="/"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Site
+          </Link>
+        </div>
+      </aside>
+    </>
+  );
+}

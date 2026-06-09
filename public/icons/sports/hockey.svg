@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Crossed sticks -->
+  <path d="M16 8 L28 42 L20 48" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M48 8 L36 42 L44 48" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Puck -->
+  <ellipse cx="32" cy="56" rx="10" ry="3.5" fill="#fff"/>
+</svg>
