@@ -35,7 +35,7 @@ export async function GET() {
     // recent records, so finished matches remain visible in the admin.
     const { data: statsData } = await getSupabaseAdmin()
       .from("match_stats")
-      .select("match_id, match_title, sport, peak_viewers, peak_at, unique_viewers, updated_at")
+      .select("match_id, match_title, sport, peak_viewers, peak_at, unique_viewers, updated_at, created_at")
       .order("updated_at", { ascending: false })
       .limit(25);
 
@@ -77,6 +77,7 @@ export async function GET() {
     ];
     const normTitle = (t: string) => {
       let n = (t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      n = n.replace(/^ppv/, ""); // admin ppv listings are the same match
       for (const [re, sub] of TITLE_ALIASES) n = n.replace(re, sub);
       return n;
     };
@@ -84,7 +85,7 @@ export async function GET() {
     type Rec = NonNullable<typeof statsData>[number];
     const groups: Record<string, Rec[]> = {};
     statsData?.forEach((r) => {
-      const key = `${normTitle(r.match_title)}|${(r.updated_at || "").slice(0, 10)}`;
+      const key = `${normTitle(r.match_title)}|${(r.created_at || r.updated_at || "").slice(0, 10)}`;
       (groups[key] ||= []).push(r);
     });
 
