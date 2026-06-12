@@ -141,9 +141,19 @@ export default function WatchPage() {
         );
         const allMatches: Match[] = matchResults.flat();
 
-        const current = allMatches.find((m) =>
+        let current = allMatches.find((m) =>
           m.sources?.some((s) => s.id === matchId)
         );
+        // Custom/ppv listings aren't in the feed — load their stored details
+        // (title, kickoff) so the page shows a real countdown before kickoff
+        // and a real FULL TIME after, never a wrong "ended" guess.
+        if (!current) {
+          try {
+            const metaRes = await fetch(`/api/match-meta/${encodeURIComponent(rawId)}`);
+            const meta = await metaRes.json();
+            if (meta?.match) current = meta.match as Match;
+          } catch {}
+        }
         if (current) setCurrentMatch(current);
 
         // A match the site shows as LIVE can have a future scheduled time (e.g. a
