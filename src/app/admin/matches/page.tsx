@@ -7,6 +7,8 @@ import {
 } from "recharts";
 import ChartWrapper from "@/components/admin/ChartWrapper";
 import { useIsMobile } from "@/lib/use-is-mobile";
+import { getAllMatches } from "@/lib/api";
+import { normTitle } from "@/lib/match-merge";
 
 interface MatchRow {
   match_id: string;
@@ -41,6 +43,25 @@ export default function MatchAnalyticsPage() {
   const [status, setStatus] = useState<"played" | "live" | "upcoming" | "all">("played");
   const [day, setDay] = useState<string>(""); // "" = all time, else YYYY-MM-DD (UTC day)
   const [page, setPage] = useState(1);
+  // normalized title -> kickoff ms, from the public feed (fetched by the
+  // browser, no Worker requests). Used to sort Upcoming by schedule.
+  const [kickoffs, setKickoffs] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    if (status !== "upcoming" || kickoffs) return;
+    getAllMatches()
+      .then((ms) => {
+        const map: Record<string, number> = {};
+        for (const m of ms) {
+          if (!m.date) continue;
+          const k = normTitle(m.title);
+          if (!map[k] || m.date < map[k]) map[k] = m.date;
+        }
+        setKickoffs(map);
+      })
+      .catch(() => setKickoffs({}));
+  }, [status, kickoffs]);
+  const kickoffOf = (title: string): number | null =>
+    kickoffs ? kickoffs[normTitle(title)] ?? null : null;
   const [total, setTotal] = useState(0);
 
   useEffect(() => {
@@ -64,6 +85,12 @@ export default function MatchAnalyticsPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [sport, sort, status, day, page]);
+
+  // In the Upcoming view, "recent" means kickoff order: next match first.
+  const displayMatches =
+    status === "upcoming" && sort === "recent" && kickoffs
+      ? matches.slice().sort((a, b) => (kickoffOf(a.title) ?? Infinity) - (kickoffOf(b.title) ?? Infinity))
+      : matches;
 
   const chartData = matches.slice(0, 15).map((m) => ({
     name: m.title.length > 25 ? m.title.slice(0, 25) + "..." : m.title,
@@ -122,7 +149,7 @@ export default function MatchAnalyticsPage() {
                 sort === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
               }`}
             >
-              {t === "views" ? "Top Views" : "Recent"}
+              {t === "views" ? "Top Views" : status === "upcoming" ? "Kickoff" : "Recent"}
             </button>
           ))}
         </div>
@@ -176,7 +203,7 @@ export default function MatchAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {matches.map((m) => (
+                  {displayMatches.map((m) => (
                     <tr key={m.match_id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="py-2.5 text-[13px] font-medium text-gray-900 max-w-xs truncate">
                         {m.status === "live" && (
@@ -185,7 +212,11 @@ export default function MatchAnalyticsPage() {
                           </span>
                         )}
                         {m.status === "upcoming" && (
-                          <span className="text-[8px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded mr-1.5 align-middle">⏳ SOON</span>
+                          <span className="text-[8px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded mr-1.5 align-middle">
+                            ⏳ {kickoffOf(m.title)
+                              ? new Date(kickoffOf(m.title)!).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                              : "SOON"}
+                          </span>
                         )}
                         {m.title}
                       </td>
