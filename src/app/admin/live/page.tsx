@@ -7,6 +7,7 @@ import {
 import ChartWrapper from "@/components/admin/ChartWrapper";
 import StreamOverrideModal from "@/components/admin/StreamOverrideModal";
 import { getAllMatches, getMatchStatus } from "@/lib/api";
+import { normTitle } from "@/lib/match-merge";
 import { useIsMobile } from "@/lib/use-is-mobile";
 import { visibleInterval } from "@/lib/poll";
 
@@ -37,6 +38,7 @@ export default function LiveMonitorPage() {
   const [overrides, setOverrides] = useState<OverrideRow[]>([]);
   // match feed id -> live/upcoming; ids absent from the feed have ended.
   const [feedStatus, setFeedStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
+  const [titleStatus, setTitleStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
   useEffect(() => {
     let on = true;
     const load = () =>
@@ -44,19 +46,35 @@ export default function LiveMonitorPage() {
         .then((ms) => {
           if (!on) return;
           const map: Record<string, "live" | "upcoming" | "ended"> = {};
-          for (const m of ms) map[String(m.id)] = getMatchStatus(m);
+          const tmap: Record<string, "live" | "upcoming" | "ended"> = {};
+          const RANK = { live: 0, upcoming: 1, ended: 2 } as const;
+          for (const m of ms) {
+            const st = getMatchStatus(m);
+            map[String(m.id)] = st;
+            const tk = normTitle(m.title);
+            if (!tmap[tk] || RANK[st] < RANK[tmap[tk]]) tmap[tk] = st;
+          }
           setFeedStatus(map);
+          setTitleStatus(tmap);
         })
         .catch(() => {});
     load();
     const t = setInterval(load, 5 * 60_000);
     return () => { on = false; clearInterval(t); };
   }, []);
-  // Watch-page ids look like "source--feedId"; admin overrides ("admin--…") have no feed entry.
+  // Watch-page ids look like "source--feedId". Custom/ppv listings
+  // ("admin--…", "live-event_…") aren't in the feed by id, so fall back to
+  // matching the feed by normalized TITLE; if still unknown, return null
+  // (no tag, never excluded from live counts) rather than guessing "ended".
   const rowStatus = (matchId: string): "live" | "upcoming" | "ended" | null => {
     if (!feedStatus) return null; // not loaded yet — show nothing
-    const feedId = matchId.includes("--") ? matchId.split("--").slice(1).join("--") : matchId;
-    return feedStatus[feedId] || "ended";
+    const parts = matchId.split("--");
+    const feedId = parts.length > 1 ? parts.slice(1).join("--") : matchId;
+    if (feedStatus[feedId]) return feedStatus[feedId];
+    const byTitle = titleStatus?.[normTitle(getMatchTitle(matchId))];
+    if (byTitle) return byTitle;
+    const isCustom = parts[0] === "admin" || /^(live-)?event/i.test(parts[0]) || parts.length === 1;
+    return isCustom ? null : "ended";
   };
 
   // Override modal target
