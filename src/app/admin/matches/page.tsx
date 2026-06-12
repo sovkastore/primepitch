@@ -39,7 +39,7 @@ export default function MatchAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
   const [sport, setSport] = useState("");
-  const [sort, setSort] = useState<"views" | "recent">("views");
+  const [sort, setSort] = useState<"views" | "recent" | "">(""); // "" = natural order
   const [status, setStatus] = useState<"played" | "live" | "upcoming" | "all">("played");
   const [day, setDay] = useState<string>(""); // "" = all time, else YYYY-MM-DD (UTC day)
   const [page, setPage] = useState(1);
@@ -47,7 +47,7 @@ export default function MatchAnalyticsPage() {
   // browser, no Worker requests). Used to sort Upcoming by schedule.
   const [kickoffs, setKickoffs] = useState<Record<string, number> | null>(null);
   useEffect(() => {
-    if (status !== "upcoming" || kickoffs) return;
+    if ((status !== "upcoming" && sort !== "") || kickoffs) return;
     getAllMatches()
       .then((ms) => {
         const map: Record<string, number> = {};
@@ -59,7 +59,7 @@ export default function MatchAnalyticsPage() {
         setKickoffs(map);
       })
       .catch(() => setKickoffs({}));
-  }, [status, kickoffs]);
+  }, [status, sort, kickoffs]);
   const kickoffOf = (title: string): number | null =>
     kickoffs ? kickoffs[normTitle(title)] ?? null : null;
   const [total, setTotal] = useState(0);
@@ -68,7 +68,7 @@ export default function MatchAnalyticsPage() {
     setLoading(true);
     const params = new URLSearchParams();
     if (sport) params.set("sport", sport);
-    params.set("sort", sort);
+    params.set("sort", sort || "recent");
     params.set("status", status);
     if (day) {
       params.set("from", `${day}T00:00:00.000Z`);
@@ -86,10 +86,18 @@ export default function MatchAnalyticsPage() {
       .finally(() => setLoading(false));
   }, [sport, sort, status, day, page]);
 
-  // In the Upcoming view, "recent" means kickoff order: next match first.
+  // Natural order (no sort selected): schedule-based. LIVE first, then
+  // upcoming as they kick off (next match first), then played by recency.
+  const rankOf = (st?: string) => (st === "live" ? 0 : st === "upcoming" ? 1 : 2);
   const displayMatches =
-    status === "upcoming" && sort === "recent" && kickoffs
-      ? matches.slice().sort((a, b) => (kickoffOf(a.title) ?? Infinity) - (kickoffOf(b.title) ?? Infinity))
+    sort === ""
+      ? matches.slice().sort((a, b) => {
+          const ra = rankOf(a.status), rb = rankOf(b.status);
+          if (ra !== rb) return ra - rb;
+          if (ra === 1) return (kickoffOf(a.title) ?? Infinity) - (kickoffOf(b.title) ?? Infinity);
+          if (ra === 0) return (kickoffOf(a.title) ?? 0) - (kickoffOf(b.title) ?? 0);
+          return a.last_viewed < b.last_viewed ? 1 : -1;
+        })
       : matches;
 
   const chartData = matches.slice(0, 15).map((m) => ({
@@ -144,12 +152,12 @@ export default function MatchAnalyticsPage() {
           {(["views", "recent"] as const).map((t) => (
             <button
               key={t}
-              onClick={() => { setSort(t); setPage(1); }}
+              onClick={() => { setSort(sort === t ? "" : t); setPage(1); }}
               className={`text-[12px] font-bold px-3 py-1.5 rounded-lg transition-colors ${
                 sort === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
               }`}
             >
-              {t === "views" ? "Top Views" : status === "upcoming" ? "Kickoff" : "Recent"}
+              {t === "views" ? "Top Views" : "Recent"}
             </button>
           ))}
         </div>
