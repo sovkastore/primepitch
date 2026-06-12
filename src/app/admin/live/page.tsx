@@ -104,6 +104,26 @@ export default function LiveMonitorPage() {
     return matchId.split("--").pop()?.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || matchId;
   }
 
+  // Prefer the analytics label (admin renames update it) over the slug-derived name.
+  function titleFor(matchId: string): string {
+    const rec = data?.matchRecords?.find((r) => r.match_id === matchId);
+    return rec?.match_title || getMatchTitle(matchId);
+  }
+
+  async function renameMatch(matchId: string) {
+    const name = window.prompt("New match name (shown to visitors on live lists and used in analytics):", titleFor(matchId));
+    if (!name || !name.trim() || name.trim() === titleFor(matchId)) return;
+    await fetch("/api/admin/match-flags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ match_id: matchId, display_title: name.trim() }),
+    });
+    fetch("/api/admin/live-stats")
+      .then((r) => r.json())
+      .then((d) => { setData(d); setLastUpdated(new Date()); })
+      .catch(() => {});
+  }
+
   async function toggleStream(id: number, enabled: boolean) {
     await fetch("/api/admin/stream-override", {
       method: "PATCH",
@@ -287,7 +307,12 @@ export default function LiveMonitorPage() {
               {data.activeMatches.map((m) => (
                 <div key={m.match_id} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50">
                   <span className="flex items-center gap-1.5 flex-1 min-w-0">
-                    <span className="text-[13px] text-gray-700 truncate min-w-0">{getMatchTitle(m.match_id)}</span>
+                    <span className="text-[13px] text-gray-700 truncate min-w-0">{titleFor(m.match_id)}</span>
+                    <button
+                      onClick={() => renameMatch(m.match_id)}
+                      title="Rename this match"
+                      className="text-[12px] text-gray-300 hover:text-gray-600 shrink-0"
+                    >✏️</button>
                     {rowStatus(m.match_id) === "ended" && (
                       <span className="text-[9px] font-black text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded shrink-0">ENDED</span>
                     )}

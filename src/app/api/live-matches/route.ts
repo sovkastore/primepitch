@@ -23,6 +23,7 @@ interface FlagSets {
   forcedLive: Map<string, Match>;
   disableAuto: Set<string>;
   featured: Set<string>;
+  renames: Map<string, string>;
 }
 
 async function getFlags(): Promise<FlagSets> {
@@ -30,10 +31,11 @@ async function getFlags(): Promise<FlagSets> {
   const disableAuto = new Set<string>();
   const featured = new Set<string>();
   const forcedLive = new Map<string, Match>();
+  const renames = new Map<string, string>();
   try {
     const { data } = await getSupabaseAdmin()
       .from("match_flags")
-      .select("match_id, hidden, forced_live, featured, disable_auto, match_data");
+      .select("match_id, hidden, forced_live, featured, disable_auto, match_data, display_title");
     for (const r of (data ?? []) as Array<{
       match_id: string;
       hidden: boolean;
@@ -41,16 +43,18 @@ async function getFlags(): Promise<FlagSets> {
       featured: boolean;
       disable_auto: boolean;
       match_data: Match | null;
+      display_title?: string | null;
     }>) {
       if (r.hidden) hidden.add(r.match_id);
       if (r.disable_auto) disableAuto.add(r.match_id);
       if (r.featured) featured.add(r.match_id);
       if (r.forced_live && r.match_data) forcedLive.set(r.match_id, r.match_data);
+      if (r.display_title) renames.set(r.match_id, r.display_title);
     }
   } catch {
     /* match_flags may not exist yet — degrade to no flags */
   }
-  return { hidden, forcedLive, disableAuto, featured };
+  return { hidden, forcedLive, disableAuto, featured, renames };
 }
 
 async function getOverrideBacked(): Promise<Map<string, Match>> {
@@ -111,6 +115,10 @@ export async function GET() {
     );
 
     let matches = entries.filter((m): m is Match => m !== null);
+    // Admin renames: swap in the display title where one is set.
+    matches = matches.map((m) =>
+      flags.renames.has(keyOf(m)) ? { ...m, title: flags.renames.get(keyOf(m))! } : m
+    );
     // Featured first (stable otherwise)
     matches = matches
       .map((m, i) => ({ m, i, f: flags.featured.has(keyOf(m)) ? 1 : 0 }))

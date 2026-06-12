@@ -160,10 +160,16 @@ export default function WatchPage() {
         // practice session streamed.pk lists live ahead of its slot). Trust the live
         // set, not just the clock, so it opens the player instead of a countdown.
         const liveSet = await getLiveMatches();
-        const inLiveSet = liveSet.some((m) => {
+        const liveEntry = liveSet.find((m) => {
           const s = m.sources?.[0];
           return s ? `${s.source}--${s.id}` === rawId : false;
         });
+        const inLiveSet = !!liveEntry;
+        // The live set carries admin renames — prefer it for display.
+        if (liveEntry) {
+          current = liveEntry;
+          setCurrentMatch(liveEntry);
+        }
         setForceLive(inLiveSet);
 
         const status = current ? getMatchStatus(current) : "upcoming";
