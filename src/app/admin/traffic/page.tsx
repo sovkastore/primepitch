@@ -96,10 +96,11 @@ export default function TrafficPage() {
       <div className="grid lg:grid-cols-2 gap-4">
         <ChartWrapper title="Device Breakdown">
           {devicePie.length > 0 ? (
-            <div className="flex items-center gap-6">
-              <ResponsiveContainer width="50%" height={180}>
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="w-[130px] h-[150px] shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={devicePie} cx="50%" cy="50%" innerRadius={35} outerRadius={65} dataKey="value">
+                  <Pie data={devicePie} cx="50%" cy="50%" innerRadius={35} outerRadius={62} dataKey="value">
                     {devicePie.map((entry) => (
                       <Cell key={entry.name} fill={DEVICE_COLORS[entry.name as keyof typeof DEVICE_COLORS] || "#9ca3af"} />
                     ))}
@@ -107,6 +108,7 @@ export default function TrafficPage() {
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
+              </div>
               <div className="space-y-2">
                 {devicePie.map((d) => (
                   <div key={d.name} className="flex items-center gap-2">

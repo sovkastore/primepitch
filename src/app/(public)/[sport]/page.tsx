@@ -2,11 +2,11 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import LiveMatchRow from "@/components/LiveMatchRow";
-import TeamBadge from "@/components/TeamBadge";
-import { Match, getMatchStatus, getWatchHref, SPORT_ICONS, SPORT_LABELS } from "@/lib/api";
+import UpcomingRow from "@/components/UpcomingRow";
+import { Match, getMatchStatus, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches, SPORT_ICONS, SPORT_LABELS } from "@/lib/api";
 import { classifyFight, FIGHT_SUB_LABELS, FIGHT_SUB_ICONS, FightSubcategory } from "@/lib/fight-categories";
+import { visibleInterval } from "@/lib/poll";
 
 const FIGHT_SUB_MAP: Record<string, string> = {
   ufc: "mma",
@@ -14,72 +14,29 @@ const FIGHT_SUB_MAP: Record<string, string> = {
   boxing: "boxing",
 };
 
-function UpcomingRow({ match }: { match: Match }) {
-  const d = new Date(match.date);
-  const dateStr = d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
-  const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-  const href = getWatchHref(match);
-  const hasTeams = match.teams?.home && match.teams?.away;
-  const label = SPORT_LABELS[match.category] || match.category;
-
-  return (
-    <Link href={href} className="group block">
-      <div className="flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors border border-gray-100">
-        <div className="shrink-0 w-14 sm:w-20 text-center">
-          <p className="text-[10px] sm:text-[11px] font-bold text-emerald-500">{timeStr}</p>
-          <p className="text-[8px] sm:text-[9px] font-semibold text-gray-400 mt-0.5">{dateStr}</p>
-        </div>
-        <div className="w-px h-8 bg-gray-200 shrink-0" />
-        {hasTeams ? (
-          <div className="flex-1 min-w-0 flex items-center gap-1 sm:gap-2">
-            <img
-              src={`https://streamed.pk/api/images/proxy/${match.teams!.home!.badge}.webp`}
-              alt=""
-              className="w-5 h-5 sm:w-7 sm:h-7 object-contain shrink-0"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
-            <span className="text-[11px] sm:text-[12px] font-bold text-gray-800 truncate">{match.teams!.home!.name}</span>
-            <span className="text-[8px] sm:text-[9px] text-gray-400 font-extrabold shrink-0">VS</span>
-            <span className="text-[11px] sm:text-[12px] font-bold text-gray-800 truncate text-right">{match.teams!.away!.name}</span>
-            <img
-              src={`https://streamed.pk/api/images/proxy/${match.teams!.away!.badge}.webp`}
-              alt=""
-              className="w-5 h-5 sm:w-7 sm:h-7 object-contain shrink-0"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
-          </div>
-        ) : (
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] sm:text-[12px] font-bold text-gray-800 truncate">{match.title}</p>
-          </div>
-        )}
-        <span className="hidden sm:inline text-[9px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg shrink-0 font-bold">{label}</span>
-      </div>
-    </Link>
-  );
-}
-
 export default function SportPage() {
   const params = useParams();
   const sport = params.sport as string;
   const [matches, setMatches] = useState<Match[]>([]);
+  const [liveMatches, setLiveMatches] = useState<Match[]>([]);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
-  const icon = SPORT_ICONS[sport] || "\u26BD";
+  const icon = SPORT_ICONS[sport] || "⚽";
   const label = SPORT_LABELS[sport] || sport;
+  const fightSub = FIGHT_SUB_MAP[sport];
+  const apiSport = fightSub ? "fight" : sport;
 
   useEffect(() => {
     async function load() {
       try {
-        const fightSub = FIGHT_SUB_MAP[sport];
-        const apiSport = fightSub ? "fight" : sport;
         const res = await fetch(`https://streamed.pk/api/matches/${apiSport}`);
         let data: Match[] = await res.json();
         data = data.map((m) => ({ ...m, category: apiSport }));
         if (fightSub) {
           data = data.filter((m) => classifyFight(m.title) === fightSub);
         }
-        setMatches(data);
+        setMatches(dedupeMatches(data));
       } catch (e) {
         console.error("Failed to load matches:", e);
       } finally {
@@ -87,12 +44,32 @@ export default function SportPage() {
       }
     }
     load();
-  }, [sport]);
+  }, [sport, apiSport, fightSub]);
 
-  const live = matches.filter((m) => getMatchStatus(m) === "live");
-  const upcoming = matches
-    .filter((m) => getMatchStatus(m) === "upcoming")
-    .sort((a, b) => a.date - b.date);
+  // Live = matches that actually have a playable stream. Refreshed while visible.
+  useEffect(() => {
+    const loadLive = () => { getLiveMatches().then(setLiveMatches).catch(() => {}); };
+    return visibleInterval(loadLive, 60_000);
+  }, []);
+
+  // Hidden matches (admin) — keep them out of the upcoming list.
+  useEffect(() => {
+    getMatchFlags().then((f) => setHiddenIds(new Set(f.hidden))).catch(() => {});
+  }, []);
+
+  // Only the streamable live matches that belong to this page.
+  const live = liveMatches.filter((m) => {
+    if (m.category !== apiSport) return false;
+    if (fightSub) return classifyFight(m.title) === fightSub;
+    return true;
+  });
+
+  // Keys already shown as live — so a curated/forced-live match isn't ALSO listed under Upcoming.
+  const liveKeys = new Set(liveMatches.map(getMatchKey));
+  const isUpcomingRow = (m: Match) =>
+    getMatchStatus(m) === "upcoming" && !hiddenIds.has(getMatchKey(m)) && !liveKeys.has(getMatchKey(m));
+
+  const upcoming = matches.filter(isUpcomingRow).sort((a, b) => a.date - b.date);
 
   if (loading) {
     return (
@@ -113,11 +90,11 @@ export default function SportPage() {
       boxing: { live: [], upcoming: [] },
     };
 
+    for (const m of live) {
+      grouped[classifyFight(m.title)].live.push(m);
+    }
     for (const m of matches) {
-      const sub = classifyFight(m.title);
-      const status = getMatchStatus(m);
-      if (status === "live") grouped[sub].live.push(m);
-      else if (status === "upcoming") grouped[sub].upcoming.push(m);
+      if (isUpcomingRow(m)) grouped[classifyFight(m.title)].upcoming.push(m);
     }
 
     return (
@@ -130,7 +107,7 @@ export default function SportPage() {
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Fight Sports</h1>
             <p className="text-sm text-gray-500">
               {live.length > 0 ? `${live.length} live now` : ""}
-              {live.length > 0 && upcoming.length > 0 ? " \u2022 " : ""}
+              {live.length > 0 && upcoming.length > 0 ? " • " : ""}
               {upcoming.length > 0 ? `${upcoming.length} upcoming` : ""}
               {live.length === 0 && upcoming.length === 0 ? "No matches scheduled" : ""}
             </p>
@@ -155,15 +132,15 @@ export default function SportPage() {
               </div>
               {g.live.length > 0 && (
                 <div className="space-y-3 mb-4">
-                  {g.live.map((m, i) => (
-                    <LiveMatchRow key={`${sub}-live-${m.id}-${i}`} match={m} />
+                  {g.live.map((m) => (
+                    <LiveMatchRow key={`${sub}-live-${getMatchKey(m)}`} match={m} />
                   ))}
                 </div>
               )}
               {g.upcoming.length > 0 && (
                 <div className="space-y-2">
-                  {g.upcoming.sort((a, b) => a.date - b.date).map((m, i) => (
-                    <UpcomingRow key={`${sub}-up-${m.id}-${i}`} match={m} />
+                  {g.upcoming.sort((a, b) => a.date - b.date).map((m) => (
+                    <UpcomingRow key={`${sub}-up-${getMatchKey(m)}`} match={m} showSport={false} />
                   ))}
                 </div>
               )}
@@ -171,7 +148,7 @@ export default function SportPage() {
           );
         })}
 
-        {matches.length === 0 && (
+        {matches.length === 0 && live.length === 0 && (
           <div className="text-center py-24">
             <div className="text-5xl mb-4">{icon}</div>
             <p className="text-gray-500 text-lg font-medium">No matches scheduled right now</p>
@@ -192,7 +169,7 @@ export default function SportPage() {
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{label}</h1>
           <p className="text-sm text-gray-500">
             {live.length > 0 ? `${live.length} live now` : ""}
-            {live.length > 0 && upcoming.length > 0 ? " \u2022 " : ""}
+            {live.length > 0 && upcoming.length > 0 ? " • " : ""}
             {upcoming.length > 0 ? `${upcoming.length} upcoming` : ""}
             {live.length === 0 && upcoming.length === 0 ? "No matches scheduled" : ""}
           </p>
@@ -210,8 +187,8 @@ export default function SportPage() {
             <span className="text-[11px] text-gray-400 font-semibold ml-1">{live.length} streams</span>
           </div>
           <div className="space-y-3">
-            {live.map((m, i) => (
-              <LiveMatchRow key={`live-${m.id}-${i}`} match={m} />
+            {live.map((m) => (
+              <LiveMatchRow key={`live-${getMatchKey(m)}`} match={m} />
             ))}
           </div>
         </section>
@@ -223,14 +200,14 @@ export default function SportPage() {
             <h2 className="text-[13px] font-extrabold text-gray-900 tracking-wider uppercase">Upcoming</h2>
           </div>
           <div className="space-y-2">
-            {upcoming.map((m, i) => (
-              <UpcomingRow key={`upcoming-${m.id}-${i}`} match={m} />
+            {upcoming.map((m) => (
+              <UpcomingRow key={`upcoming-${getMatchKey(m)}`} match={m} showSport={false} />
             ))}
           </div>
         </section>
       )}
 
-      {matches.length === 0 && (
+      {matches.length === 0 && live.length === 0 && (
         <div className="text-center py-24">
           <div className="text-5xl mb-4">{icon}</div>
           <p className="text-gray-500 text-lg font-medium">No matches scheduled right now</p>

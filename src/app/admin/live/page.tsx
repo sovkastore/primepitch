@@ -5,19 +5,17 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import ChartWrapper from "@/components/admin/ChartWrapper";
+import StreamOverrideModal from "@/components/admin/StreamOverrideModal";
+import { useIsMobile } from "@/lib/use-is-mobile";
+import { visibleInterval } from "@/lib/poll";
 
 interface LiveData {
+  onlineNow: number;
+  liveViewers: number;
   totalActive: number;
   activeMatches: { match_id: string; viewers: number }[];
   activePages: { path: string; viewers: number }[];
   recentActivity: { path: string; device_type: string; created_at: string }[];
-}
-
-interface FallbackStream {
-  source: string;
-  title: string;
-  embedUrl: string;
-  server: string;
 }
 
 interface OverrideRow {
@@ -36,25 +34,18 @@ export default function LiveMonitorPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [overrides, setOverrides] = useState<OverrideRow[]>([]);
 
-  // Override modal
-  const [overrideModal, setOverrideModal] = useState<string | null>(null);
-  const [appendMode, setAppendMode] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [fallbackResults, setFallbackResults] = useState<FallbackStream[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [replaceOriginal, setReplaceOriginal] = useState(false);
-  const [manualUrl, setManualUrl] = useState("");
+  // Override modal target
+  const [overrideModal, setOverrideModal] = useState<{ matchId: string; append: boolean; title: string } | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
-    function fetchData() {
+    const fetchData = () => {
       fetch("/api/admin/live-stats")
         .then((r) => r.json())
         .then((d) => { setData(d); setLastUpdated(new Date()); })
         .catch(console.error);
-    }
-    fetchData();
-    const interval = setInterval(fetchData, 10_000);
-    return () => clearInterval(interval);
+    };
+    return visibleInterval(fetchData, 30_000);
   }, []);
 
   const loadOverrides = useCallback(() => {
@@ -68,66 +59,6 @@ export default function LiveMonitorPage() {
 
   function getMatchTitle(matchId: string): string {
     return matchId.split("--").pop()?.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || matchId;
-  }
-
-  async function searchFallbacks(matchId: string, isAppend = false) {
-    setOverrideModal(matchId);
-    setAppendMode(isAppend);
-    setSearching(true);
-    setFallbackResults([]);
-    setSelected(new Set());
-    setReplaceOriginal(false);
-    setManualUrl("");
-
-    const title = getMatchTitle(matchId);
-    try {
-      const res = await fetch(`/api/admin/fallback-search?title=${encodeURIComponent(title)}&sport=football`);
-      const data = await res.json();
-      setFallbackResults(data.streams || []);
-    } catch {
-      setFallbackResults([]);
-    } finally {
-      setSearching(false);
-    }
-  }
-
-  function toggleSelect(index: number) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  }
-
-  async function applySelected(matchId: string) {
-    const title = getMatchTitle(matchId);
-    const streams = Array.from(selected).map((i) => ({
-      embed_url: fallbackResults[i].embedUrl,
-      source: fallbackResults[i].source,
-      server_label: fallbackResults[i].server,
-    }));
-    if (streams.length === 0) return;
-
-    await fetch("/api/admin/stream-override", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ match_id: matchId, match_title: title, replace_original: replaceOriginal, streams, append: appendMode }),
-    });
-    loadOverrides();
-    setOverrideModal(null);
-  }
-
-  async function applyManual(matchId: string) {
-    if (!manualUrl) return;
-    const title = getMatchTitle(matchId);
-    await fetch("/api/admin/stream-override", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ match_id: matchId, match_title: title, replace_original: replaceOriginal, embed_url: manualUrl, source: "manual", server_label: "Manual", append: appendMode }),
-    });
-    loadOverrides();
-    setOverrideModal(null);
   }
 
   async function toggleStream(id: number, enabled: boolean) {
@@ -188,9 +119,17 @@ export default function LiveMonitorPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center">
-        <p className="text-6xl font-black text-gray-900 tabular-nums">{data.totalActive}</p>
-        <p className="text-sm text-gray-500 mt-2 font-medium">Active Viewers Right Now</p>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-8 text-center">
+          <p className="text-4xl sm:text-6xl font-black text-gray-900 tabular-nums">{data.onlineNow ?? data.totalActive}</p>
+          <p className="text-[12px] sm:text-sm text-gray-500 mt-2 font-medium">Online Now</p>
+          <p className="text-[10px] text-gray-400">on the site · last 2 min</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-8 text-center">
+          <p className="text-4xl sm:text-6xl font-black text-emerald-600 tabular-nums">{data.liveViewers ?? 0}</p>
+          <p className="text-[12px] sm:text-sm text-gray-500 mt-2 font-medium">Live Viewers</p>
+          <p className="text-[10px] text-gray-400">watching a stream now</p>
+        </div>
       </div>
 
       {/* Stream Overrides — detailed per match */}
@@ -211,7 +150,7 @@ export default function LiveMonitorPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => searchFallbacks(matchId, true)}
+                        onClick={() => setOverrideModal({ matchId, append: true, title: items[0].match_title || getMatchTitle(matchId) })}
                         className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors"
                       >
                         + Add More
@@ -266,7 +205,7 @@ export default function LiveMonitorPage() {
                         </div>
 
                         {/* Status */}
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${o.enabled ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${o.enabled ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
                           {o.enabled ? "ACTIVE" : "OFF"}
                         </span>
 
@@ -290,22 +229,22 @@ export default function LiveMonitorPage() {
       )}
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <ChartWrapper title="Active Matches">
+        <ChartWrapper title="Live Streams — viewers watching now">
           {data.activeMatches.length > 0 ? (
             <div className="space-y-2">
               {data.activeMatches.map((m) => (
-                <div key={m.match_id} className="flex items-center justify-between py-2 border-b border-gray-50">
-                  <span className="text-[13px] text-gray-700 truncate max-w-[45%]">{getMatchTitle(m.match_id)}</span>
+                <div key={m.match_id} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50">
+                  <span className="text-[13px] text-gray-700 truncate flex-1 min-w-0">{getMatchTitle(m.match_id)}</span>
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                       <span className="text-[13px] font-bold text-gray-900 tabular-nums">{m.viewers}</span>
                     </span>
                     {matchHasOverride(m.match_id) ? (
-                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded">OVERRIDDEN</span>
+                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded">OVERRIDDEN</span>
                     ) : (
                       <button
-                        onClick={() => searchFallbacks(m.match_id)}
+                        onClick={() => setOverrideModal({ matchId: m.match_id, append: false, title: getMatchTitle(m.match_id) })}
                         className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
                       >
                         Override
@@ -320,12 +259,12 @@ export default function LiveMonitorPage() {
           )}
         </ChartWrapper>
 
-        <ChartWrapper title="Viewers by Page">
+        <ChartWrapper title="Active by page">
           {data.activePages.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={data.activePages.slice(0, 8)} layout="vertical" margin={{ left: 80 }}>
-                <XAxis type="number" tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="path" tick={{ fontSize: 10 }} width={80} tickFormatter={(v) => v.length > 15 ? v.slice(0, 15) + "..." : v} />
+              <BarChart data={data.activePages.slice(0, 8)} layout="vertical" margin={{ left: isMobile ? 8 : 80 }}>
+                <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                <YAxis type="category" dataKey="path" tick={{ fontSize: 10 }} width={isMobile ? 64 : 80} tickFormatter={(v) => { const s = v === "/" ? "Home" : v.replace(/^\//, ""); return s.length > (isMobile ? 9 : 15) ? s.slice(0, isMobile ? 9 : 15) + "…" : s; }} />
                 <Tooltip />
                 <Bar dataKey="viewers" fill="#6366f1" radius={[0, 4, 4, 0]} />
               </BarChart>
@@ -358,109 +297,13 @@ export default function LiveMonitorPage() {
 
       {/* Override Modal */}
       {overrideModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setOverrideModal(null)}>
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-5 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[15px] font-bold text-gray-900">Add Override Streams</h3>
-                <button onClick={() => setOverrideModal(null)} className="text-gray-400 hover:text-gray-600">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-              <p className="text-[12px] text-gray-500 mt-1">{getMatchTitle(overrideModal)}</p>
-            </div>
-
-            <div className="p-5 space-y-4">
-              {/* Replace toggle */}
-              <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-xl">
-                <div>
-                  <p className="text-[12px] font-bold text-gray-700">Replace original streams</p>
-                  <p className="text-[10px] text-gray-400">
-                    {replaceOriginal ? "Originals will be hidden from users" : "Fallbacks show alongside originals"}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setReplaceOriginal(!replaceOriginal)}
-                  className={`relative w-10 rounded-full transition-colors ${replaceOriginal ? "bg-emerald-500" : "bg-gray-300"}`}
-                  style={{ height: 20 }}
-                >
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${replaceOriginal ? "translate-x-5" : "translate-x-0.5"}`} />
-                </button>
-              </div>
-
-              {/* Manual URL */}
-              <div>
-                <label className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">Paste Embed URL</label>
-                <div className="flex gap-2 mt-1.5">
-                  <input
-                    type="url"
-                    value={manualUrl}
-                    onChange={(e) => setManualUrl(e.target.value)}
-                    placeholder="https://..."
-                    className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                  <button
-                    onClick={() => applyManual(overrideModal)}
-                    disabled={!manualUrl}
-                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-30 text-white text-sm font-bold rounded-xl transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-
-              {/* Fallback results with checkboxes */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">Auto-Search Results</label>
-                  {selected.size > 0 && (
-                    <button
-                      onClick={() => applySelected(overrideModal)}
-                      className="text-[11px] font-bold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      Add {selected.size} Selected
-                    </button>
-                  )}
-                </div>
-
-                {searching ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-sm text-gray-400 ml-3">Searching fallback APIs...</span>
-                  </div>
-                ) : fallbackResults.length > 0 ? (
-                  <div className="space-y-1.5 mt-2">
-                    {fallbackResults.map((s, i) => (
-                      <button
-                        key={i}
-                        onClick={() => toggleSelect(i)}
-                        className={`w-full flex items-center gap-3 py-2.5 px-3 rounded-xl border transition-colors text-left ${
-                          selected.has(i) ? "bg-emerald-50 border-emerald-300" : "bg-gray-50 border-gray-100 hover:border-gray-200"
-                        }`}
-                      >
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
-                          selected.has(i) ? "bg-emerald-500 border-emerald-500" : "border-gray-300"
-                        }`}>
-                          {selected.has(i) && (
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12px] font-medium text-gray-900 truncate">{s.title}</p>
-                          <p className="text-[10px] text-gray-400">{s.server} &middot; {s.source}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[12px] text-gray-400 text-center py-6">No matching streams found. Try pasting a URL manually.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <StreamOverrideModal
+          matchId={overrideModal.matchId}
+          matchTitle={overrideModal.title}
+          appendMode={overrideModal.append}
+          onClose={() => setOverrideModal(null)}
+          onApplied={loadOverrides}
+        />
       )}
     </div>
   );

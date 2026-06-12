@@ -6,6 +6,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import ChartWrapper from "@/components/admin/ChartWrapper";
+import { useIsMobile } from "@/lib/use-is-mobile";
 
 interface MatchRow {
   match_id: string;
@@ -33,6 +34,7 @@ function formatDuration(seconds: number): string {
 export default function MatchAnalyticsPage() {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const isMobile = useIsMobile();
   const [sport, setSport] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -78,10 +80,10 @@ export default function MatchAnalyticsPage() {
       <ChartWrapper title="Top Matches by Views">
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData} layout="vertical" margin={{ left: 120 }}>
+            <BarChart data={chartData} layout="vertical" margin={{ left: isMobile ? 4 : 120 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis type="number" tick={{ fontSize: 10 }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={120} />
+              <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={isMobile ? 96 : 120} tickFormatter={(v) => isMobile && v.length > 12 ? v.slice(0, 12) + "…" : v} />
               <Tooltip />
               <Bar dataKey="views" fill="#10b981" radius={[0, 4, 4, 0]} />
             </BarChart>

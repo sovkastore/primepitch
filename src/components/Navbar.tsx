@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { SPORT_LABELS } from "@/lib/api";
+import Logo from "@/components/Logo";
 
 const ALL_SPORTS = [
   "football", "basketball", "american-football", "ufc", "wwe", "boxing",
@@ -33,12 +34,8 @@ export default function Navbar() {
           </button>
 
           {/* Center: Logo */}
-          <Link href="/" className="flex items-center gap-1">
-            <span className="text-lg font-extrabold text-gray-900 tracking-tight">PRIME</span>
-            <span className="text-lg font-extrabold tracking-tight text-gradient">PITCH</span>
-            <svg className="w-4 h-4 text-emerald-500 ml-0.5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-            </svg>
+          <Link href="/" className="flex items-center">
+            <Logo size="md" />
           </Link>
 
           {/* Right spacer */}
@@ -49,6 +46,13 @@ export default function Navbar() {
       {/* Mobile fullscreen menu — outside nav to avoid stacking context */}
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 top-14 bg-white z-[999] px-4 py-3 space-y-0.5 overflow-y-auto">
+          <Link
+            href="/world-cup"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors mb-1"
+          >
+            🏆 FIFA World Cup 2026
+          </Link>
           {ALL_SPORTS.map((id) => (
             <Link
               key={id}

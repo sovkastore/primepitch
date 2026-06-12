@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { getVisitorId, getDeviceType } from "@/lib/visitor";
+import { visibleInterval } from "@/lib/poll";
 
 export default function Analytics() {
   const pathname = usePathname();
@@ -44,9 +45,7 @@ export default function Analytics() {
       }).catch(() => {});
     };
 
-    sendHeartbeat();
-    const interval = setInterval(sendHeartbeat, 60_000);
-    return () => clearInterval(interval);
+    return visibleInterval(sendHeartbeat, 60_000);
   }, []);
 
   return null;

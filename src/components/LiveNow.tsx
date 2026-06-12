@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import LiveMatchRow from "@/components/LiveMatchRow";
-import { Match } from "@/lib/api";
+import { Match, getMatchKey } from "@/lib/api";
 
 export default function LiveNow({ matches }: { matches: Match[] }) {
   const [showAll, setShowAll] = useState(false);
@@ -33,8 +33,8 @@ export default function LiveNow({ matches }: { matches: Match[] }) {
       </div>
 
       <div className="space-y-3">
-        {visible.map((match, i) => (
-          <LiveMatchRow key={`live-${match.id}-${i}`} match={match} />
+        {visible.map((match) => (
+          <LiveMatchRow key={getMatchKey(match)} match={match} />
         ))}
       </div>
     </section>

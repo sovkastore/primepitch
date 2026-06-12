@@ -11,6 +11,7 @@ import ChartWrapper from "@/components/admin/ChartWrapper";
 interface OverviewData {
   todayViews: number;
   uniqueToday: number;
+  onlineNow: number;
   liveViewers: number;
   matchViewsToday: number;
   weekViews: number;
@@ -90,7 +91,7 @@ export default function AdminOverview() {
       <h1 className="text-xl font-bold text-gray-900">Overview</h1>
 
       {/* Metric cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <MetricCard
           title="Today's Visitors"
           value={data.uniqueToday}
@@ -98,8 +99,15 @@ export default function AdminOverview() {
           color="emerald"
         />
         <MetricCard
+          title="Online Now"
+          value={data.onlineNow}
+          subtitle="on the site"
+          color="emerald"
+        />
+        <MetricCard
           title="Live Viewers"
           value={data.liveViewers}
+          subtitle="watching a stream"
           color="red"
         />
         <MetricCard

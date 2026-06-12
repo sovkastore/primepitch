@@ -11,10 +11,12 @@ interface TeamBadgeProps {
   sport?: string;
 }
 
+// Crests from the `badge` endpoint are clean squares, so a fixed square box with
+// object-contain keeps every logo consistently sized and never clipped.
 const SIZES = {
-  sm: { img: "max-w-8 max-h-8 min-w-6", text: "text-[10px]", fallback: "w-8 h-8" },
-  md: { img: "max-w-12 max-h-12 min-w-8", text: "text-sm", fallback: "w-12 h-12" },
-  lg: { img: "max-w-16 max-h-16 min-w-10", text: "text-lg", fallback: "w-16 h-16" },
+  sm: { img: "w-8 h-8", text: "text-[10px]", fallback: "w-8 h-8" },
+  md: { img: "w-12 h-12", text: "text-sm", fallback: "w-12 h-12" },
+  lg: { img: "w-16 h-16", text: "text-lg", fallback: "w-16 h-16" },
 };
 
 export default function TeamBadge({ badge, name, size = "md" }: TeamBadgeProps) {
@@ -28,6 +30,8 @@ export default function TeamBadge({ badge, name, size = "md" }: TeamBadgeProps) 
       <img
         src={getBadgeUrl(badge)}
         alt={name}
+        loading="lazy"
+        decoding="async"
         className={`${s.img} object-contain shrink-0`}
         onError={() => setBadgeFailed(true)}
       />
@@ -41,6 +45,8 @@ export default function TeamBadge({ badge, name, size = "md" }: TeamBadgeProps) 
       <img
         src={flagUrl}
         alt={name}
+        loading="lazy"
+        decoding="async"
         className={`${s.img} object-contain shrink-0 rounded-sm`}
         onError={() => setFlagFailed(true)}
       />

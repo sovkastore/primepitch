@@ -32,19 +32,43 @@ const SPORT_MAP_SRC: Record<string, string> = {
   "motor-sports": "motorsport",
 };
 
+// Module-level JSON cache keyed by URL. Auto-fallback resolves many live matches
+// per request cycle, so caching the providers' raw responses (and SportSRC detail
+// lookups) keeps us from hammering them. Serves stale data on transient errors.
+const PROVIDER_TTL = 45_000;
+const jsonCache = new Map<string, { data: unknown; ts: number }>();
+
+async function cachedJson(url: string, timeoutMs = 8000): Promise<unknown | null> {
+  const now = Date.now();
+  const hit = jsonCache.get(url);
+  if (hit && now - hit.ts < PROVIDER_TTL) return hit.data;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) return hit?.data ?? null;
+    const data = await res.json();
+    jsonCache.set(url, { data, ts: now });
+    return data;
+  } catch {
+    return hit?.data ?? null;
+  }
+}
+
 export async function searchSportSRC(
   title: string,
   sport: string
 ): Promise<FallbackStream[]> {
   try {
     const category = SPORT_MAP_SRC[sport] || sport;
-    const res = await fetch(
-      `https://api.sportsrc.org/?data=matches&category=${category}`,
-      { signal: AbortSignal.timeout(8000) }
+    const data = await cachedJson(
+      `https://api.sportsrc.org/?data=matches&category=${category}`
     );
-    if (!res.ok) return [];
-    const data = await res.json();
-    const matches = Array.isArray(data) ? data : data?.matches || [];
+    if (!data) return [];
+    // SportSRC now wraps responses as { success, data: [...] }. Keep the old
+    // shapes as fallbacks so we're resilient if it changes again.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const matches: any[] = Array.isArray(data)
+      ? data
+      : (data as any)?.data || (data as any)?.matches || [];
 
     const results: FallbackStream[] = [];
     for (const m of matches) {
@@ -57,13 +81,16 @@ export async function searchSportSRC(
       if (!matchId) continue;
 
       try {
-        const detailRes = await fetch(
-          `https://api.sportsrc.org/?data=detail&category=${category}&id=${matchId}`,
-          { signal: AbortSignal.timeout(8000) }
-        );
-        if (!detailRes.ok) continue;
-        const detail = await detailRes.json();
-        const streams = detail?.streams || detail?.iframes || detail?.sources || [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const detail = await cachedJson(
+          `https://api.sportsrc.org/?data=detail&category=${category}&id=${matchId}`
+        ) as any;
+        if (!detail) continue;
+        // detail is { success, data: { ..., sources: [{ embedUrl, language, ... }] } }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dd: any = detail?.data || detail;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const streams: any[] = dd?.sources || dd?.streams || dd?.iframes || [];
 
         if (Array.isArray(streams)) {
           for (const s of streams) {
@@ -73,14 +100,14 @@ export async function searchSportSRC(
                 source: "sportsrc",
                 title: mTitle,
                 embedUrl: url,
-                server: s.server || s.name || s.quality || `SportSRC ${results.length + 1}`,
+                server: s.language || s.server || s.name || s.quality || `SportSRC ${results.length + 1}`,
               });
             }
           }
         }
 
         // Also check for direct embed
-        const directEmbed = detail?.embed || detail?.embedUrl || detail?.iframe;
+        const directEmbed = dd?.embed || dd?.embedUrl || dd?.iframe;
         if (directEmbed && !results.find((r) => r.embedUrl === directEmbed)) {
           results.push({
             source: "sportsrc",
@@ -104,12 +131,9 @@ export async function searchEmbedSportex(
   sport: string
 ): Promise<FallbackStream[]> {
   try {
-    const res = await fetch(
-      `https://api.embedsportex.site/api/streams?cache=${Date.now()}`,
-      { signal: AbortSignal.timeout(8000) }
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
+    // Stable URL (no cache-buster) so cachedJson can actually cache it.
+    const data = await cachedJson("https://api.embedsportex.site/api/streams") as Record<string, unknown> | null;
+    if (!data) return [];
 
     const results: FallbackStream[] = [];
 
@@ -150,13 +174,23 @@ export async function searchFallbackStreams(
   title: string,
   sport: string
 ): Promise<FallbackStream[]> {
-  const [srcResults, sportexResults] = await Promise.allSettled([
-    searchSportSRC(title, sport),
-    searchEmbedSportex(title, sport),
-  ]);
+  // SportSRC is the only live provider — EmbedSportex's domain is dead (NXDOMAIN),
+  // so we no longer call searchEmbedSportex. Add a new provider to this array to
+  // restore a second independent fallback.
+  const providers = [searchSportSRC(title, sport)];
+  const settled = await Promise.allSettled(providers);
 
+  // Dedupe by embedUrl (a provider can list the same match twice).
+  const seen = new Set<string>();
   const results: FallbackStream[] = [];
-  if (srcResults.status === "fulfilled") results.push(...srcResults.value);
-  if (sportexResults.status === "fulfilled") results.push(...sportexResults.value);
+  for (const r of settled) {
+    if (r.status !== "fulfilled") continue;
+    for (const s of r.value) {
+      if (s.embedUrl && !seen.has(s.embedUrl)) {
+        seen.add(s.embedUrl);
+        results.push(s);
+      }
+    }
+  }
   return results;
 }

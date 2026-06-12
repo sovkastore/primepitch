@@ -5,8 +5,10 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
 import LiveMatchRow from "@/components/LiveMatchRow";
-import { Match, getMatchStatus, getWatchHref, SPORT_LABELS } from "@/lib/api";
+import UpcomingRow from "@/components/UpcomingRow";
+import { Match, getMatchStatus, getLiveMatches, getMatchKey, SPORT_LABELS } from "@/lib/api";
 import { getVisitorId } from "@/lib/visitor";
+import { visibleInterval } from "@/lib/poll";
 
 interface Stream {
   id: string;
@@ -24,14 +26,17 @@ const ALL_SPORTS = [
 ];
 
 function CountdownTimer({ targetDate }: { targetDate: number }) {
-  const [now, setNow] = useState(Date.now());
+  // null until mount so SSR and first client render match (no hydration mismatch).
+  const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
+    setNow(Date.now());
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const diff = Math.max(0, targetDate - now);
+  // now === null on SSR + first client render → deterministic "--" placeholder (no mismatch).
+  const diff = now === null ? 0 : Math.max(0, targetDate - now);
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
   const minutes = Math.floor((diff / (1000 * 60)) % 60);
@@ -44,7 +49,7 @@ function CountdownTimer({ targetDate }: { targetDate: number }) {
     { label: "SEC", value: seconds },
   ];
 
-  const display = days > 0 ? units : units.slice(1);
+  const display = now !== null && days > 0 ? units : units.slice(1);
 
   return (
     <div className="flex items-center justify-center gap-3">
@@ -74,8 +79,15 @@ export default function WatchPage() {
   const [loading, setLoading] = useState(true);
   const [currentMatch, setCurrentMatch] = useState<Match | null>(null);
   const [relatedMatches, setRelatedMatches] = useState<Match[]>([]);
+  const [liveMatches, setLiveMatches] = useState<Match[]>([]);
+  const [liveScore, setLiveScore] = useState<{ home: number; away: number; minute: number | null; period: string; league?: string | null } | null>(null);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [showHint, setShowHint] = useState(true);
+  const [gaveUp, setGaveUp] = useState(false);
+  const [forceLive, setForceLive] = useState(false);
 
   const trackedRef = useRef(false);
+  const streamTriesRef = useRef(0);
 
   const fallbackName = matchId
     ?.replace(/^ppv-/, "")
@@ -86,8 +98,8 @@ export default function WatchPage() {
   const hasTeams = currentMatch?.teams?.home && currentMatch?.teams?.away;
   const sportLabel = SPORT_LABELS[currentMatch?.category || ""] || currentMatch?.category || "";
   const matchStatus = currentMatch ? getMatchStatus(currentMatch) : "upcoming";
-  const isLive = matchStatus === "live";
-  const isUpcoming = matchStatus === "upcoming";
+  const isLive = matchStatus === "live" || forceLive;
+  const isUpcoming = !isLive && matchStatus === "upcoming";
 
   const scheduledTime = currentMatch
     ? new Date(currentMatch.date).toLocaleString("en-US", {
@@ -103,10 +115,6 @@ export default function WatchPage() {
   useEffect(() => {
     async function load() {
       try {
-        const streamPromise = fetch(`https://streamed.pk/api/stream/${source}/${matchId}`)
-          .then((r) => r.json())
-          .catch(() => []);
-
         const matchResults = await Promise.all(
           ALL_SPORTS.map(async (sport) => {
             try {
@@ -125,38 +133,32 @@ export default function WatchPage() {
         );
         if (current) setCurrentMatch(current);
 
+        // A match the site shows as LIVE can have a future scheduled time (e.g. a
+        // practice session streamed.pk lists live ahead of its slot). Trust the live
+        // set, not just the clock, so it opens the player instead of a countdown.
+        const liveSet = await getLiveMatches();
+        const inLiveSet = liveSet.some((m) => {
+          const s = m.sources?.[0];
+          return s ? `${s.source}--${s.id}` === rawId : false;
+        });
+        setForceLive(inLiveSet);
+
         const status = current ? getMatchStatus(current) : "upcoming";
 
-        // Only load streams for live matches
-        if (status === "live") {
-          const streamData: Stream[] = await streamPromise;
-
-          // Check for admin stream overrides
+        // Streams come from the centralized resolver: manual overrides → echo → auto-fallback.
+        if (status === "live" || inLiveSet) {
+          const title = current?.title || fallbackName;
+          const sport = current?.category || "football";
           try {
-            const overrideRes = await fetch(`/api/stream-override/${rawId}`);
-            const { overrides, replace_original } = await overrideRes.json();
-
-            if (Array.isArray(overrides) && overrides.length > 0) {
-              const overrideStreams: Stream[] = overrides.map((o: { embed_url: string; source: string; server_label: string }, i: number) => ({
-                id: `override-${i}`,
-                streamNo: i + 1,
-                language: o.server_label || "English",
-                hd: true,
-                embedUrl: o.embed_url,
-                source: o.source || "fallback",
-              }));
-
-              if (replace_original) {
-                setStreams(overrideStreams);
-              } else {
-                setStreams([...overrideStreams, ...streamData]);
-              }
-              setActiveStream(0);
-              return;
-            }
-          } catch {}
-
-          setStreams(streamData);
+            const res = await fetch(
+              `/api/match-streams/${encodeURIComponent(rawId)}?title=${encodeURIComponent(title)}&sport=${encodeURIComponent(sport)}`
+            );
+            const data = await res.json();
+            setStreams(Array.isArray(data.streams) ? data.streams : []);
+            setActiveStream(0);
+          } catch {
+            setStreams([]);
+          }
         }
 
         // Related: same category, same status
@@ -175,6 +177,50 @@ export default function WatchPage() {
     }
     if (source && matchId) load();
   }, [source, matchId]);
+
+  // Streamable live matches (for RELATED MATCHES when watching a live game)
+  useEffect(() => {
+    const loadLive = () => { getLiveMatches().then(setLiveMatches).catch(() => {}); };
+    return visibleInterval(loadLive, 60_000);
+  }, []);
+
+  // Poll live score while the match is live (incl. force-live, where the scheduled
+  // time-based status would still read "upcoming").
+  useEffect(() => {
+    if (!currentMatch?.teams?.home?.name || !currentMatch?.teams?.away?.name) return;
+    if (!isLive) return;
+
+    const fetchScore = () => {
+      const home = encodeURIComponent(currentMatch.teams!.home!.name);
+      const away = encodeURIComponent(currentMatch.teams!.away!.name);
+      fetch(`/api/live-score?home=${home}&away=${away}`)
+        .then((r) => r.json())
+        .then((d) => { if (d.score) setLiveScore(d.score); })
+        .catch(() => {});
+    };
+
+    return visibleInterval(fetchScore, 45_000);
+  }, [currentMatch, isLive]);
+
+  // Reset the stream-resolution state whenever the match changes.
+  useEffect(() => {
+    setGaveUp(false);
+    streamTriesRef.current = 0;
+  }, [rawId]);
+
+  // While a live match has no stream yet, keep retrying fast (the fallback often
+  // needs a cold lookup on first load) and show a "Finding the stream…" state —
+  // never a premature "No streams available yet". Give up after ~60s.
+  useEffect(() => {
+    if (loading || !isLive || streams.length > 0 || gaveUp) return;
+    const interval = setInterval(async () => {
+      if (document.hidden) return; // don't retry in a background tab
+      streamTriesRef.current += 1;
+      await retryStreams();
+      if (streamTriesRef.current >= 13) setGaveUp(true); // ~60s
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [loading, isLive, streams.length, gaveUp]);
 
   // Track match view + heartbeat
   useEffect(() => {
@@ -198,6 +244,7 @@ export default function WatchPage() {
     }).catch(() => {});
 
     const heartbeat = setInterval(() => {
+      if (document.hidden) return; // a backgrounded tab isn't actively watching
       fetch("/api/track/heartbeat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -219,12 +266,51 @@ export default function WatchPage() {
 
   const currentStream = streams[activeStream];
 
+  // Reset the player loading state on every stream/server switch; never let a
+  // missing iframe `load` event trap the user on a spinner (8s fallback).
+  useEffect(() => {
+    if (!currentStream?.embedUrl) return;
+    setIframeLoaded(false);
+    setShowHint(true);
+    const fallback = setTimeout(() => setIframeLoaded(true), 8000);
+    return () => clearTimeout(fallback);
+  }, [currentStream?.embedUrl]);
+
+  // Dismiss the "tap the player to start" cue once the user actually taps the
+  // player. We can't see inside the cross-origin iframe, but the first tap either
+  // focuses the iframe (desktop) or opens the source's ad pop-up which hides the
+  // tab (mobile) — both signal the user has engaged with the player.
+  useEffect(() => {
+    if (!iframeLoaded || !showHint) return;
+    const onBlur = () => {
+      if (document.activeElement?.tagName === "IFRAME") setShowHint(false);
+    };
+    const onVisibility = () => { if (document.hidden) setShowHint(false); };
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [iframeLoaded, showHint]);
+
+  // Live → streamable live matches of the same sport; upcoming → time-based related.
+  const relatedToShow = isLive
+    ? liveMatches
+        .filter((m) => m.category === currentMatch?.category && m.title !== currentMatch?.title)
+        .slice(0, 8)
+    : relatedMatches.slice(0, 8);
+
   async function retryStreams() {
     try {
-      const res = await fetch(`https://streamed.pk/api/stream/${source}/${matchId}`);
-      const data: Stream[] = await res.json();
-      if (data.length > 0) {
-        setStreams(data);
+      const title = currentMatch?.title || fallbackName;
+      const sport = currentMatch?.category || "football";
+      const res = await fetch(
+        `/api/match-streams/${encodeURIComponent(rawId)}?title=${encodeURIComponent(title)}&sport=${encodeURIComponent(sport)}`
+      );
+      const data = await res.json();
+      if (Array.isArray(data.streams) && data.streams.length > 0) {
+        setStreams(data.streams);
         setActiveStream(0);
       }
     } catch {}
@@ -238,12 +324,8 @@ export default function WatchPage() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
+          <span className="font-semibold">Back</span>
         </Link>
-        <span className="text-sm font-extrabold">
-          <span className="text-gray-900">PRIME</span>
-          <span className="text-gradient">PITCH</span>
-        </span>
-        <div className="w-6" />
       </div>
 
       {/* Video player (live) OR Match card (upcoming) */}
@@ -303,8 +385,40 @@ export default function WatchPage() {
                 <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : currentStream ? (
-              <iframe src={currentStream.embedUrl} className="absolute inset-0 w-full h-full" allowFullScreen allow="encrypted-media" />
-            ) : (
+              <>
+                <iframe
+                  key={currentStream.embedUrl}
+                  src={currentStream.embedUrl}
+                  className="absolute inset-0 w-full h-full"
+                  allowFullScreen
+                  allow="encrypted-media"
+                  onLoad={() => setIframeLoaded(true)}
+                />
+
+                {/* Loading overlay — covers the embed's black box until it's ready */}
+                {!iframeLoaded && (
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black px-6 text-center">
+                    <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-200">Connecting to stream…</p>
+                      <p className="text-[11px] text-gray-500 mt-1">This only takes a moment</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* "Tap to play" cue — non-blocking, auto-fades */}
+                {iframeLoaded && showHint && (
+                  <div className="absolute inset-x-0 top-3 z-10 flex justify-center pointer-events-none">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur text-[11px] font-semibold text-white shadow-lg">
+                      <svg className="w-3 h-3 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                      </svg>
+                      Tap the player to start
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : liveScore?.period === "HT" ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
                 <div className="w-14 h-14 rounded-full bg-gray-800 flex items-center justify-center">
                   <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,7 +427,30 @@ export default function WatchPage() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-300">Stream temporarily unavailable</p>
-                  <p className="text-xs text-gray-500 mt-1">The match may be at halftime or on a break.<br />The stream will resume shortly.</p>
+                  <p className="text-xs text-gray-500 mt-1">The match is at halftime.<br />The stream will resume shortly.</p>
+                </div>
+                <button onClick={retryStreams} className="text-xs text-emerald-400 hover:text-emerald-300 font-medium mt-1 transition-colors">
+                  Tap to refresh ↻
+                </button>
+              </div>
+            ) : isLive && !gaveUp ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+                <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <div>
+                  <p className="text-sm font-semibold text-gray-200">Finding the stream…</p>
+                  <p className="text-[11px] text-gray-500 mt-1">Hang tight, this won&apos;t take long.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+                <div className="w-14 h-14 rounded-full bg-gray-800 flex items-center justify-center">
+                  <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-300">No streams available yet</p>
+                  <p className="text-xs text-gray-500 mt-1">Streams will appear automatically<br />when they become available.</p>
                 </div>
                 <button onClick={retryStreams} className="text-xs text-emerald-400 hover:text-emerald-300 font-medium mt-1 transition-colors">
                   Tap to refresh ↻
@@ -328,21 +465,46 @@ export default function WatchPage() {
       {isLive && (
         <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
           {hasTeams ? (
-            <div className="flex items-center gap-3">
-              <TeamBadge badge={currentMatch!.teams!.home!.badge} name={currentMatch!.teams!.home!.name} size="md" sport={currentMatch!.category} />
-              <div className="flex-1 min-w-0">
-                <p className="text-base font-bold text-gray-900">
-                  {currentMatch!.teams!.home!.name} vs {currentMatch!.teams!.away!.name}
-                </p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 border border-red-200 rounded text-[9px] font-bold text-red-500">
-                    <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
-                    LIVE
-                  </span>
-                  <span className="text-[11px] text-gray-500">{sportLabel}</span>
+            <div>
+              {/* Score display */}
+              {liveScore ? (
+                <div className="flex items-center justify-center gap-4 mb-3">
+                  <div className="flex items-center gap-2">
+                    <TeamBadge badge={currentMatch!.teams!.home!.badge} name={currentMatch!.teams!.home!.name} size="md" sport={currentMatch!.category} />
+                    <span className="text-sm font-bold text-gray-900">{currentMatch!.teams!.home!.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 rounded-xl">
+                    <span className="text-xl font-black text-white tabular-nums">{liveScore.home}</span>
+                    <span className="text-xs text-gray-400 font-bold">-</span>
+                    <span className="text-xl font-black text-white tabular-nums">{liveScore.away}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-gray-900">{currentMatch!.teams!.away!.name}</span>
+                    <TeamBadge badge={currentMatch!.teams!.away!.badge} name={currentMatch!.teams!.away!.name} size="md" sport={currentMatch!.category} />
+                  </div>
                 </div>
+              ) : (
+                <div className="flex items-center gap-3 mb-3">
+                  <TeamBadge badge={currentMatch!.teams!.home!.badge} name={currentMatch!.teams!.home!.name} size="md" sport={currentMatch!.category} />
+                  <p className="flex-1 text-base font-bold text-gray-900 min-w-0">
+                    {currentMatch!.teams!.home!.name} vs {currentMatch!.teams!.away!.name}
+                  </p>
+                  <TeamBadge badge={currentMatch!.teams!.away!.badge} name={currentMatch!.teams!.away!.name} size="md" sport={currentMatch!.category} />
+                </div>
+              )}
+              <div className="flex items-center justify-center gap-2">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 border border-red-200 rounded text-[9px] font-bold text-red-500">
+                  <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
+                  LIVE
+                </span>
+                {liveScore?.minute && (
+                  <span className="text-[11px] font-bold text-gray-900">{liveScore.minute}&apos;</span>
+                )}
+                {liveScore?.period === "HT" && (
+                  <span className="text-[10px] font-bold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded">HT</span>
+                )}
+                <span className="text-[11px] text-gray-500 truncate max-w-[60%]">{liveScore?.league || sportLabel}</span>
               </div>
-              <TeamBadge badge={currentMatch!.teams!.away!.badge} name={currentMatch!.teams!.away!.name} size="md" sport={currentMatch!.category} />
             </div>
           ) : (
             <div>
@@ -413,7 +575,7 @@ export default function WatchPage() {
       )}
 
       {/* Related Matches */}
-      {relatedMatches.length > 0 && (
+      {relatedToShow.length > 0 && (
         <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-[12px] font-bold text-gray-500 tracking-widest">
@@ -424,42 +586,13 @@ export default function WatchPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {relatedMatches.slice(0, 8).map((m, i) => {
-              if (isLive) {
-                return <LiveMatchRow key={`rel-${m.id}-${i}`} match={m} />;
-              }
-              const d = new Date(m.date);
-              const dateStr = d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
-              const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-              const href = getWatchHref(m);
-              const hasTeams = m.teams?.home && m.teams?.away;
-              const label = SPORT_LABELS[m.category] || m.category;
-              return (
-                <Link key={`rel-${m.id}-${i}`} href={href} className="group block">
-                  <div className="flex items-center gap-3 py-3 px-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors border border-gray-100">
-                    <div className="shrink-0 w-20 text-center">
-                      <p className="text-[11px] font-bold text-emerald-500">{timeStr}</p>
-                      <p className="text-[9px] font-semibold text-gray-400 mt-0.5">{dateStr}</p>
-                    </div>
-                    <div className="w-px h-8 bg-gray-200 shrink-0" />
-                    {hasTeams ? (
-                      <div className="flex-1 min-w-0 flex items-center gap-2">
-                        <TeamBadge badge={m.teams!.home!.badge} name={m.teams!.home!.name} size="sm" sport={m.category} />
-                        <span className="text-[12px] font-bold text-gray-800 truncate">{m.teams!.home!.name}</span>
-                        <span className="text-[9px] text-gray-400 font-extrabold shrink-0">VS</span>
-                        <span className="text-[12px] font-bold text-gray-800 truncate text-right">{m.teams!.away!.name}</span>
-                        <TeamBadge badge={m.teams!.away!.badge} name={m.teams!.away!.name} size="sm" sport={m.category} />
-                      </div>
-                    ) : (
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-bold text-gray-800 truncate">{m.title}</p>
-                      </div>
-                    )}
-                    <span className="text-[9px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg shrink-0 font-bold">{label}</span>
-                  </div>
-                </Link>
-              );
-            })}
+            {relatedToShow.map((m) =>
+              isLive ? (
+                <LiveMatchRow key={`rel-${getMatchKey(m)}`} match={m} />
+              ) : (
+                <UpcomingRow key={`rel-${getMatchKey(m)}`} match={m} showSport={false} />
+              )
+            )}
           </div>
         </div>
       )}

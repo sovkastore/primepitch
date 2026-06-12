@@ -1,4 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <rect width="32" height="32" rx="8" fill="#10b981"/>
-  <path d="M12 8.5a1.2 1.2 0 0 1 1.8-1.04l10 6.5a1.2 1.2 0 0 1 0 2.08l-10 6.5A1.2 1.2 0 0 1 12 21.5v-13z" fill="white"/>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#34d399"/><stop offset="60%" stop-color="#10b981"/><stop offset="100%" stop-color="#059669"/></linearGradient>
+    <clipPath id="rc"><rect width="512" height="512" rx="116"/></clipPath>
+  </defs>
+  <g clip-path="url(#rc)"><rect width="512" height="512" fill="url(#bg)"/><path fill="#fff" fill-rule="evenodd" d="M158 112 h156 a120 120 0 0 1 0 240 h-92 v48 h-64 z M236 176 c0-13 14-21 25-14 l116 73 c11 6 11 22 0 29 l-116 73 c-11 7-25-1-25-14 z"/></g>
 </svg>

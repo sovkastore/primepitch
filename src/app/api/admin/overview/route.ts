@@ -19,12 +19,15 @@ export async function GET() {
       .gte("created_at", todayStart);
     const uniqueToday = new Set(todayUnique?.map((r) => r.visitor_id)).size;
 
-    // Live viewers (active in last 5 min)
-    const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
-    const { count: liveViewers } = await getSupabaseAdmin()
+    // Real-time presence (last 2 min). onlineNow = on the site; liveViewers = on a
+    // watch page (match_id set, i.e. watching a stream right now).
+    const nowWindow = new Date(now.getTime() - 2 * 60 * 1000).toISOString();
+    const { data: activeNow } = await getSupabaseAdmin()
       .from("active_viewers")
-      .select("*", { count: "exact", head: true })
-      .gte("last_seen", fiveMinAgo);
+      .select("match_id")
+      .gte("last_seen", nowWindow);
+    const onlineNow = activeNow?.length || 0;
+    const liveViewers = activeNow?.filter((r) => r.match_id).length || 0;
 
     // Match views today
     const { count: matchViewsToday } = await getSupabaseAdmin()
@@ -79,7 +82,8 @@ export async function GET() {
     return NextResponse.json({
       todayViews: todayViews || 0,
       uniqueToday,
-      liveViewers: liveViewers || 0,
+      onlineNow,
+      liveViewers,
       matchViewsToday: matchViewsToday || 0,
       weekViews: weekViews || 0,
       dailyStats: dailyStats || [],

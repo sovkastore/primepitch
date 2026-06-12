@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import SportsNav from "@/components/SportsNav";
 import LiveNow from "@/components/LiveNow";
 import TodayMatches from "@/components/Upcoming";
-import { Match, getMatchStatus } from "@/lib/api";
+import Logo from "@/components/Logo";
+import { Match, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches } from "@/lib/api";
 import { classifyFight } from "@/lib/fight-categories";
+import { visibleInterval } from "@/lib/poll";
 
 const SPORTS = [
   "football", "basketball", "american-football", "hockey", "baseball",
@@ -32,8 +34,23 @@ function filterBySport(matches: Match[], sport: string | null): Match[] {
 
 export default function HomePage() {
   const [matches, setMatches] = useState<Match[]>([]);
+  const [liveMatches, setLiveMatches] = useState<Match[]>([]);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activeSport, setActiveSport] = useState<string | null>("football");
+
+  // Restore the last-selected sport so returning to home keeps the tab the user
+  // was on (instead of snapping back to Football). Runs after mount → no hydration
+  // mismatch, and the page is still in its loading state so there's no visible flash.
+  useEffect(() => {
+    const saved = sessionStorage.getItem("pp_sport");
+    if (saved) setActiveSport(saved);
+  }, []);
+
+  function selectSport(s: string | null) {
+    setActiveSport(s);
+    if (s) sessionStorage.setItem("pp_sport", s);
+  }
 
   useEffect(() => {
     async function load() {
@@ -49,7 +66,7 @@ export default function HomePage() {
             }
           })
         );
-        setMatches(results.flat());
+        setMatches(dedupeMatches(results.flat()));
       } catch (e) {
         console.error("Failed to load matches:", e);
       } finally {
@@ -57,6 +74,17 @@ export default function HomePage() {
       }
     }
     load();
+  }, []);
+
+  // Live = matches that actually have a playable stream. Refreshed while visible.
+  useEffect(() => {
+    const loadLive = () => { getLiveMatches().then(setLiveMatches).catch(() => {}); };
+    return visibleInterval(loadLive, 60_000);
+  }, []);
+
+  // Hidden matches (admin) — keep them out of the upcoming list.
+  useEffect(() => {
+    getMatchFlags().then((f) => setHiddenIds(new Set(f.hidden))).catch(() => {});
   }, []);
 
   if (loading) {
@@ -68,22 +96,24 @@ export default function HomePage() {
             <div className="absolute inset-0 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           </div>
           <div className="text-center">
-            <p className="text-gray-900 text-sm font-bold">PRIME<span className="text-gradient">PITCH</span></p>
-            <p className="text-gray-400 text-xs mt-1">Loading live matches...</p>
+            <Logo size="sm" />
+            <p className="text-gray-400 text-xs mt-2">Loading live matches...</p>
           </div>
         </div>
       </div>
     );
   }
 
-  const filtered = filterBySport(matches, activeSport);
-  const liveMatches = filtered.filter((m) => getMatchStatus(m) === "live");
+  const filtered = filterBySport(matches, activeSport).filter((m) => !hiddenIds.has(getMatchKey(m)));
+  const liveForSport = filterBySport(liveMatches, activeSport);
+  // Don't also list a match under Upcoming if it's already shown as Live.
+  const liveKeys = new Set(liveMatches.map(getMatchKey));
 
   return (
     <div className="pb-20 md:pb-0">
-      <SportsNav activeSport={activeSport} onSelect={setActiveSport} />
-      <LiveNow matches={liveMatches} />
-      <TodayMatches matches={filtered} />
+      <SportsNav activeSport={activeSport} onSelect={selectSport} />
+      <LiveNow matches={liveForSport} />
+      <TodayMatches matches={filtered} excludeKeys={liveKeys} />
     </div>
   );
 }

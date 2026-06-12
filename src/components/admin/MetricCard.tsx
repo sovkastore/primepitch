@@ -21,11 +21,11 @@ export default function MetricCard({
   color = "emerald",
 }: MetricCardProps) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-5">
-      <p className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">
+    <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
+      <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase">
         {title}
       </p>
-      <p className="text-3xl font-black text-gray-900 mt-2 tabular-nums">
+      <p className="text-2xl sm:text-3xl font-black text-gray-900 mt-2 tabular-nums">
         {typeof value === "number" ? value.toLocaleString() : value}
       </p>
       <div className="flex items-center gap-2 mt-2">

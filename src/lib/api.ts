@@ -72,6 +72,21 @@ export async function getStreams(source: string, id: string): Promise<Stream[]> 
   return fetchWithCache<Stream[]>(`${BASE_URL}/stream/${source}/${id}`);
 }
 
+// Live matches that actually have a playable stream (echo source or an admin
+// override). Served by our own /api/live-matches route, which does the
+// stream-availability filtering server-side. Bypasses the module cache so the
+// list stays fresh as streams come and go.
+export async function getLiveMatches(): Promise<Match[]> {
+  try {
+    const res = await fetch(`/api/live-matches`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.matches) ? data.matches : [];
+  } catch {
+    return [];
+  }
+}
+
 export function getMatchStatus(match: Match): "live" | "upcoming" | "ended" {
   const diffMin = (match.date - Date.now()) / 1000 / 60;
   if (diffMin > 0) return "upcoming";
@@ -145,7 +160,9 @@ export const SPORT_LABELS: Record<string, string> = {
 };
 
 export function getBadgeUrl(badge: string): string {
-  return `https://streamed.pk/api/images/proxy/${badge}.webp`;
+  // The `badge` endpoint returns a clean, square (200x200) crest. The `proxy`
+  // endpoint returns a 444x250 landscape image with the crest clipped top/bottom.
+  return `https://streamed.pk/api/images/badge/${badge}.webp`;
 }
 
 export function getPosterUrl(poster: string): string {
@@ -156,4 +173,47 @@ export function getWatchHref(match: Match): string {
   const s = match.sources?.[0];
   if (!s) return "#";
   return `/watch/${encodeURIComponent(s.source)}--${encodeURIComponent(s.id)}`;
+}
+
+// Stable per-match key used by overrides / flags: "<source>--<id>".
+export function getMatchKey(match: Match): string {
+  const s = match.sources?.[0];
+  return s ? `${s.source}--${s.id}` : match.id;
+}
+
+// streamed.pk sends two rows for the same fixture (e.g. "South Korea vs Czechia"
+// and "…Czech Republic"). A team plays one game per slot, so collapse by
+// category + home name + kickoff hour, keeping the entry with the most data
+// (both badges > one > teams-only). Title-only entries (ceremonies/PPV) are kept as-is.
+export function dedupeMatches(matches: Match[]): Match[] {
+  const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const richness = (m: Match) =>
+    (m.teams?.home?.badge ? 1 : 0) + (m.teams?.away?.badge ? 1 : 0);
+  const best = new Map<string, Match>();
+  const order: string[] = [];
+  for (const m of matches) {
+    const home = m.teams?.home?.name;
+    if (!home) {
+      const k = `t|${m.id}`;
+      if (!best.has(k)) { best.set(k, m); order.push(k); }
+      continue;
+    }
+    const hour = m.date ? Math.round(m.date / 3_600_000) : 0;
+    const key = `${m.category}|${norm(home)}|${hour}`;
+    const existing = best.get(key);
+    if (!existing) { best.set(key, m); order.push(key); }
+    else if (richness(m) > richness(existing)) best.set(key, m);
+  }
+  return order.map((k) => best.get(k)!);
+}
+
+// Hidden/featured flags for the public upcoming lists.
+export async function getMatchFlags(): Promise<{ hidden: string[]; featured: string[] }> {
+  try {
+    const res = await fetch(`/api/match-flags`, { cache: "no-store" });
+    if (!res.ok) return { hidden: [], featured: [] };
+    return await res.json();
+  } catch {
+    return { hidden: [], featured: [] };
+  }
 }

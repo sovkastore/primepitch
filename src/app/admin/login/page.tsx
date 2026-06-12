@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Logo from "@/components/Logo";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -35,10 +36,10 @@ export default function AdminLoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-xl font-extrabold text-gray-900">
-            PRIME<span className="text-emerald-500">PITCH</span>
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Admin Dashboard</p>
+          <div className="flex justify-center">
+            <Logo size="lg" />
+          </div>
+          <p className="text-sm text-gray-500 mt-2">Admin Dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { SPORT_LABELS } from "@/lib/api";
 
 const SPORTS = [
@@ -7,8 +8,9 @@ const SPORTS = [
   "motor-sports", "cricket", "tennis", "hockey", "baseball", "rugby",
 ];
 
+// Football now uses the generic ball icon (/icons/sports/football.svg via the
+// fallback); the FIFA logo is repurposed for the World Cup tab.
 const BRAND_ICONS: Record<string, string> = {
-  football: "/icons/brands/fifa.svg",
   basketball: "/icons/brands/nba.svg",
   ufc: "/icons/brands/ufc.svg",
   wwe: "/icons/brands/wwe.svg",
@@ -30,6 +32,14 @@ export default function SportsNav({ activeSport, onSelect }: SportsNavProps) {
   return (
     <section className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
       <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+        {/* World Cup 2026 — a dedicated page, not a home filter tab */}
+        <Link href="/world-cup" className="flex flex-col items-center gap-1.5 shrink-0">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-all duration-200">
+            <img src="/icons/brands/fifa.svg" alt="World Cup 2026" className="w-6 h-6 object-contain invert opacity-60" />
+          </div>
+          <span className="text-[10px] font-bold text-gray-500 whitespace-nowrap">World Cup 2026</span>
+        </Link>
+
         {SPORTS.map((id) => {
           const active = activeSport === id;
           return (

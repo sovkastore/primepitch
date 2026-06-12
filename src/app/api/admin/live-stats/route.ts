@@ -3,15 +3,18 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET() {
   try {
-    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    // "Right now" = last 2 minutes (heartbeat is 60s, so this tolerates one miss).
+    const nowWindow = new Date(Date.now() - 2 * 60 * 1000).toISOString();
 
-    // Total active viewers
     const { data: activeData } = await getSupabaseAdmin()
       .from("active_viewers")
       .select("visitor_id, match_id, path, last_seen")
-      .gte("last_seen", fiveMinAgo);
+      .gte("last_seen", nowWindow);
 
-    const totalActive = activeData?.length || 0;
+    // onlineNow = anyone on the site; liveViewers = anyone on a watch page (match_id set).
+    const onlineNow = activeData?.length || 0;
+    const liveViewers = activeData?.filter((r) => r.match_id).length || 0;
+    const totalActive = onlineNow; // kept for backward compatibility
 
     // Per-match viewer counts
     const matchViewers: Record<string, number> = {};
@@ -41,6 +44,8 @@ export async function GET() {
       .limit(20);
 
     return NextResponse.json({
+      onlineNow,
+      liveViewers,
       totalActive,
       activeMatches,
       activePages,

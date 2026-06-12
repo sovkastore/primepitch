@@ -1,4 +1,10 @@
 const COUNTRY_CODES: Record<string, string> = {
+  // World Cup 2026 name/spelling variants (as the BSD feed labels them)
+  "Bosnia & Herzegovina": "ba",
+  "Cabo Verde": "cv",
+  "Curaçao": "cw",
+  "Côte d'Ivoire": "ci",
+  "Türkiye": "tr",
   // Europe
   "France": "fr",
   "Germany": "de",

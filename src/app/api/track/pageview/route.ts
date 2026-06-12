@@ -18,6 +18,19 @@ export async function POST(request: Request) {
       device_type: device_type || null,
     });
 
+    // Maintain the visitor roster (first_seen / last_seen / visit_count).
+    // Wrapped so a missing function (pre-migration) never breaks pageview tracking.
+    try {
+      await getSupabaseAdmin().rpc("track_visitor", {
+        p_vid: visitor_id,
+        p_device: device_type || null,
+        p_referrer: referrer || null,
+        p_path: path,
+      });
+    } catch {
+      /* visitors table/function not created yet */
+    }
+
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });

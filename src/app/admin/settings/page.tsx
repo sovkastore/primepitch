@@ -69,7 +69,7 @@ export default function AdminSettingsPage() {
         <h2 className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">
           Change Password
         </h2>
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="password"
             value={newPassword}
