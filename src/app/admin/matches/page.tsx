@@ -39,6 +39,7 @@ export default function MatchAnalyticsPage() {
   const [sport, setSport] = useState("");
   const [sort, setSort] = useState<"views" | "recent">("views");
   const [status, setStatus] = useState<"played" | "live" | "upcoming" | "all">("played");
+  const [day, setDay] = useState<string>(""); // "" = all time, else YYYY-MM-DD (UTC day)
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
 
@@ -48,6 +49,10 @@ export default function MatchAnalyticsPage() {
     if (sport) params.set("sport", sport);
     params.set("sort", sort);
     params.set("status", status);
+    if (day) {
+      params.set("from", `${day}T00:00:00.000Z`);
+      params.set("to", `${day}T23:59:59.999Z`);
+    }
     params.set("page", String(page));
 
     fetch(`/api/admin/matches?${params}`)
@@ -58,7 +63,7 @@ export default function MatchAnalyticsPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [sport, sort, status, page]);
+  }, [sport, sort, status, day, page]);
 
   const chartData = matches.slice(0, 15).map((m) => ({
     name: m.title.length > 25 ? m.title.slice(0, 25) + "..." : m.title,
@@ -69,6 +74,32 @@ export default function MatchAnalyticsPage() {
     <div className="space-y-6 max-w-7xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-gray-900">Match Analytics</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max">
+            {([
+              { label: "All time", value: "" },
+              { label: "Today", value: new Date().toISOString().slice(0, 10) },
+              { label: "Yesterday", value: new Date(Date.now() - 864e5).toISOString().slice(0, 10) },
+            ] as const).map((t) => (
+              <button
+                key={t.label}
+                onClick={() => { setDay(t.value); setPage(1); }}
+                className={`text-[12px] font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                  day === t.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <input
+            type="date"
+            value={day}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => { setDay(e.target.value); setPage(1); }}
+            className="text-[12px] font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl px-3 py-1.5"
+          />
+        </div>
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max">
           {(["played", "live", "upcoming", "all"] as const).map((t) => (
             <button
