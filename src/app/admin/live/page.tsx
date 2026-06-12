@@ -326,8 +326,14 @@ export default function LiveMonitorPage() {
                       <span title="Unique viewers (all-time for this match)" className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded tabular-nums">👥 {m.unique}</span>
                     )}
                     <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                      <span className="text-[13px] font-bold text-gray-900 tabular-nums">{m.viewers}</span>
+                      {rowStatus(m.match_id) === "ended" ? (
+                        <span className="text-[10px] text-gray-400">{m.viewers} on page</span>
+                      ) : (
+                        <>
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                          <span className="text-[13px] font-bold text-gray-900 tabular-nums">{m.viewers}</span>
+                        </>
+                      )}
                     </span>
                     {matchHasOverride(m.match_id) ? (
                       <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded">OVERRIDDEN</span>
