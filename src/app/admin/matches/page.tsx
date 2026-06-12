@@ -14,6 +14,7 @@ interface MatchRow {
   sport: string;
   views: number;
   unique_viewers: number;
+  status?: "played" | "live" | "upcoming";
   avg_duration: number;
   last_viewed: string;
 }
@@ -37,6 +38,7 @@ export default function MatchAnalyticsPage() {
   const isMobile = useIsMobile();
   const [sport, setSport] = useState("");
   const [sort, setSort] = useState<"views" | "recent">("views");
+  const [status, setStatus] = useState<"played" | "live" | "upcoming" | "all">("played");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
 
@@ -45,6 +47,7 @@ export default function MatchAnalyticsPage() {
     const params = new URLSearchParams();
     if (sport) params.set("sport", sport);
     params.set("sort", sort);
+    params.set("status", status);
     params.set("page", String(page));
 
     fetch(`/api/admin/matches?${params}`)
@@ -55,7 +58,7 @@ export default function MatchAnalyticsPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [sport, sort, page]);
+  }, [sport, sort, status, page]);
 
   const chartData = matches.slice(0, 15).map((m) => ({
     name: m.title.length > 25 ? m.title.slice(0, 25) + "..." : m.title,
@@ -66,6 +69,19 @@ export default function MatchAnalyticsPage() {
     <div className="space-y-6 max-w-7xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-gray-900">Match Analytics</h1>
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max">
+          {(["played", "live", "upcoming", "all"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => { setStatus(t); setPage(1); }}
+              className={`text-[12px] font-bold px-3 py-1.5 rounded-lg transition-colors capitalize ${
+                status === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max">
           {(["views", "recent"] as const).map((t) => (
             <button
@@ -132,6 +148,14 @@ export default function MatchAnalyticsPage() {
                   {matches.map((m) => (
                     <tr key={m.match_id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="py-2.5 text-[13px] font-medium text-gray-900 max-w-xs truncate">
+                        {m.status === "live" && (
+                          <span className="inline-flex items-center gap-1 text-[8px] font-black text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded mr-1.5 align-middle">
+                            <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />LIVE
+                          </span>
+                        )}
+                        {m.status === "upcoming" && (
+                          <span className="text-[8px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded mr-1.5 align-middle">⏳ SOON</span>
+                        )}
                         {m.title}
                       </td>
                       <td className="py-2.5 text-[11px] text-gray-500 font-medium">{m.sport}</td>

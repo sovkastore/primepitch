@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const sport = searchParams.get("sport");
     const sort = searchParams.get("sort") || "views"; // "views" | "recent"
+    const status = searchParams.get("status") || "played"; // played | live | upcoming | all
     const from = searchParams.get("from");
     const to = searchParams.get("to");
     const page = parseInt(searchParams.get("page") || "1");
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
       uniqueViewers: Set<string>;
       totalDuration: number;
       lastViewed: string;
+      lastLiveView: string | null;
     }> = {};
 
     allData?.forEach((r) => {
@@ -50,6 +52,7 @@ export async function GET(request: NextRequest) {
           uniqueViewers: new Set(),
           totalDuration: 0,
           lastViewed: r.created_at,
+          lastLiveView: null,
         };
       }
       const g = grouped[r.match_id];
@@ -57,7 +60,17 @@ export async function GET(request: NextRequest) {
       g.uniqueViewers.add(r.visitor_id);
       g.totalDuration += r.duration_sec || 0;
       if (r.created_at > g.lastViewed) g.lastViewed = r.created_at;
+      if (r.is_live && (!g.lastLiveView || r.created_at > g.lastLiveView)) g.lastLiveView = r.created_at;
     });
+
+    // Classify: live = live viewers within the last 3h; played = had live
+    // viewers earlier; upcoming = only preview visits so far.
+    const LIVE_WINDOW = 3 * 60 * 60 * 1000;
+    const nowMs = Date.now();
+    const classify = (g: { lastLiveView: string | null }) => {
+      if (!g.lastLiveView) return "upcoming";
+      return nowMs - Date.parse(g.lastLiveView) <= LIVE_WINDOW ? "live" : "played";
+    };
 
     const matches = Object.entries(grouped)
       .map(([id, g]) => ({
@@ -68,7 +81,9 @@ export async function GET(request: NextRequest) {
         unique_viewers: g.uniqueViewers.size,
         avg_duration: g.views > 0 ? Math.round(g.totalDuration / g.views) : 0,
         last_viewed: g.lastViewed,
+        status: classify(g),
       }))
+      .filter((m) => status === "all" || m.status === status)
       .sort((a, b) =>
         sort === "recent"
           ? (a.last_viewed < b.last_viewed ? 1 : -1)
@@ -78,7 +93,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       matches,
-      total: Object.keys(grouped).length,
+      total: Object.values(grouped).filter((g) => status === "all" || classify(g) === status).length,
       page,
       raw: data,
       rawTotal: count,
