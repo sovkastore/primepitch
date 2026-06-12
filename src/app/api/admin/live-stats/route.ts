@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { normTitle } from "@/lib/match-merge";
 
 export async function GET() {
   try {
@@ -62,25 +63,6 @@ export async function GET() {
       .order("created_at", { ascending: false })
       .limit(20);
 
-    // Merge duplicate listings of the same match (same logic as the Matches
-    // page): keyed by normalized title + day. Peak = max across listings
-    // (combined concurrent history was never stored, so max is the safe,
-    // never-inflated number). Unique = exact distinct-visitor recount across
-    // all merged listings via match_views.
-    const TITLE_ALIASES: [RegExp, string][] = [
-      [/czechrepublic/g, "czechia"],
-      [/korearepublic/g, "southkorea"],
-      [/unitedstatesofamerica/g, "unitedstates"],
-      [/\busa\b/g, "unitedstates"],
-      [/ivorycoast/g, "cotedivoire"],
-      [/holland/g, "netherlands"],
-    ];
-    const normTitle = (t: string) => {
-      let n = (t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      n = n.replace(/^ppv/, ""); // admin ppv listings are the same match
-      for (const [re, sub] of TITLE_ALIASES) n = n.replace(re, sub);
-      return n;
-    };
 
     type Rec = NonNullable<typeof statsData>[number];
     const groups: Record<string, Rec[]> = {};

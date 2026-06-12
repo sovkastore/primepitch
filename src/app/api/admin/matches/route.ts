@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { normTitle } from "@/lib/match-merge";
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,24 +67,6 @@ export async function GET(request: NextRequest) {
       if (r.is_live && (!g.lastLiveView || r.created_at > g.lastLiveView)) g.lastLiveView = r.created_at;
     });
 
-    // Merge duplicate listings of the same real match: providers publish the
-    // same fixture under several sources / slightly different titles. Keyed by
-    // normalized title (with team-name aliases) + first-seen day, so the same
-    // teams meeting again later in a tournament stay separate. Unique viewers
-    // are a true union of visitor IDs across listings — never double-counted.
-    const TITLE_ALIASES: [RegExp, string][] = [
-      [/czechrepublic/g, "czechia"],
-      [/korearepublic/g, "southkorea"],
-      [/unitedstatesofamerica/g, "unitedstates"],
-      [/\busa\b/g, "unitedstates"],
-      [/ivorycoast/g, "cotedivoire"],
-      [/holland/g, "netherlands"],
-    ];
-    const normTitle = (t: string) => {
-      let n = (t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      for (const [re, sub] of TITLE_ALIASES) n = n.replace(re, sub);
-      return n;
-    };
 
     const merged: Record<string, {
       match_id: string;
