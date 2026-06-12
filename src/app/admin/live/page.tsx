@@ -131,6 +131,13 @@ export default function LiveMonitorPage() {
     );
   }
 
+  // Viewers parked on ended matches don't count as live — regardless of how
+  // old the code in their open tab is (server number is corrected here).
+  const endedViewers = feedStatus
+    ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "ended").reduce((sum, m) => sum + m.viewers, 0)
+    : 0;
+  const trueLiveViewers = Math.max(0, (data.liveViewers ?? 0) - endedViewers);
+
   return (
     <div className="space-y-6 max-w-7xl">
       <div className="flex items-center justify-between">
@@ -151,9 +158,11 @@ export default function LiveMonitorPage() {
           <p className="text-[10px] text-gray-400">on the site · last 2 min</p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-8 text-center">
-          <p className="text-4xl sm:text-6xl font-black text-emerald-600 tabular-nums">{data.liveViewers ?? 0}</p>
+          <p className="text-4xl sm:text-6xl font-black text-emerald-600 tabular-nums">{trueLiveViewers}</p>
           <p className="text-[12px] sm:text-sm text-gray-500 mt-2 font-medium">Live Viewers</p>
-          <p className="text-[10px] text-gray-400">watching a stream now</p>
+          <p className="text-[10px] text-gray-400">
+            watching a stream now{endedViewers > 0 ? ` · +${endedViewers} on ended pages` : ""}
+          </p>
         </div>
       </div>
 
