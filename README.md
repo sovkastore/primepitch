@@ -35,4 +35,4 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-<!-- deploy-test: 2026-06-12 via chat -->
+<!-- deploy-test-2: trigger first Workers Build via chat -->
