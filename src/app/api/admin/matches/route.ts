@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     // Aggregate by match_id
     const allQuery = getSupabaseAdmin()
       .from("match_views")
-      .select("match_id, match_title, sport, duration_sec, visitor_id, created_at");
+      .select("match_id, match_title, sport, duration_sec, visitor_id, created_at, is_live");
     if (sport) allQuery.eq("sport", sport);
     if (from) allQuery.gte("created_at", from);
     if (to) allQuery.lte("created_at", to);
