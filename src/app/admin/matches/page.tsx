@@ -36,6 +36,7 @@ export default function MatchAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
   const [sport, setSport] = useState("");
+  const [sort, setSort] = useState<"views" | "recent">("views");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
 
@@ -43,6 +44,7 @@ export default function MatchAnalyticsPage() {
     setLoading(true);
     const params = new URLSearchParams();
     if (sport) params.set("sport", sport);
+    params.set("sort", sort);
     params.set("page", String(page));
 
     fetch(`/api/admin/matches?${params}`)
@@ -53,7 +55,7 @@ export default function MatchAnalyticsPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [sport, page]);
+  }, [sport, sort, page]);
 
   const chartData = matches.slice(0, 15).map((m) => ({
     name: m.title.length > 25 ? m.title.slice(0, 25) + "..." : m.title,
@@ -64,6 +66,19 @@ export default function MatchAnalyticsPage() {
     <div className="space-y-6 max-w-7xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-gray-900">Match Analytics</h1>
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max">
+          {(["views", "recent"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => { setSort(t); setPage(1); }}
+              className={`text-[12px] font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                sort === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+              }`}
+            >
+              {t === "views" ? "Top Views" : "Recent"}
+            </button>
+          ))}
+        </div>
         <select
           value={sport}
           onChange={(e) => { setSport(e.target.value); setPage(1); }}

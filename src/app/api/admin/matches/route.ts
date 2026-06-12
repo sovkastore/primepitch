@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const sport = searchParams.get("sport");
+    const sort = searchParams.get("sort") || "views"; // "views" | "recent"
     const from = searchParams.get("from");
     const to = searchParams.get("to");
     const page = parseInt(searchParams.get("page") || "1");
@@ -68,7 +69,11 @@ export async function GET(request: NextRequest) {
         avg_duration: g.views > 0 ? Math.round(g.totalDuration / g.views) : 0,
         last_viewed: g.lastViewed,
       }))
-      .sort((a, b) => b.views - a.views)
+      .sort((a, b) =>
+        sort === "recent"
+          ? (a.last_viewed < b.last_viewed ? 1 : -1)
+          : b.views - a.views
+      )
       .slice(offset, offset + limit);
 
     return NextResponse.json({
