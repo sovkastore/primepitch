@@ -20,11 +20,53 @@ interface StandingRow {
 }
 interface WCData { groups: Record<string, StandingRow[]>; fixtures: Fixture[]; }
 
-const LIVE_STATUSES = new Set(["1st_half", "2nd_half", "halftime", "ht", "live", "extra_time", "et", "penalties", "paused", "break"]);
-const DONE_STATUSES = new Set(["finished", "ft", "aet", "after_penalties", "ended", "awarded"]);
-const isLive = (s: string) => LIVE_STATUSES.has((s || "").toLowerCase());
+const LIVE_STATUSES = new Set([
+  "1st_half", "2nd_half", "halftime", "ht", "live", "extra_time", "et", "penalties",
+  "paused", "break", "inprogress", "in_progress", "1t", "2t", "first_half",
+  "second_half", "1h", "2h", "playing", "started", "interval",
+]);
+const DONE_STATUSES = new Set(["finished", "ft", "aet", "after_penalties", "ended", "awarded", "fulltime", "full_time", "after_extra_time", "after_pens"]);
 const isDone = (s: string) => DONE_STATUSES.has((s || "").toLowerCase());
+const MATCH_WINDOW_MS = 2.5 * 60 * 60 * 1000; // typical match + buffer
+
+// Bulletproof live check: a recognized live status OR — safety net for status
+// words we've never seen — kickoff has passed, the match isn't finished, and
+// we're within the realistic match window. This prevents the failure where an
+// unknown status left live matches stuck on "SOON" with no WATCH link.
+function isLiveFixture(f: { status: string; date: number; home_score: number | null }, now: number): boolean {
+  const s = (f.status || "").toLowerCase();
+  if (DONE_STATUSES.has(s)) return false;
+  if (LIVE_STATUSES.has(s)) return true;
+  if (f.date && now >= f.date && now - f.date <= MATCH_WINDOW_MS) return true;
+  return false;
+}
+
 const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+// Country-name aliases: FIFA data and stream providers often name the same
+// team differently. Both directions are checked via canonicalization.
+const TEAM_ALIASES: Record<string, string> = {
+  southkorea: "korearepublic",
+  korea: "korearepublic",
+  usa: "unitedstates",
+  us: "unitedstates",
+  unitedstatesofamerica: "unitedstates",
+  ivorycoast: "cotedivoire",
+  czechrepublic: "czechia",
+  holland: "netherlands",
+  iran: "irniran",
+  irislamicrepublicofiran: "irniran",
+  saudi: "saudiarabia",
+  uae: "unitedarabemirates",
+};
+function canon(s: string): string {
+  const n = norm(s);
+  return TEAM_ALIASES[n] || n;
+}
+function sideHit(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return a.includes(b) || b.includes(a);
+}
 
 function Flag({ name }: { name: string }) {
   const [failed, setFailed] = useState(false);
@@ -74,7 +116,7 @@ export default function WorldCupPage() {
   const [data, setData] = useState<WCData>({ groups: {}, fixtures: [] });
   const [live, setLive] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"fixtures" | "standings">("fixtures");
+  const [view, setView] = useState<"fixtures" | "results" | "standings">("fixtures");
 
   // Selecting a category from the World Cup page goes back to home with that
   // category pre-selected (home restores it from sessionStorage on mount).
@@ -98,27 +140,44 @@ export default function WorldCupPage() {
     return visibleInterval(load, 90_000);
   }, []);
 
-  const liveCount = data.fixtures.filter((f) => isLive(f.status)).length;
+  const nowTs = Date.now();
+  const liveCount = data.fixtures.filter((f) => isLiveFixture(f, nowTs)).length;
 
   function watchHref(f: Fixture): string | null {
-    const h = norm(f.home.name), a = norm(f.away.name);
+    const h = canon(f.home.name), a = canon(f.away.name);
     const m = live.find((m) => {
-      const mh = norm(m.teams?.home?.name || ""), ma = norm(m.teams?.away?.name || "");
-      return mh && ma && (mh.includes(h) || h.includes(mh)) && (ma.includes(a) || a.includes(ma));
+      // 1) Structured team fields (with alias canonicalization, either order)
+      const mh = canon(m.teams?.home?.name || ""), ma = canon(m.teams?.away?.name || "");
+      if (mh && ma) {
+        if ((sideHit(mh, h) && sideHit(ma, a)) || (sideHit(mh, a) && sideHit(ma, h))) return true;
+      }
+      // 2) Fallback: the stream's title contains both team names
+      const t = canon(m.title || "");
+      return !!t && t.includes(h) && t.includes(a);
     });
     return m ? getWatchHref(m) : null;
   }
 
-  // Group fixtures by calendar day.
-  const byDay: { day: string; items: Fixture[] }[] = [];
-  for (const f of data.fixtures) {
-    const day = f.date
-      ? new Date(f.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
-      : "TBD";
-    let bucket = byDay.find((b) => b.day === day);
-    if (!bucket) { bucket = { day, items: [] }; byDay.push(bucket); }
-    bucket.items.push(f);
+  // Group a fixture list by calendar day.
+  function groupByDay(list: Fixture[]): { day: string; items: Fixture[] }[] {
+    const out: { day: string; items: Fixture[] }[] = [];
+    for (const f of list) {
+      const day = f.date
+        ? new Date(f.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+        : "TBD";
+      let bucket = out.find((b) => b.day === day);
+      if (!bucket) { bucket = { day, items: [] }; out.push(bucket); }
+      bucket.items.push(f);
+    }
+    return out;
   }
+
+  // Results = played matches (most recent day first); Fixtures = live + upcoming.
+  const playedFixtures = data.fixtures.filter((f) => isDone(f.status));
+  const unplayedFixtures = data.fixtures.filter((f) => !isDone(f.status));
+  const byDay = view === "results"
+    ? groupByDay([...playedFixtures].sort((a, b) => b.date - a.date))
+    : groupByDay(unplayedFixtures);
 
   const groupKeys = Object.keys(data.groups).sort();
 
@@ -150,7 +209,7 @@ export default function WorldCupPage() {
 
       {/* View toggle */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max mb-5">
-        {(["fixtures", "standings"] as const).map((t) => (
+        {(["fixtures", "results", "standings"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setView(t)}
@@ -221,13 +280,22 @@ export default function WorldCupPage() {
               <h3 className="text-[12px] font-extrabold text-gray-500 tracking-wider uppercase mb-2">{day}</h3>
               <div className="space-y-2">
                 {items.map((f) => {
-                  const liveNow = isLive(f.status);
+                  const liveNow = isLiveFixture(f, nowTs);
                   const done = isDone(f.status);
                   const href = liveNow ? watchHref(f) : null;
                   const time = f.date ? new Date(f.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "";
                   const showScore = f.home_score !== null || f.away_score !== null;
+                  const Row: React.ElementType = href ? Link : "div";
                   return (
-                    <div key={f.id} className="flex items-center gap-2 sm:gap-3 py-2.5 px-3 sm:px-4 rounded-2xl bg-gray-50 border border-gray-100">
+                    <Row
+                      key={f.id}
+                      {...(href ? { href } : {})}
+                      className={`flex items-center gap-2 sm:gap-3 py-2.5 px-3 sm:px-4 rounded-2xl border ${
+                        liveNow
+                          ? "bg-red-50/40 border-red-100" + (href ? " hover:border-red-200 hover:bg-red-50 cursor-pointer transition-colors" : "")
+                          : "bg-gray-50 border-gray-100"
+                      }`}
+                    >
                       <div className="shrink-0 w-14 sm:w-16 text-center">
                         {liveNow ? (
                           <span className="inline-flex items-center gap-1 text-[9px] font-black text-red-500">
@@ -259,20 +327,24 @@ export default function WorldCupPage() {
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-1 w-16">
                         {f.group && <span className="text-[8px] font-bold text-gray-400 whitespace-nowrap">{f.group}</span>}
-                        {href && (
-                          <Link href={href} className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-500 hover:bg-emerald-600 px-2.5 py-1 rounded-lg transition-colors">
+                        {href ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-500 px-2.5 py-1 rounded-lg">
                             ▶ WATCH
-                          </Link>
-                        )}
+                          </span>
+                        ) : liveNow ? (
+                          <span className="text-[8px] font-bold text-red-400 whitespace-nowrap animate-pulse">finding stream…</span>
+                        ) : null}
                       </div>
-                    </div>
+                    </Row>
                   );
                 })}
               </div>
             </div>
           ))}
-          {data.fixtures.length === 0 && (
-            <p className="text-center text-gray-400 py-16">Fixtures will appear here as they're scheduled.</p>
+          {byDay.length === 0 && (
+            <p className="text-center text-gray-400 py-16">
+              {view === "results" ? "Played matches and final scores will appear here." : "Fixtures will appear here as they're scheduled."}
+            </p>
           )}
         </div>
       )}
