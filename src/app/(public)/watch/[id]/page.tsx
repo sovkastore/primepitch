@@ -103,6 +103,15 @@ export default function WatchPage() {
   const matchStatus = currentMatch ? getMatchStatus(currentMatch) : (loading ? "upcoming" : "ended");
   const isLive = matchStatus === "live" || forceLive;
   const isEnded = !isLive && matchStatus === "ended" && streams.length === 0;
+
+  // Tell the global heartbeat when this match is over (covers both the FULL
+  // TIME page and stale tabs reopened after the match ended), so returning
+  // visitors count as online — not as live-stream watchers.
+  useEffect(() => {
+    const w = window as unknown as { __ppMatchEnded?: boolean };
+    w.__ppMatchEnded = matchStatus === "ended" && !forceLive;
+    return () => { w.__ppMatchEnded = false; };
+  }, [matchStatus, forceLive]);
   const isUpcoming = !isLive && !isEnded && matchStatus === "upcoming";
 
   const scheduledTime = currentMatch

@@ -39,13 +39,16 @@ export default function Analytics() {
     const sendHeartbeat = () => {
       const path = window.location.pathname;
       const watchMatch = path.match(/^\/watch\/([^/]+)/);
+      // The watch page raises this flag once its match has ended, so a person
+      // returning to an old tab counts as online — not as watching a stream.
+      const ended = (window as unknown as { __ppMatchEnded?: boolean }).__ppMatchEnded === true;
       fetch("/api/track/heartbeat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           visitor_id,
           path,
-          match_id: watchMatch ? decodeURIComponent(watchMatch[1]) : null,
+          match_id: watchMatch && !ended ? decodeURIComponent(watchMatch[1]) : null,
         }),
       }).catch(() => {});
     };
