@@ -98,9 +98,12 @@ export default function WatchPage() {
   const displayTitle = currentMatch?.title || fallbackName;
   const hasTeams = currentMatch?.teams?.home && currentMatch?.teams?.away;
   const sportLabel = SPORT_LABELS[currentMatch?.category || ""] || currentMatch?.category || "";
-  const matchStatus = currentMatch ? getMatchStatus(currentMatch) : "upcoming";
+  // A match that can't be found in any current list and has no streams has
+  // ENDED (feeds drop matches once played) — never show it as "upcoming".
+  const matchStatus = currentMatch ? getMatchStatus(currentMatch) : (loading ? "upcoming" : "ended");
   const isLive = matchStatus === "live" || forceLive;
-  const isUpcoming = !isLive && matchStatus === "upcoming";
+  const isEnded = !isLive && matchStatus === "ended" && streams.length === 0;
+  const isUpcoming = !isLive && !isEnded && matchStatus === "upcoming";
 
   const scheduledTime = currentMatch
     ? new Date(currentMatch.date).toLocaleString("en-US", {
@@ -287,6 +290,34 @@ export default function WatchPage() {
   // ONE batched score request covers all related live cards.
   const relScores = useBatchScores(isLive ? relatedToShow : []);
 
+  // Ended match: try to fetch the final score (archive first, then events feed).
+  const [finalScore, setFinalScore] = useState<{ home: number; away: number } | null>(null);
+  const [finalTeams, setFinalTeams] = useState<{ home: string; away: string } | null>(null);
+  useEffect(() => {
+    if (!isEnded) return;
+    // Team names from match data, else from the title/slug ("A vs B ...").
+    let h = currentMatch?.teams?.home?.name || "";
+    let a = currentMatch?.teams?.away?.name || "";
+    if (!h || !a) {
+      const m = displayTitle.match(/^(.+?)\s+vs\.?\s+(.+)$/i);
+      if (m) {
+        h = m[1].trim();
+        // Drop trailing listing junk like "German Spanish Game 111".
+        a = m[2].trim().replace(/\s+(german|spanish|english|french|game|stream|hd)\b.*$/i, "").trim();
+      }
+    }
+    if (!h || !a) return;
+    fetch(`/api/final-score?home=${encodeURIComponent(h)}&away=${encodeURIComponent(a)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.score) {
+          setFinalScore(d.score);
+          if (d.teams) setFinalTeams(d.teams);
+        }
+      })
+      .catch(() => {});
+  }, [isEnded, currentMatch, displayTitle]);
+
   async function retryStreams() {
     try {
       const title = currentMatch?.title || fallbackName;
@@ -316,7 +347,39 @@ export default function WatchPage() {
 
       {/* Video player (live) OR Match card (upcoming) */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
-        {isUpcoming ? (
+        {isEnded ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 border border-gray-200 rounded-lg text-[9px] font-black text-gray-500 tracking-wide">
+                FULL TIME
+              </span>
+              <span className="text-[10px] font-semibold text-gray-400">{sportLabel}</span>
+            </div>
+
+            <p className="text-[15px] font-bold text-gray-900 text-center">{finalTeams ? `${finalTeams.home} vs ${finalTeams.away}` : displayTitle}</p>
+
+            {finalScore ? (
+              <div className="flex items-center justify-center mt-4">
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 rounded-xl">
+                  <span className="text-2xl font-black text-white tabular-nums">{finalScore.home}</span>
+                  <span className="text-sm text-gray-400 font-bold">-</span>
+                  <span className="text-2xl font-black text-white tabular-nums">{finalScore.away}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[12px] text-gray-400 text-center mt-3">This match has ended.</p>
+            )}
+
+            <div className="mt-5">
+              <Link href="/" className="flex items-center justify-center gap-2 w-full py-2.5 btn-gradient rounded-xl text-[11px] font-black text-white tracking-wide">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                </svg>
+                SEE WHAT&apos;S LIVE NOW
+              </Link>
+            </div>
+          </div>
+        ) : isUpcoming ? (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             {/* Top: UPCOMING badge + sport */}
             <div className="flex items-center justify-between mb-4">
