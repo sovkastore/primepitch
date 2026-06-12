@@ -7,6 +7,7 @@ import UpcomingRow from "@/components/UpcomingRow";
 import { Match, getMatchStatus, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches, SPORT_ICONS, SPORT_LABELS } from "@/lib/api";
 import { classifyFight, FIGHT_SUB_LABELS, FIGHT_SUB_ICONS, FightSubcategory } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
+import { useBatchScores } from "@/lib/use-batch-scores";
 
 const FIGHT_SUB_MAP: Record<string, string> = {
   ufc: "mma",
@@ -49,7 +50,7 @@ export default function SportPage() {
   // Live = matches that actually have a playable stream. Refreshed while visible.
   useEffect(() => {
     const loadLive = () => { getLiveMatches().then(setLiveMatches).catch(() => {}); };
-    return visibleInterval(loadLive, 60_000);
+    return visibleInterval(loadLive, 90_000);
   }, []);
 
   // Hidden matches (admin) — keep them out of the upcoming list.
@@ -66,6 +67,8 @@ export default function SportPage() {
 
   // Keys already shown as live — so a curated/forced-live match isn't ALSO listed under Upcoming.
   const liveKeys = new Set(liveMatches.map(getMatchKey));
+  // ONE batched score request for every live card on this page.
+  const scores = useBatchScores(live);
   const isUpcomingRow = (m: Match) =>
     getMatchStatus(m) === "upcoming" && !hiddenIds.has(getMatchKey(m)) && !liveKeys.has(getMatchKey(m));
 
@@ -133,7 +136,7 @@ export default function SportPage() {
               {g.live.length > 0 && (
                 <div className="space-y-3 mb-4">
                   {g.live.map((m) => (
-                    <LiveMatchRow key={`${sub}-live-${getMatchKey(m)}`} match={m} />
+                    <LiveMatchRow key={`${sub}-live-${getMatchKey(m)}`} match={m} score={scores[getMatchKey(m)] || null} />
                   ))}
                 </div>
               )}
@@ -188,7 +191,7 @@ export default function SportPage() {
           </div>
           <div className="space-y-3">
             {live.map((m) => (
-              <LiveMatchRow key={`live-${getMatchKey(m)}`} match={m} />
+              <LiveMatchRow key={`live-${getMatchKey(m)}`} match={m} score={scores[getMatchKey(m)] || null} />
             ))}
           </div>
         </section>

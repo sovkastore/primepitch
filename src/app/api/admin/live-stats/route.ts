@@ -3,8 +3,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET() {
   try {
-    // "Right now" = last 2 minutes (heartbeat is 60s, so this tolerates one miss).
-    const nowWindow = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    // "Right now" = last 6 minutes (single heartbeat is 150s; tolerates one miss).
+    const nowWindow = new Date(Date.now() - 6 * 60 * 1000).toISOString();
 
     const { data: activeData } = await getSupabaseAdmin()
       .from("active_viewers")
@@ -31,6 +31,25 @@ export async function GET() {
       .sort(([, a], [, b]) => b - a)
       .map(([match_id, viewers]) => ({ match_id, viewers }));
 
+    // Per-match traction stats (peak + unique) for active matches AND the most
+    // recent records, so finished matches remain visible in the admin.
+    const { data: statsData } = await getSupabaseAdmin()
+      .from("match_stats")
+      .select("match_id, match_title, sport, peak_viewers, peak_at, unique_viewers, updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(25);
+
+    const statsById: Record<string, { peak: number; unique: number }> = {};
+    statsData?.forEach((s) => {
+      statsById[s.match_id] = { peak: s.peak_viewers, unique: s.unique_viewers };
+    });
+
+    const enrichedMatches = activeMatches.map((m) => ({
+      ...m,
+      peak: statsById[m.match_id]?.peak ?? m.viewers,
+      unique: statsById[m.match_id]?.unique ?? null,
+    }));
+
     const activePages = Object.entries(pageViewers)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10)
@@ -47,7 +66,8 @@ export async function GET() {
       onlineNow,
       liveViewers,
       totalActive,
-      activeMatches,
+      activeMatches: enrichedMatches,
+      matchRecords: statsData || [],
       activePages,
       recentActivity: recentData || [],
     });

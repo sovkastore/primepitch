@@ -79,7 +79,7 @@ export default function HomePage() {
   // Live = matches that actually have a playable stream. Refreshed while visible.
   useEffect(() => {
     const loadLive = () => { getLiveMatches().then(setLiveMatches).catch(() => {}); };
-    return visibleInterval(loadLive, 60_000);
+    return visibleInterval(loadLive, 90_000);
   }, []);
 
   // Hidden matches (admin) — keep them out of the upcoming list.

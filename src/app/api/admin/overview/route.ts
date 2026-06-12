@@ -21,7 +21,7 @@ export async function GET() {
 
     // Real-time presence (last 2 min). onlineNow = on the site; liveViewers = on a
     // watch page (match_id set, i.e. watching a stream right now).
-    const nowWindow = new Date(now.getTime() - 2 * 60 * 1000).toISOString();
+    const nowWindow = new Date(now.getTime() - 6 * 60 * 1000).toISOString();
     const { data: activeNow } = await getSupabaseAdmin()
       .from("active_viewers")
       .select("match_id")

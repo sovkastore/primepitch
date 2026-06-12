@@ -3,13 +3,16 @@
 import { useState } from "react";
 import LiveMatchRow from "@/components/LiveMatchRow";
 import { Match, getMatchKey } from "@/lib/api";
+import { useBatchScores } from "@/lib/use-batch-scores";
 
 export default function LiveNow({ matches }: { matches: Match[] }) {
   const [showAll, setShowAll] = useState(false);
 
-  if (matches.length === 0) return null;
-
   const visible = showAll ? matches : matches.slice(0, 6);
+  // ONE request covers scores for every visible card (was one request per card).
+  const scores = useBatchScores(visible);
+
+  if (matches.length === 0) return null;
 
   return (
     <section className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
@@ -34,7 +37,7 @@ export default function LiveNow({ matches }: { matches: Match[] }) {
 
       <div className="space-y-3">
         {visible.map((match) => (
-          <LiveMatchRow key={getMatchKey(match)} match={match} />
+          <LiveMatchRow key={getMatchKey(match)} match={match} score={scores[getMatchKey(match)] || null} />
         ))}
       </div>
     </section>

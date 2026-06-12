@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import SportsNav from "@/components/SportsNav";
 import { Match, getLiveMatches, getWatchHref } from "@/lib/api";
 import { getCountryFlagUrl } from "@/lib/country-flags";
 import { visibleInterval } from "@/lib/poll";
@@ -68,10 +70,18 @@ function KickoffCell({ date, time }: { date: number; time: string }) {
 }
 
 export default function WorldCupPage() {
+  const router = useRouter();
   const [data, setData] = useState<WCData>({ groups: {}, fixtures: [] });
   const [live, setLive] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"fixtures" | "standings">("fixtures");
+
+  // Selecting a category from the World Cup page goes back to home with that
+  // category pre-selected (home restores it from sessionStorage on mount).
+  function selectSport(s: string | null) {
+    if (s) sessionStorage.setItem("pp_sport", s);
+    router.push("/");
+  }
 
   useEffect(() => {
     const load = () => {
@@ -80,12 +90,12 @@ export default function WorldCupPage() {
         .then((d) => { setData({ groups: d.groups || {}, fixtures: d.fixtures || [] }); setLoading(false); })
         .catch(() => setLoading(false));
     };
-    return visibleInterval(load, 60_000);
+    return visibleInterval(load, 90_000);
   }, []);
 
   useEffect(() => {
     const load = () => { getLiveMatches().then(setLive).catch(() => {}); };
-    return visibleInterval(load, 60_000);
+    return visibleInterval(load, 90_000);
   }, []);
 
   const liveCount = data.fixtures.filter((f) => isLive(f.status)).length;
@@ -113,7 +123,12 @@ export default function WorldCupPage() {
   const groupKeys = Object.keys(data.groups).sort();
 
   return (
-    <div className="max-w-[1100px] mx-auto px-4 lg:px-6 py-6 pb-24 md:pb-8">
+    <>
+      {/* Category bar — same as home, with World Cup highlighted; tapping a
+          category returns to home with that category active. */}
+      <SportsNav activeSport={null} onSelect={selectSport} worldCupActive />
+
+      <div className="max-w-[1100px] mx-auto px-4 lg:px-6 py-6 pb-24 md:pb-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shrink-0">
@@ -262,5 +277,6 @@ export default function WorldCupPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

@@ -13,7 +13,8 @@ interface LiveData {
   onlineNow: number;
   liveViewers: number;
   totalActive: number;
-  activeMatches: { match_id: string; viewers: number }[];
+  activeMatches: { match_id: string; viewers: number; peak: number; unique: number | null }[];
+  matchRecords: { match_id: string; match_title: string | null; sport: string | null; peak_viewers: number; peak_at: string | null; unique_viewers: number; updated_at: string }[];
   activePages: { path: string; viewers: number }[];
   recentActivity: { path: string; device_type: string; created_at: string }[];
 }
@@ -236,6 +237,10 @@ export default function LiveMonitorPage() {
                 <div key={m.match_id} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50">
                   <span className="text-[13px] text-gray-700 truncate flex-1 min-w-0">{getMatchTitle(m.match_id)}</span>
                   <div className="flex items-center gap-2">
+                    <span title="Peak concurrent viewers" className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded tabular-nums">▲ {m.peak}</span>
+                    {m.unique !== null && (
+                      <span title="Unique viewers (all-time for this match)" className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded tabular-nums">👥 {m.unique}</span>
+                    )}
                     <span className="flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                       <span className="text-[13px] font-bold text-gray-900 tabular-nums">{m.viewers}</span>
@@ -256,6 +261,30 @@ export default function LiveMonitorPage() {
             </div>
           ) : (
             <p className="text-sm text-gray-400 text-center py-8">No one watching matches right now</p>
+          )}
+        </ChartWrapper>
+
+        <ChartWrapper title="Match traction — peak & unique viewers">
+          {(data.matchRecords?.length ?? 0) > 0 ? (
+            <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
+              <div className="flex items-center justify-between gap-2 pb-1 border-b border-gray-100">
+                <span className="text-[10px] font-bold text-gray-400 uppercase flex-1">Match</span>
+                <span className="text-[10px] font-bold text-emerald-600 uppercase w-14 text-right">Peak</span>
+                <span className="text-[10px] font-bold text-indigo-600 uppercase w-14 text-right">Unique</span>
+              </div>
+              {data.matchRecords.map((r) => (
+                <div key={r.match_id} className="flex items-center justify-between gap-2 py-1.5 border-b border-gray-50">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] text-gray-700 truncate">{r.match_title || r.match_id}</p>
+                    {r.sport && <p className="text-[9px] text-gray-400 uppercase">{r.sport}</p>}
+                  </div>
+                  <span className="text-[13px] font-bold text-emerald-600 tabular-nums w-14 text-right">{r.peak_viewers}</span>
+                  <span className="text-[13px] font-bold text-indigo-600 tabular-nums w-14 text-right">{r.unique_viewers}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-8">Stats will appear once matches get viewers</p>
           )}
         </ChartWrapper>
 

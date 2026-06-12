@@ -29,23 +29,28 @@ export default function Analytics() {
     }).catch(() => {});
   }, [pathname]);
 
-  // Heartbeat for active presence
+  // Heartbeat for active presence — the ONLY heartbeat on the site (the watch
+  // page no longer runs its own). Every 2.5 min to keep request usage low; when
+  // on a watch page it includes the match_id so per-match presence still works.
   useEffect(() => {
     const visitor_id = getVisitorId();
     if (!visitor_id) return;
 
     const sendHeartbeat = () => {
+      const path = window.location.pathname;
+      const watchMatch = path.match(/^\/watch\/([^/]+)/);
       fetch("/api/track/heartbeat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           visitor_id,
-          path: window.location.pathname,
+          path,
+          match_id: watchMatch ? decodeURIComponent(watchMatch[1]) : null,
         }),
       }).catch(() => {});
     };
 
-    return visibleInterval(sendHeartbeat, 60_000);
+    return visibleInterval(sendHeartbeat, 150_000);
   }, []);
 
   return null;

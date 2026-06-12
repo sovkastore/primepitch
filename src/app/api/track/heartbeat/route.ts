@@ -21,6 +21,9 @@ export async function POST(request: Request) {
     );
 
     // If watching a match, increment duration on the latest match_view row
+    // (single site-wide heartbeat fires every 150s) and update the match's
+    // peak-concurrent-viewers record — both are DB calls inside a request
+    // that already exists, so they cost zero extra Cloudflare requests.
     if (match_id) {
       const { data } = await getSupabaseAdmin()
         .from("match_views")
@@ -34,9 +37,11 @@ export async function POST(request: Request) {
       if (data) {
         await getSupabaseAdmin()
           .from("match_views")
-          .update({ duration_sec: (data.duration_sec || 0) + 30 })
+          .update({ duration_sec: (data.duration_sec || 0) + 150 })
           .eq("id", data.id);
       }
+
+      await getSupabaseAdmin().rpc("bump_match_peak", { p_match_id: match_id });
     }
 
     return NextResponse.json({ ok: true });

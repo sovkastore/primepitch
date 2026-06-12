@@ -1,29 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
 import { Match, getWatchHref, SPORT_LABELS } from "@/lib/api";
-import { visibleInterval } from "@/lib/poll";
+import type { LiveScore } from "@/lib/use-batch-scores";
 
-export default function LiveMatchRow({ match }: { match: Match }) {
+export default function LiveMatchRow({ match, score = null }: { match: Match; score?: LiveScore | null }) {
   const href = getWatchHref(match);
   const hasTeams = match.teams?.home && match.teams?.away;
   const label = SPORT_LABELS[match.category] || match.category;
-  const [score, setScore] = useState<{ home: number; away: number; minute: number | null; period: string; league?: string | null } | null>(null);
-
-  useEffect(() => {
-    if (!hasTeams) return;
-    const home = encodeURIComponent(match.teams!.home!.name);
-    const away = encodeURIComponent(match.teams!.away!.name);
-    const fetchScore = () => {
-      fetch(`/api/live-score?home=${home}&away=${away}`)
-        .then((r) => r.json())
-        .then((d) => { if (d.score) setScore(d.score); })
-        .catch(() => {});
-    };
-    return visibleInterval(fetchScore, 60_000);
-  }, [hasTeams, match.teams?.home?.name, match.teams?.away?.name]);
 
   return (
     <Link href={href} className="block group">

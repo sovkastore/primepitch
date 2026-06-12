@@ -9,6 +9,7 @@ import UpcomingRow from "@/components/UpcomingRow";
 import { Match, getMatchStatus, getLiveMatches, getMatchKey, SPORT_LABELS } from "@/lib/api";
 import { getVisitorId } from "@/lib/visitor";
 import { visibleInterval } from "@/lib/poll";
+import { useBatchScores } from "@/lib/use-batch-scores";
 
 interface Stream {
   id: string;
@@ -181,7 +182,7 @@ export default function WatchPage() {
   // Streamable live matches (for RELATED MATCHES when watching a live game)
   useEffect(() => {
     const loadLive = () => { getLiveMatches().then(setLiveMatches).catch(() => {}); };
-    return visibleInterval(loadLive, 60_000);
+    return visibleInterval(loadLive, 90_000);
   }, []);
 
   // Poll live score while the match is live (incl. force-live, where the scheduled
@@ -199,7 +200,7 @@ export default function WatchPage() {
         .catch(() => {});
     };
 
-    return visibleInterval(fetchScore, 45_000);
+    return visibleInterval(fetchScore, 90_000);
   }, [currentMatch, isLive]);
 
   // Reset the stream-resolution state whenever the match changes.
@@ -242,26 +243,8 @@ export default function WatchPage() {
         is_live: getMatchStatus(currentMatch) === "live",
       }),
     }).catch(() => {});
-
-    const heartbeat = setInterval(() => {
-      if (document.hidden) return; // a backgrounded tab isn't actively watching
-      fetch("/api/track/heartbeat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitor_id, path: `/watch/${rawId}`, match_id: rawId }),
-      }).catch(() => {});
-    }, 30_000);
-
-    const onUnload = () => {
-      const body = JSON.stringify({ visitor_id, path: `/watch/${rawId}`, match_id: rawId });
-      navigator.sendBeacon("/api/track/heartbeat", new Blob([body], { type: "application/json" }));
-    };
-    window.addEventListener("beforeunload", onUnload);
-
-    return () => {
-      clearInterval(heartbeat);
-      window.removeEventListener("beforeunload", onUnload);
-    };
+    // Presence heartbeats are handled site-wide by <Analytics/> (every 2.5 min,
+    // includes match_id on watch pages) — no per-page heartbeat anymore.
   }, [currentMatch, rawId, source]);
 
   const currentStream = streams[activeStream];
@@ -300,6 +283,9 @@ export default function WatchPage() {
         .filter((m) => m.category === currentMatch?.category && m.title !== currentMatch?.title)
         .slice(0, 8)
     : relatedMatches.slice(0, 8);
+
+  // ONE batched score request covers all related live cards.
+  const relScores = useBatchScores(isLive ? relatedToShow : []);
 
   async function retryStreams() {
     try {
@@ -588,7 +574,7 @@ export default function WatchPage() {
           <div className="space-y-3">
             {relatedToShow.map((m) =>
               isLive ? (
-                <LiveMatchRow key={`rel-${getMatchKey(m)}`} match={m} />
+                <LiveMatchRow key={`rel-${getMatchKey(m)}`} match={m} score={relScores[getMatchKey(m)] || null} />
               ) : (
                 <UpcomingRow key={`rel-${getMatchKey(m)}`} match={m} showSport={false} />
               )

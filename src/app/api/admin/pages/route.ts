@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     const totalUnique = pages.reduce((s, p) => s + p.uniques, 0);
 
     // Who's on which page right now (last 2 min)
-    const nowWindow = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const nowWindow = new Date(Date.now() - 6 * 60 * 1000).toISOString();
     const { data: active } = await sb
       .from("active_viewers")
       .select("path")

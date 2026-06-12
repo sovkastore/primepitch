@@ -31,6 +31,15 @@ export async function POST(request: Request) {
       { onConflict: "visitor_id" }
     );
 
+    // Per-match traction stats: recompute unique viewers (and store title/sport),
+    // then bump the peak so spikes right after kickoff are captured immediately.
+    await getSupabaseAdmin().rpc("record_match_join", {
+      p_match_id: match_id,
+      p_title: match_title || null,
+      p_sport: sport || null,
+    });
+    await getSupabaseAdmin().rpc("bump_match_peak", { p_match_id: match_id });
+
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
