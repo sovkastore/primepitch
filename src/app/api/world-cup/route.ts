@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 // FIFA World Cup 2026 = BSD league id 27. We expose its fixtures + ready-made group
 // standings to the public /world-cup page. Cached server-side so the page can poll.
@@ -80,6 +81,77 @@ export async function GET() {
         };
       })
       .sort((a, b) => a.date - b.date);
+
+    // ---- Permanent results archive (Supabase) ----
+    // The upstream fixtures feed DROPS matches once played, so: (1) snapshot any
+    // fixture that currently has a score into wc_results (last write = final
+    // score); (2) merge archived results that the feed no longer carries back
+    // into the response. This makes the Results tab permanent.
+    const TEAM_ALIASES: Record<string, string> = {
+      southkorea: "korearepublic", korea: "korearepublic",
+      usa: "unitedstates", us: "unitedstates", unitedstatesofamerica: "unitedstates",
+      ivorycoast: "cotedivoire", czechrepublic: "czechia", holland: "netherlands",
+    };
+    const canon = (x: string) => { const n = norm(x); return TEAM_ALIASES[n] || n; };
+    const dayOf = (ts: number) => (ts ? new Date(ts).toISOString().slice(0, 10) : "tbd");
+    const keyOf = (h: string, a: string, ts: number) => `${norm(h)}|${norm(a)}|${dayOf(ts)}`;
+    const canonKeyOf = (h: string, a: string, ts: number) => `${canon(h)}|${canon(a)}|${dayOf(ts)}`;
+
+    try {
+      // (1) Snapshot scored fixtures (live or finished) — final write wins.
+      const scored = fixtures.filter((f) => f.home_score !== null && f.date > 0);
+      if (scored.length > 0) {
+        await getSupabaseAdmin().from("wc_results").upsert(
+          scored.map((f) => ({
+            match_key: keyOf(f.home.name, f.away.name, f.date),
+            home_team: f.home.name,
+            away_team: f.away.name,
+            home_country: f.home.country,
+            away_country: f.away.country,
+            home_score: f.home_score,
+            away_score: f.away_score,
+            group_name: f.group,
+            round_number: f.round,
+            event_date: new Date(f.date).toISOString(),
+            status: f.status || "live",
+            updated_at: new Date().toISOString(),
+          })),
+          { onConflict: "match_key" }
+        );
+      }
+
+      // (2) Merge archived results the feed no longer carries.
+      const { data: archived } = await getSupabaseAdmin()
+        .from("wc_results")
+        .select("*")
+        .order("event_date", { ascending: false })
+        .limit(200);
+
+      if (archived && archived.length > 0) {
+        const present = new Set(fixtures.map((f) => canonKeyOf(f.home.name, f.away.name, f.date)));
+        let syntheticId = -1;
+        for (const r of archived) {
+          const ts = r.event_date ? Date.parse(r.event_date) : 0;
+          if (present.has(canonKeyOf(r.home_team, r.away_team, ts))) continue;
+          fixtures.push({
+            id: syntheticId--,
+            group: r.group_name || null,
+            round: r.round_number ?? null,
+            date: ts,
+            status: "finished",
+            home: { name: r.home_team, country: r.home_country || r.home_team },
+            away: { name: r.away_team, country: r.away_country || r.away_team },
+            home_score: r.home_score,
+            away_score: r.away_score,
+            minute: null,
+            period: "",
+          });
+        }
+        fixtures.sort((a, b) => a.date - b.date);
+      }
+    } catch {
+      // Archive issues must never break the page — feed data still returns.
+    }
 
     const data = { groups: stData.groups || {}, fixtures };
     cache = { data, ts: now };
