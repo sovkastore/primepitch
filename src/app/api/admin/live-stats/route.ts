@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { normTitle } from "@/lib/match-merge";
+import { clusterRows } from "@/lib/match-merge";
 
 export async function GET() {
   try {
@@ -65,13 +65,13 @@ export async function GET() {
 
 
     type Rec = NonNullable<typeof statsData>[number];
-    const groups: Record<string, Rec[]> = {};
-    statsData?.forEach((r) => {
-      const key = `${normTitle(r.match_title)}|${(r.first_viewed || r.updated_at || "").slice(0, 10)}`;
-      (groups[key] ||= []).push(r);
+    const groups = clusterRows(statsData || [], {
+      title: (r) => r.match_title,
+      sport: (r) => r.sport,
+      day: (r) => r.first_viewed || r.updated_at || "",
     });
 
-    const mergedRecords = Object.values(groups).map((rows) => {
+    const mergedRecords = groups.map((rows: Rec[]) => {
       if (rows.length === 1) return rows[0];
       // Represent the group by its biggest listing; peak = max across listings.
       const top = rows.reduce((a, b) => (b.unique_viewers > a.unique_viewers ? b : a));

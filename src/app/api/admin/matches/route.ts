@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { normTitle } from "@/lib/match-merge";
+import { clusterRows } from "@/lib/match-merge";
 
 export async function GET(request: NextRequest) {
   try {
@@ -80,29 +80,38 @@ export async function GET(request: NextRequest) {
       lastLiveView: string | null;
     }> = {};
 
-    for (const [id, g] of Object.entries(grouped)) {
-      const key = `${normTitle(g.title)}|${g.firstViewed.slice(0, 10)}`;
-      if (!merged[key]) {
-        merged[key] = {
-          match_id: id,
-          title: g.title,
-          titleViews: g.views,
-          sport: g.sport,
-          views: 0,
-          uniqueViewers: new Set(),
-          totalDuration: 0,
-          lastViewed: g.lastViewed,
-          lastLiveView: null,
-        };
+    const entries = Object.entries(grouped).map(([id, g]) => ({ id, ...g }));
+    const clusters = clusterRows(entries, {
+      title: (r) => r.title,
+      sport: (r) => r.sport,
+      day: (r) => r.firstViewed,
+    });
+    let ck = 0;
+    for (const cluster of clusters) {
+      const key = String(ck++);
+      for (const g of cluster) {
+        if (!merged[key]) {
+          merged[key] = {
+            match_id: g.id,
+            title: g.title,
+            titleViews: g.views,
+            sport: g.sport,
+            views: 0,
+            uniqueViewers: new Set(),
+            totalDuration: 0,
+            lastViewed: g.lastViewed,
+            lastLiveView: null,
+          };
+        }
+        const m = merged[key];
+        m.views += g.views;
+        g.uniqueViewers.forEach((v) => m.uniqueViewers.add(v));
+        m.totalDuration += g.totalDuration;
+        if (g.lastViewed > m.lastViewed) m.lastViewed = g.lastViewed;
+        if (g.lastLiveView && (!m.lastLiveView || g.lastLiveView > m.lastLiveView)) m.lastLiveView = g.lastLiveView;
+        // Represent the merged match with its most-viewed listing's title/sport.
+        if (g.views > m.titleViews) { m.title = g.title; m.titleViews = g.views; m.sport = g.sport; m.match_id = g.id; }
       }
-      const m = merged[key];
-      m.views += g.views;
-      g.uniqueViewers.forEach((v) => m.uniqueViewers.add(v));
-      m.totalDuration += g.totalDuration;
-      if (g.lastViewed > m.lastViewed) m.lastViewed = g.lastViewed;
-      if (g.lastLiveView && (!m.lastLiveView || g.lastLiveView > m.lastLiveView)) m.lastLiveView = g.lastLiveView;
-      // Represent the merged match with its most-viewed listing's title/sport.
-      if (g.views > m.titleViews) { m.title = g.title; m.titleViews = g.views; m.sport = g.sport; m.match_id = id; }
     }
 
     // Classify: live = live viewers within the last 3h; played = had live
