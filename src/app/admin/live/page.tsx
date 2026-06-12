@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import ChartWrapper from "@/components/admin/ChartWrapper";
 import StreamOverrideModal from "@/components/admin/StreamOverrideModal";
+import { getAllMatches, getMatchStatus } from "@/lib/api";
 import { useIsMobile } from "@/lib/use-is-mobile";
 import { visibleInterval } from "@/lib/poll";
 
@@ -34,6 +35,29 @@ export default function LiveMonitorPage() {
   const [data, setData] = useState<LiveData | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [overrides, setOverrides] = useState<OverrideRow[]>([]);
+  // match feed id -> live/upcoming; ids absent from the feed have ended.
+  const [feedStatus, setFeedStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
+  useEffect(() => {
+    let on = true;
+    const load = () =>
+      getAllMatches()
+        .then((ms) => {
+          if (!on) return;
+          const map: Record<string, "live" | "upcoming" | "ended"> = {};
+          for (const m of ms) map[String(m.id)] = getMatchStatus(m);
+          setFeedStatus(map);
+        })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60_000);
+    return () => { on = false; clearInterval(t); };
+  }, []);
+  // Watch-page ids look like "source--feedId"; admin overrides ("admin--…") have no feed entry.
+  const rowStatus = (matchId: string): "live" | "upcoming" | "ended" | null => {
+    if (!feedStatus) return null; // not loaded yet — show nothing
+    const feedId = matchId.includes("--") ? matchId.split("--").slice(1).join("--") : matchId;
+    return feedStatus[feedId] || "ended";
+  };
 
   // Override modal target
   const [overrideModal, setOverrideModal] = useState<{ matchId: string; append: boolean; title: string } | null>(null);
@@ -230,12 +254,20 @@ export default function LiveMonitorPage() {
       )}
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <ChartWrapper title="Live Streams — viewers watching now">
+        <ChartWrapper title="Watch pages — viewers on them now">
           {data.activeMatches.length > 0 ? (
             <div className="space-y-2">
               {data.activeMatches.map((m) => (
                 <div key={m.match_id} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50">
-                  <span className="text-[13px] text-gray-700 truncate flex-1 min-w-0">{getMatchTitle(m.match_id)}</span>
+                  <span className="flex items-center gap-1.5 flex-1 min-w-0">
+                    <span className="text-[13px] text-gray-700 truncate min-w-0">{getMatchTitle(m.match_id)}</span>
+                    {rowStatus(m.match_id) === "ended" && (
+                      <span className="text-[9px] font-black text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded shrink-0">ENDED</span>
+                    )}
+                    {rowStatus(m.match_id) === "upcoming" && (
+                      <span className="text-[9px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded shrink-0">SOON</span>
+                    )}
+                  </span>
                   <div className="flex items-center gap-2">
                     <span title="Peak concurrent viewers" className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded tabular-nums">▲ {m.peak}</span>
                     {m.unique !== null && (
