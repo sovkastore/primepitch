@@ -8,6 +8,7 @@ import Logo from "@/components/Logo";
 import { Match, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches } from "@/lib/api";
 import { classifyFight } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
+import { readPageCache, writePageCache } from "@/lib/page-cache";
 
 const SPORTS = [
   "football", "basketball", "american-football", "hockey", "baseball",
@@ -52,6 +53,18 @@ export default function HomePage() {
     if (s) sessionStorage.setItem("pp_sport", s);
   }
 
+  // Cache-first: returning to home (e.g. from World Cup) paints instantly from
+  // the last data instead of showing the loading screen, then refreshes quietly.
+  useEffect(() => {
+    const cachedMatches = readPageCache<Match[]>("pp_home_matches");
+    if (cachedMatches && cachedMatches.length > 0) {
+      setMatches(cachedMatches);
+      setLoading(false);
+    }
+    const cachedLive = readPageCache<Match[]>("pp_live_list");
+    if (cachedLive) setLiveMatches(cachedLive);
+  }, []);
+
   useEffect(() => {
     async function load() {
       try {
@@ -66,7 +79,9 @@ export default function HomePage() {
             }
           })
         );
-        setMatches(dedupeMatches(results.flat()));
+        const merged = dedupeMatches(results.flat());
+        setMatches(merged);
+        writePageCache("pp_home_matches", merged);
       } catch (e) {
         console.error("Failed to load matches:", e);
       } finally {
@@ -78,7 +93,9 @@ export default function HomePage() {
 
   // Live = matches that actually have a playable stream. Refreshed while visible.
   useEffect(() => {
-    const loadLive = () => { getLiveMatches().then(setLiveMatches).catch(() => {}); };
+    const loadLive = () => {
+      getLiveMatches().then((m) => { setLiveMatches(m); writePageCache("pp_live_list", m); }).catch(() => {});
+    };
     return visibleInterval(loadLive, 90_000);
   }, []);
 

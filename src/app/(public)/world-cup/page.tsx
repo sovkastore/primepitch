@@ -7,6 +7,7 @@ import SportsNav from "@/components/SportsNav";
 import { Match, getLiveMatches, getWatchHref } from "@/lib/api";
 import { getCountryFlagUrl } from "@/lib/country-flags";
 import { visibleInterval } from "@/lib/poll";
+import { readPageCache, writePageCache } from "@/lib/page-cache";
 
 interface Team { name: string; country: string; }
 interface Fixture {
@@ -125,18 +126,33 @@ export default function WorldCupPage() {
     router.push("/");
   }
 
+  // Cache-first: paint instantly from the last visit, refresh in background.
+  useEffect(() => {
+    const cached = readPageCache<WCData>("pp_wc_data");
+    if (cached) { setData(cached); setLoading(false); }
+    const cachedLive = readPageCache<Match[]>("pp_live_list");
+    if (cachedLive) setLive(cachedLive);
+  }, []);
+
   useEffect(() => {
     const load = () => {
       fetch("/api/world-cup")
         .then((r) => r.json())
-        .then((d) => { setData({ groups: d.groups || {}, fixtures: d.fixtures || [] }); setLoading(false); })
+        .then((d) => {
+          const next = { groups: d.groups || {}, fixtures: d.fixtures || [] };
+          setData(next);
+          writePageCache("pp_wc_data", next);
+          setLoading(false);
+        })
         .catch(() => setLoading(false));
     };
     return visibleInterval(load, 90_000);
   }, []);
 
   useEffect(() => {
-    const load = () => { getLiveMatches().then(setLive).catch(() => {}); };
+    const load = () => {
+      getLiveMatches().then((m) => { setLive(m); writePageCache("pp_live_list", m); }).catch(() => {});
+    };
     return visibleInterval(load, 90_000);
   }, []);
 
@@ -172,9 +188,19 @@ export default function WorldCupPage() {
     return out;
   }
 
+  // A fixture counts as played if the feed says so OR — safety net for status
+  // words we don't recognize / feeds that never flip — kickoff was more than
+  // 3h ago and it isn't currently live.
+  function isPlayedFixture(f: Fixture): boolean {
+    if (isDone(f.status)) return true;
+    if (!f.date) return false;
+    const s = (f.status || "").toLowerCase();
+    return nowTs - f.date > 3 * 60 * 60 * 1000 && !LIVE_STATUSES.has(s);
+  }
+
   // Results = played matches (most recent day first); Fixtures = live + upcoming.
-  const playedFixtures = data.fixtures.filter((f) => isDone(f.status));
-  const unplayedFixtures = data.fixtures.filter((f) => !isDone(f.status));
+  const playedFixtures = data.fixtures.filter((f) => isPlayedFixture(f));
+  const unplayedFixtures = data.fixtures.filter((f) => !isPlayedFixture(f));
   const byDay = view === "results"
     ? groupByDay([...playedFixtures].sort((a, b) => b.date - a.date))
     : groupByDay(unplayedFixtures);
