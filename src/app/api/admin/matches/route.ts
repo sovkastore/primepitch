@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
       uniqueViewers: Set<string>;
       totalDuration: number;
       lastViewed: string;
+      firstViewed: string;
       lastLiveView: string | null;
     }> = {};
 
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
           uniqueViewers: new Set(),
           totalDuration: 0,
           lastViewed: r.created_at,
+          firstViewed: r.created_at,
           lastLiveView: null,
         };
       }
@@ -60,8 +62,65 @@ export async function GET(request: NextRequest) {
       g.uniqueViewers.add(r.visitor_id);
       g.totalDuration += r.duration_sec || 0;
       if (r.created_at > g.lastViewed) g.lastViewed = r.created_at;
+      if (r.created_at < g.firstViewed) g.firstViewed = r.created_at;
       if (r.is_live && (!g.lastLiveView || r.created_at > g.lastLiveView)) g.lastLiveView = r.created_at;
     });
+
+    // Merge duplicate listings of the same real match: providers publish the
+    // same fixture under several sources / slightly different titles. Keyed by
+    // normalized title (with team-name aliases) + first-seen day, so the same
+    // teams meeting again later in a tournament stay separate. Unique viewers
+    // are a true union of visitor IDs across listings — never double-counted.
+    const TITLE_ALIASES: [RegExp, string][] = [
+      [/czechrepublic/g, "czechia"],
+      [/korearepublic/g, "southkorea"],
+      [/unitedstatesofamerica/g, "unitedstates"],
+      [/\busa\b/g, "unitedstates"],
+      [/ivorycoast/g, "cotedivoire"],
+      [/holland/g, "netherlands"],
+    ];
+    const normTitle = (t: string) => {
+      let n = (t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      for (const [re, sub] of TITLE_ALIASES) n = n.replace(re, sub);
+      return n;
+    };
+
+    const merged: Record<string, {
+      match_id: string;
+      title: string;
+      titleViews: number;
+      sport: string;
+      views: number;
+      uniqueViewers: Set<string>;
+      totalDuration: number;
+      lastViewed: string;
+      lastLiveView: string | null;
+    }> = {};
+
+    for (const [id, g] of Object.entries(grouped)) {
+      const key = `${normTitle(g.title)}|${g.firstViewed.slice(0, 10)}`;
+      if (!merged[key]) {
+        merged[key] = {
+          match_id: id,
+          title: g.title,
+          titleViews: g.views,
+          sport: g.sport,
+          views: 0,
+          uniqueViewers: new Set(),
+          totalDuration: 0,
+          lastViewed: g.lastViewed,
+          lastLiveView: null,
+        };
+      }
+      const m = merged[key];
+      m.views += g.views;
+      g.uniqueViewers.forEach((v) => m.uniqueViewers.add(v));
+      m.totalDuration += g.totalDuration;
+      if (g.lastViewed > m.lastViewed) m.lastViewed = g.lastViewed;
+      if (g.lastLiveView && (!m.lastLiveView || g.lastLiveView > m.lastLiveView)) m.lastLiveView = g.lastLiveView;
+      // Represent the merged match with its most-viewed listing's title/sport.
+      if (g.views > m.titleViews) { m.title = g.title; m.titleViews = g.views; m.sport = g.sport; m.match_id = id; }
+    }
 
     // Classify: live = live viewers within the last 3h; played = had live
     // viewers earlier; upcoming = only preview visits so far.
@@ -72,9 +131,9 @@ export async function GET(request: NextRequest) {
       return nowMs - Date.parse(g.lastLiveView) <= LIVE_WINDOW ? "live" : "played";
     };
 
-    const matches = Object.entries(grouped)
-      .map(([id, g]) => ({
-        match_id: id,
+    const matches = Object.values(merged)
+      .map((g) => ({
+        match_id: g.match_id,
         title: g.title,
         sport: g.sport,
         views: g.views,
@@ -93,7 +152,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       matches,
-      total: Object.values(grouped).filter((g) => status === "all" || classify(g) === status).length,
+      total: Object.values(merged).filter((g) => status === "all" || classify(g) === status).length,
       page,
       raw: data,
       rawTotal: count,
