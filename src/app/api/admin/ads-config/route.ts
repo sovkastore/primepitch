@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 const KEY = "ads_config";
 
-type Cap = "off" | "session" | "daily";
+type Cap = "off" | "30m" | "1h" | "2h" | "24h";
 type Format = { label: string; enabled: boolean; zone: string; src: string; cap: Cap };
 type AdsConfig = {
   master: boolean;
@@ -15,12 +15,12 @@ const DEFAULTS: AdsConfig = {
   master: false,
   domains: "all",
   formats: {
-    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "off" },
+    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "1h" },
   },
 };
 
 const ALLOWED_DOMAINS = new Set(["all", "workers_dev", "xellnetwork"]);
-const ALLOWED_CAPS = new Set(["off", "session", "daily"]);
+const ALLOWED_CAPS = new Set(["off", "30m", "1h", "2h", "24h"]);
 // Only known formats can be saved (prevents arbitrary script injection).
 const ALLOWED_FORMATS = new Set(["inpage_push"]);
 

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-type Cap = "off" | "session" | "daily";
+type Cap = "off" | "30m" | "1h" | "2h" | "24h";
 type Format = { enabled: boolean; zone: string; src: string; cap: Cap };
 type AdsConfig = {
   master: boolean;
@@ -18,29 +18,21 @@ function domainAllowed(setting: AdsConfig["domains"], host: string): boolean {
 }
 
 // Frequency cap, enforced per device via localStorage.
-// off     -> always load
-// session -> load once per page session (sessionStorage)
-// daily   -> load at most once per 24h on this device
+// off -> always load. Otherwise load at most once per N minutes on this device.
+const CAP_MINUTES: Record<string, number> = { "30m": 30, "1h": 60, "2h": 120, "24h": 1440 };
+
 function capAllows(id: string, cap: Cap): boolean {
   try {
-    if (cap === "off") return true;
-    if (cap === "session") {
-      const k = `ad_s_${id}`;
-      if (sessionStorage.getItem(k)) return false;
-      sessionStorage.setItem(k, "1");
-      return true;
-    }
-    if (cap === "daily") {
-      const k = `ad_d_${id}`;
-      const last = Number(localStorage.getItem(k) || 0);
-      if (Date.now() - last < 24 * 60 * 60 * 1000) return false;
-      localStorage.setItem(k, String(Date.now()));
-      return true;
-    }
+    const mins = CAP_MINUTES[cap];
+    if (!mins) return true; // "off" or anything unknown -> always load
+    const k = `ad_t_${id}`;
+    const last = Number(localStorage.getItem(k) || 0);
+    if (Date.now() - last < mins * 60 * 1000) return false;
+    localStorage.setItem(k, String(Date.now()));
+    return true;
   } catch {
     return true; // storage blocked -> don't block the ad
   }
-  return true;
 }
 
 function injectMonetag(id: string, zone: string, src: string) {

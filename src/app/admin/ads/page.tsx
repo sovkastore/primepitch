@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 
-type Cap = "off" | "session" | "daily";
+type Cap = "off" | "30m" | "1h" | "2h" | "24h";
 type Format = { label: string; enabled: boolean; zone: string; src: string; cap: Cap };
 type AdsConfig = {
   master: boolean;
@@ -14,7 +14,7 @@ const DEFAULTS: AdsConfig = {
   master: false,
   domains: "all",
   formats: {
-    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "off" },
+    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "1h" },
   },
 };
 
@@ -168,8 +168,10 @@ export default function AdminAdsPage() {
                 className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
               >
                 <option value="off">No limit</option>
-                <option value="session">Once per visit</option>
-                <option value="daily">Once per day per device</option>
+                <option value="30m">Every 30 minutes</option>
+                <option value="1h">Every hour</option>
+                <option value="2h">Every 2 hours</option>
+                <option value="24h">Once a day</option>
               </select>
               <p className="text-[12px] text-gray-500">
                 The limit is per device (saved in the browser), so it is a best-effort cap, not exact.
