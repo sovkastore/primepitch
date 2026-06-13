@@ -99,6 +99,7 @@ export async function GET(request: NextRequest) {
 
     const merged: Record<string, {
       match_id: string;
+      matchIds: string[];
       title: string;
       titleViews: number;
       sport: string;
@@ -125,6 +126,7 @@ export async function GET(request: NextRequest) {
         if (!merged[key]) {
           merged[key] = {
             match_id: g.id,
+            matchIds: [],
             title: g.title,
             titleViews: g.views,
             sport: g.sport,
@@ -139,6 +141,7 @@ export async function GET(request: NextRequest) {
           };
         }
         const m = merged[key];
+        m.matchIds.push(g.id);
         m.views += g.views;
         m.liveViews += g.liveViews;
         m.preViews += g.preViews;
@@ -149,6 +152,20 @@ export async function GET(request: NextRequest) {
         if (g.lastLiveView && (!m.lastLiveView || g.lastLiveView > m.lastLiveView)) m.lastLiveView = g.lastLiveView;
         // Represent the merged match with its most-viewed listing's title/sport.
         if (g.views > m.titleViews) { m.title = g.title; m.titleViews = g.views; m.sport = g.sport; m.match_id = g.id; }
+      }
+    }
+
+    // Peak concurrent viewers (highest watching at once) per match, from
+    // match_stats. A merged group's peak = the max across its listings.
+    const peakById: Record<string, number> = {};
+    const allMatchIds = Object.values(merged).flatMap((m) => m.matchIds);
+    if (allMatchIds.length > 0) {
+      const { data: statRows } = await getSupabaseAdmin()
+        .from("match_stats")
+        .select("match_id, peak_viewers")
+        .in("match_id", allMatchIds);
+      for (const s of (statRows ?? []) as Array<{ match_id: string; peak_viewers: number }>) {
+        peakById[s.match_id] = s.peak_viewers ?? 0;
       }
     }
 
@@ -172,6 +189,7 @@ export async function GET(request: NextRequest) {
         unique_viewers: g.uniqueViewers.size,
         unique_live: g.liveViewers.size,
         unique_pre: g.uniqueViewers.size - g.liveViewers.size,
+        peak_viewers: Math.max(0, ...g.matchIds.map((id) => peakById[id] ?? 0)),
         avg_duration: g.views > 0 ? Math.round(g.totalDuration / g.views) : 0,
         last_viewed: g.lastViewed,
         status: classify(g),

@@ -142,7 +142,7 @@ export default function PulsePage() {
   const nonLiveActive = data.activeMatches.filter((m) => rowStatus(m.match_id) !== "live");
 
   // Shared row used by both containers.
-  const renderActiveRow = (m: { match_id: string; viewers: number }) => (
+  const renderActiveRow = (m: { match_id: string; viewers: number; peak?: number; unique?: number | null }) => (
     <div key={m.match_id} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50">
       <span className="flex items-center gap-1.5 flex-1 min-w-0">
         <span className="text-[13px] text-gray-700 truncate min-w-0">{titleFor(m.match_id)}</span>
@@ -160,16 +160,21 @@ export default function PulsePage() {
         )}
       </span>
       <div className="flex items-center gap-2">
-        <span className="flex items-center gap-1.5">
-          {rowStatus(m.match_id) === "ended" ? (
-            <span className="text-[10px] text-gray-400">{m.viewers} on page</span>
-          ) : (
-            <>
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-[13px] font-bold text-emerald-600 tabular-nums">{m.viewers}</span>
-            </>
+        <div className="flex flex-col items-end leading-tight">
+          <span className="flex items-center gap-1.5">
+            {rowStatus(m.match_id) === "ended" ? (
+              <span className="text-[10px] text-gray-400">{m.viewers} on page</span>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-[13px] font-bold text-emerald-600 tabular-nums">{m.viewers}</span>
+              </>
+            )}
+          </span>
+          {typeof m.peak === "number" && m.peak > 0 && (
+            <span className="text-[9px] font-semibold text-gray-400 tabular-nums">peak {m.peak}</span>
           )}
-        </span>
+        </div>
         {matchHasOverride(m.match_id) ? (
           <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded">OVERRIDDEN</span>
         ) : (

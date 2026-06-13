@@ -20,6 +20,7 @@ interface MatchRow {
   unique_viewers: number;
   unique_live: number;
   unique_pre: number;
+  peak_viewers: number;
   status?: "played" | "live" | "upcoming";
   avg_duration: number;
   last_viewed: string;
@@ -209,6 +210,7 @@ export default function MatchAnalyticsPage() {
                     <th className="text-left text-[11px] font-bold text-gray-400 uppercase pb-2">Match</th>
                     <th className="text-left text-[11px] font-bold text-gray-400 uppercase pb-2">Sport</th>
                     <th className="text-right text-[11px] font-bold text-gray-400 uppercase pb-2">Views</th>
+                    <th className="text-right text-[11px] font-bold text-gray-400 uppercase pb-2">Peak</th>
                     <th className="text-right text-[11px] font-bold text-gray-400 uppercase pb-2 hidden sm:table-cell">Unique (total)</th>
                     <th className="text-right text-[11px] font-bold text-gray-400 uppercase pb-2 hidden md:table-cell">Avg Duration</th>
                     <th className="text-right text-[11px] font-bold text-gray-400 uppercase pb-2 hidden lg:table-cell">Last Viewed</th>
@@ -245,6 +247,10 @@ export default function MatchAnalyticsPage() {
                           <span className="mx-0.5 text-gray-300">·</span>
                           <span className="text-gray-500">{m.pre_views}</span> pre
                         </span>
+                      </td>
+                      <td className="py-2.5 text-right tabular-nums">
+                        <span className="block text-[13px] font-bold text-emerald-600">{m.peak_viewers}</span>
+                        <span className="block mt-0.5 text-[9px] font-semibold text-gray-400">at once</span>
                       </td>
                       <td className="py-2.5 text-right text-[13px] font-bold text-emerald-600 tabular-nums hidden sm:table-cell">{m.unique_viewers}</td>
                       <td className="py-2.5 text-right text-[12px] text-gray-500 hidden md:table-cell">{formatDuration(m.avg_duration)}</td>
