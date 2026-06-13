@@ -206,7 +206,8 @@ export function hasTeamVisual(team?: { name?: string; badge?: string }): boolean
   return Boolean(team.name && getCountryFlagUrl(team.name));
 }
 
-export function bothTeamsHaveVisuals(match: Match): boolean {
+export function bothTeamsHaveVisuals(match?: Match | null): boolean {
+  if (!match) return false;
   return hasTeamVisual(match.teams?.home) && hasTeamVisual(match.teams?.away);
 }
 
