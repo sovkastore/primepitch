@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
       sport: string;
       views: number;
       uniqueViewers: Set<string>;
+      liveViewers: Set<string>;
       totalDuration: number;
       lastViewed: string;
       firstViewed: string;
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
           sport: r.sport || "",
           views: 0,
           uniqueViewers: new Set(),
+          liveViewers: new Set(),
           totalDuration: 0,
           lastViewed: r.created_at,
           firstViewed: r.created_at,
@@ -80,6 +82,9 @@ export async function GET(request: NextRequest) {
       const g = grouped[r.match_id];
       g.views++;
       g.uniqueViewers.add(r.visitor_id);
+      // A visitor who ever loaded the page while the match was live counts as a
+      // live watcher; everyone else only showed up before kickoff.
+      if (r.is_live) g.liveViewers.add(r.visitor_id);
       g.totalDuration += r.duration_sec || 0;
       if (r.created_at > g.lastViewed) g.lastViewed = r.created_at;
       if (r.created_at < g.firstViewed) g.firstViewed = r.created_at;
@@ -94,6 +99,7 @@ export async function GET(request: NextRequest) {
       sport: string;
       views: number;
       uniqueViewers: Set<string>;
+      liveViewers: Set<string>;
       totalDuration: number;
       lastViewed: string;
       lastLiveView: string | null;
@@ -117,6 +123,7 @@ export async function GET(request: NextRequest) {
             sport: g.sport,
             views: 0,
             uniqueViewers: new Set(),
+            liveViewers: new Set(),
             totalDuration: 0,
             lastViewed: g.lastViewed,
             lastLiveView: null,
@@ -125,6 +132,7 @@ export async function GET(request: NextRequest) {
         const m = merged[key];
         m.views += g.views;
         g.uniqueViewers.forEach((v) => m.uniqueViewers.add(v));
+        g.liveViewers.forEach((v) => m.liveViewers.add(v));
         m.totalDuration += g.totalDuration;
         if (g.lastViewed > m.lastViewed) m.lastViewed = g.lastViewed;
         if (g.lastLiveView && (!m.lastLiveView || g.lastLiveView > m.lastLiveView)) m.lastLiveView = g.lastLiveView;
@@ -149,6 +157,8 @@ export async function GET(request: NextRequest) {
         sport: g.sport,
         views: g.views,
         unique_viewers: g.uniqueViewers.size,
+        unique_live: g.liveViewers.size,
+        unique_pre: g.uniqueViewers.size - g.liveViewers.size,
         avg_duration: g.views > 0 ? Math.round(g.totalDuration / g.views) : 0,
         last_viewed: g.lastViewed,
         status: classify(g),

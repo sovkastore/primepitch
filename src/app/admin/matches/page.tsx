@@ -16,6 +16,8 @@ interface MatchRow {
   sport: string;
   views: number;
   unique_viewers: number;
+  unique_live: number;
+  unique_pre: number;
   status?: "played" | "live" | "upcoming";
   avg_duration: number;
   last_viewed: string;
@@ -205,7 +207,7 @@ export default function MatchAnalyticsPage() {
                     <th className="text-left text-[11px] font-bold text-gray-400 uppercase pb-2">Match</th>
                     <th className="text-left text-[11px] font-bold text-gray-400 uppercase pb-2">Sport</th>
                     <th className="text-right text-[11px] font-bold text-gray-400 uppercase pb-2">Views</th>
-                    <th className="text-right text-[11px] font-bold text-gray-400 uppercase pb-2 hidden sm:table-cell">Unique</th>
+                    <th className="text-right text-[11px] font-bold text-gray-400 uppercase pb-2 hidden sm:table-cell">Unique (total)</th>
                     <th className="text-right text-[11px] font-bold text-gray-400 uppercase pb-2 hidden md:table-cell">Avg Duration</th>
                     <th className="text-right text-[11px] font-bold text-gray-400 uppercase pb-2 hidden lg:table-cell">Last Viewed</th>
                   </tr>
@@ -227,6 +229,11 @@ export default function MatchAnalyticsPage() {
                           </span>
                         )}
                         {m.title}
+                        <span className="block mt-0.5 text-[10px] font-semibold text-gray-400">
+                          <span className="text-emerald-600">{m.unique_live}</span> watched live
+                          <span className="mx-1 text-gray-300">·</span>
+                          <span className="text-blue-500">{m.unique_pre}</span> before kickoff
+                        </span>
                       </td>
                       <td className="py-2.5 text-[11px] text-gray-500 font-medium">{m.sport}</td>
                       <td className="py-2.5 text-right text-[13px] font-bold text-gray-900 tabular-nums">{m.views}</td>
