@@ -69,6 +69,11 @@ export default function PulsePage() {
     const parts = matchId.split("--");
     const feedId = parts.length > 1 ? parts.slice(1).join("--") : matchId;
     if (feedStatus[feedId]) return feedStatus[feedId];
+    // Match by fixture name, ignoring any language/extra suffix in parentheses
+    // e.g. "Qatar vs Switzerland (German & Spanish)" -> "Qatar vs Switzerland",
+    // so a duplicate language feed inherits the real fixture's live status.
+    const baseTitle = normTitle(titleFor(matchId).replace(/\([^)]*\)/g, " "));
+    if (titleStatus?.[baseTitle]) return titleStatus[baseTitle];
     const byTitle = titleStatus?.[normTitle(getMatchTitle(matchId))];
     if (byTitle) return byTitle;
     const isCustom = parts[0] === "admin" || /^(live-)?event/i.test(parts[0]) || parts.length === 1;
