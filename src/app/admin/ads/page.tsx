@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 
 type Cap = "off" | "30m" | "1h" | "2h" | "24h";
-type Format = { label: string; enabled: boolean; zone: string; src: string; cap: Cap };
+type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
+type Format = { label: string; enabled: boolean; zone: string; src: string; cap: Cap; delay: Delay };
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -14,8 +15,8 @@ const DEFAULTS: AdsConfig = {
   master: false,
   domains: "all",
   formats: {
-    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "1h" },
-    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: "1h" },
+    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "1h", delay: "0" },
+    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: "1h", delay: "0" },
   },
 };
 
@@ -159,6 +160,25 @@ export default function AdminAdsPage() {
                 placeholder="https://nap5k.com/tag.min.js"
                 className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-gray-800">Delay before first show</label>
+              <select
+                value={f.delay}
+                onChange={(e) => updateFormat(id, { delay: e.target.value as Delay })}
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              >
+                <option value="0">No delay (show right away)</option>
+                <option value="1m">After 1 minute</option>
+                <option value="2m">After 2 minutes</option>
+                <option value="3m">After 3 minutes</option>
+                <option value="5m">After 5 minutes</option>
+                <option value="10m">After 10 minutes</option>
+              </select>
+              <p className="text-[12px] text-gray-500">
+                How long a visitor must be on the site before this ad first appears.
+              </p>
             </div>
 
             <div className="space-y-1.5">

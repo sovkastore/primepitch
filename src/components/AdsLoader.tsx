@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 type Cap = "off" | "30m" | "1h" | "2h" | "24h";
-type Format = { enabled: boolean; zone: string; src: string; cap: Cap };
+type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string };
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -35,8 +35,13 @@ function capAllows(id: string, cap: Cap): boolean {
   }
 }
 
-function injectMonetag(id: string, zone: string, src: string) {
-  if (!zone || !src) return;
+// How long to wait after the visitor lands before the ad first appears.
+const DELAY_SECONDS: Record<string, number> = { "1m": 60, "2m": 120, "3m": 180, "5m": 300, "10m": 600 };
+function delaySeconds(d?: string): number {
+  return (d && DELAY_SECONDS[d]) || 0;
+}
+
+function injectMonetag(id: string, zone: string, src: string) {  if (!zone || !src) return;
   if (document.querySelector(`script[data-ad-format="${id}"]`)) return; // once per load
   const s = document.createElement("script");
   s.dataset.zone = zone;
@@ -48,6 +53,7 @@ function injectMonetag(id: string, zone: string, src: string) {
 export default function AdsLoader() {
   useEffect(() => {
     let done = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
     (async () => {
       try {
         const res = await fetch("/api/ads-config", { cache: "no-store" });
@@ -58,8 +64,12 @@ export default function AdsLoader() {
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
         for (const [id, f] of Object.entries(cfg.formats || {})) {
           if (!f?.enabled) continue;
-          if (!capAllows(id, f.cap)) continue;
-          injectMonetag(id, f.zone, f.src);
+          const t = setTimeout(() => {
+            if (done) return;
+            if (!capAllows(id, f.cap)) return; // cap checked only when we actually show
+            injectMonetag(id, f.zone, f.src);
+          }, delaySeconds(f.delay) * 1000);
+          timers.push(t);
         }
       } catch {
         // network/parse failure -> show no ads
@@ -67,6 +77,7 @@ export default function AdsLoader() {
     })();
     return () => {
       done = true;
+      timers.forEach(clearTimeout);
     };
   }, []);
   return null;

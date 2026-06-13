@@ -4,7 +4,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 const KEY = "ads_config";
 
 type Cap = "off" | "30m" | "1h" | "2h" | "24h";
-type Format = { label: string; enabled: boolean; zone: string; src: string; cap: Cap };
+type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
+type Format = { label: string; enabled: boolean; zone: string; src: string; cap: Cap; delay: Delay };
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -15,13 +16,14 @@ const DEFAULTS: AdsConfig = {
   master: false,
   domains: "all",
   formats: {
-    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "1h" },
-    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: "1h" },
+    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "1h", delay: "0" },
+    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: "1h", delay: "0" },
   },
 };
 
 const ALLOWED_DOMAINS = new Set(["all", "workers_dev", "xellnetwork"]);
 const ALLOWED_CAPS = new Set(["off", "30m", "1h", "2h", "24h"]);
+const ALLOWED_DELAYS = new Set(["0", "1m", "2m", "3m", "5m", "10m"]);
 // Only known formats can be saved (prevents arbitrary script injection).
 const ALLOWED_FORMATS = new Set(["inpage_push", "vignette"]);
 
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest) {
         zone: typeof f.zone === "string" ? f.zone.trim().replace(/[^0-9]/g, "") : "",
         src: typeof f.src === "string" && /^https:\/\/[a-z0-9.\-/_]+$/i.test(f.src.trim()) ? f.src.trim() : "",
         cap: ALLOWED_CAPS.has(f.cap as string) ? (f.cap as Cap) : "off",
+        delay: ALLOWED_DELAYS.has(f.delay as string) ? (f.delay as Delay) : "0",
       };
     }
     // Make sure every known format exists (so toggles always render).
