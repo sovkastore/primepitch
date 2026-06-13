@@ -232,9 +232,9 @@ export default function MatchAnalyticsPage() {
                         )}
                         {m.title}
                         <span className="block mt-0.5 text-[10px] font-semibold text-gray-400">
-                          <span className="text-yellow-600">{m.unique_live}</span> watched live
+                          <span className="text-emerald-600">{m.unique_live}</span> watched live
                           <span className="mx-1 text-gray-300">·</span>
-                          <span className="text-yellow-600">{m.unique_pre}</span> before kickoff
+                          <span className="text-emerald-600">{m.unique_pre}</span> before kickoff
                         </span>
                       </td>
                       <td className="py-2.5 text-[11px] text-gray-500 font-medium">{m.sport}</td>
@@ -246,7 +246,7 @@ export default function MatchAnalyticsPage() {
                           <span className="text-gray-500">{m.pre_views}</span> pre
                         </span>
                       </td>
-                      <td className="py-2.5 text-right text-[13px] font-bold text-yellow-600 tabular-nums hidden sm:table-cell">{m.unique_viewers}</td>
+                      <td className="py-2.5 text-right text-[13px] font-bold text-emerald-600 tabular-nums hidden sm:table-cell">{m.unique_viewers}</td>
                       <td className="py-2.5 text-right text-[12px] text-gray-500 hidden md:table-cell">{formatDuration(m.avg_duration)}</td>
                       <td className="py-2.5 text-right text-[12px] text-gray-400 hidden lg:table-cell">
                         {new Date(m.last_viewed).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}

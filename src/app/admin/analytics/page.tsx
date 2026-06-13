@@ -132,8 +132,8 @@ export default function AnalyticsPage() {
             </div>
             {data.people.unique > 0 && (
               <div className="mt-2 h-2 w-full rounded-full bg-gray-100 overflow-hidden flex">
-                <div className="h-full bg-yellow-500" style={{ width: `${data.people.returningRate}%` }} />
-                <div className="h-full bg-yellow-200" style={{ width: `${100 - data.people.returningRate}%` }} />
+                <div className="h-full bg-emerald-500" style={{ width: `${data.people.returningRate}%` }} />
+                <div className="h-full bg-emerald-200" style={{ width: `${100 - data.people.returningRate}%` }} />
               </div>
             )}
           </section>
@@ -198,7 +198,7 @@ export default function AnalyticsPage() {
           </section>
 
           <p className="text-[11px] text-gray-400 leading-relaxed">
-            Yellow numbers are unique people (distinct browsers); views count every load including refreshes and
+            Green numbers are unique people (distinct browsers); views count every load including refreshes and
             re-opens, so views are always higher. New = first ever visit landed in this window; Returning =
             active now but first joined before it. Windows are UTC days.
           </p>

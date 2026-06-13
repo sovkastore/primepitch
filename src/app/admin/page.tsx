@@ -25,7 +25,7 @@ const CARDS = [
 function Stat({ label, value, sub, people }: { label: string; value: number; sub: string; people?: boolean }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-4 text-center">
-      <p className={`text-3xl font-black tabular-nums ${people ? "text-yellow-600" : "text-gray-900"}`}>{value}</p>
+      <p className={`text-3xl font-black tabular-nums ${people ? "text-emerald-600" : "text-gray-900"}`}>{value}</p>
       <p className="text-[11px] text-gray-500 mt-1 font-medium">{label}</p>
       <p className="text-[10px] text-gray-400">{sub}</p>
     </div>

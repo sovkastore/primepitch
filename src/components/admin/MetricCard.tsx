@@ -15,7 +15,7 @@ const COLORS = {
 };
 
 // One colour, used nowhere else, that always means "distinct people / unique".
-export const UNIQUE_TEXT = "text-yellow-600";
+export const UNIQUE_TEXT = "text-emerald-600";
 
 export default function MetricCard({
   title,

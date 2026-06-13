@@ -152,12 +152,12 @@ export default function PulsePage() {
       {/* Real-time headline */}
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
         <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 text-center">
-          <p className="text-3xl sm:text-5xl font-black text-yellow-600 tabular-nums">{data.onlineNow ?? data.totalActive}</p>
+          <p className="text-3xl sm:text-5xl font-black text-emerald-600 tabular-nums">{data.onlineNow ?? data.totalActive}</p>
           <p className="text-[11px] sm:text-sm text-gray-500 mt-2 font-medium">Online Now</p>
           <p className="text-[10px] text-gray-400">on the site</p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 text-center">
-          <p className="text-3xl sm:text-5xl font-black text-yellow-600 tabular-nums">{trueLiveViewers}</p>
+          <p className="text-3xl sm:text-5xl font-black text-emerald-600 tabular-nums">{trueLiveViewers}</p>
           <p className="text-[11px] sm:text-sm text-gray-500 mt-2 font-medium">Watching Live</p>
           <p className="text-[10px] text-gray-400">{endedViewers > 0 ? `+${endedViewers} on ended` : "on a stream now"}</p>
         </div>
@@ -191,7 +191,7 @@ export default function PulsePage() {
                       ) : (
                         <>
                           <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                          <span className="text-[13px] font-bold text-yellow-600 tabular-nums">{m.viewers}</span>
+                          <span className="text-[13px] font-bold text-emerald-600 tabular-nums">{m.viewers}</span>
                         </>
                       )}
                     </span>
@@ -221,7 +221,7 @@ export default function PulsePage() {
                 <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
                 <YAxis type="category" dataKey="path" tick={{ fontSize: 10 }} width={isMobile ? 64 : 80} tickFormatter={(v) => { const s = v === "/" ? "Home" : v.replace(/^\//, ""); return s.length > (isMobile ? 9 : 15) ? s.slice(0, isMobile ? 9 : 15) + "…" : s; }} />
                 <Tooltip />
-                <Bar dataKey="viewers" fill="#ca8a04" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="viewers" fill="#059669" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (

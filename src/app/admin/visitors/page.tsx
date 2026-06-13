@@ -101,26 +101,26 @@ export default function VisitorsPage() {
             <div className="rounded-2xl border border-gray-100 bg-white p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[12px] font-extrabold text-gray-900 tracking-wider uppercase">Overall · all time</h3>
-                <span className="text-[11px] font-bold text-yellow-600">{data.overall.returningRate}% came back</span>
+                <span className="text-[11px] font-bold text-emerald-600">{data.overall.returningRate}% came back</span>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <p className="text-2xl font-black text-yellow-600 tabular-nums">{data.overall.total}</p>
+                  <p className="text-2xl font-black text-emerald-600 tabular-nums">{data.overall.total}</p>
                   <p className="text-[10px] font-semibold text-gray-400 mt-0.5">total visitors</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-yellow-600 tabular-nums">{data.overall.returning}</p>
+                  <p className="text-2xl font-black text-emerald-600 tabular-nums">{data.overall.returning}</p>
                   <p className="text-[10px] font-semibold text-gray-400 mt-0.5">came back another day</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-yellow-600 tabular-nums">{data.overall.oneTime}</p>
+                  <p className="text-2xl font-black text-emerald-600 tabular-nums">{data.overall.oneTime}</p>
                   <p className="text-[10px] font-semibold text-gray-400 mt-0.5">visited one day only</p>
                 </div>
               </div>
               {/* Returning-rate bar */}
               <div className="mt-3 h-2 w-full rounded-full bg-gray-100 overflow-hidden flex">
-                <div className="h-full bg-yellow-500" style={{ width: `${data.overall.returningRate}%` }} />
-                <div className="h-full bg-yellow-200" style={{ width: `${100 - data.overall.returningRate}%` }} />
+                <div className="h-full bg-emerald-500" style={{ width: `${data.overall.returningRate}%` }} />
+                <div className="h-full bg-emerald-200" style={{ width: `${100 - data.overall.returningRate}%` }} />
               </div>
             </div>
           )}
@@ -141,7 +141,7 @@ export default function VisitorsPage() {
                   <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={28} />
                   <Tooltip labelFormatter={(label) => fmtDay(String(label))} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Line type="monotone" dataKey="unique" name="Unique" stroke="#ca8a04" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="unique" name="Unique" stroke="#059669" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="new" name="New" stroke="#9ca3af" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
@@ -172,7 +172,7 @@ export default function VisitorsPage() {
                 <XAxis dataKey="hour" tick={{ fontSize: 10 }} tickFormatter={(h) => `${h}`} interval={isMobile ? 3 : 1} />
                 <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={28} />
                 <Tooltip labelFormatter={(h) => `${h}:00 UTC`} />
-                <Bar dataKey="visitors" name="Unique visitors" fill="#ca8a04" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="visitors" name="Unique visitors" fill="#059669" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartWrapper>
@@ -197,7 +197,7 @@ export default function VisitorsPage() {
                       return (
                         <tr key={r.visitor_id} className="border-b border-gray-50">
                           <td className="py-2 pr-3">
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isNew ? "bg-yellow-50 text-yellow-700" : "bg-gray-100 text-gray-500"}`}>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isNew ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
                               {isNew ? "NEW" : "RETURNING"}
                             </span>
                           </td>
