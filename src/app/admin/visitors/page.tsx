@@ -126,11 +126,11 @@ export default function VisitorsPage() {
           )}
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-            <MetricCard title="Unique Visitors" value={data.unique} subtitle={`${data.pageviews} page views`} color="emerald" />
+            <MetricCard title="Unique Visitors" value={data.unique} subtitle={`${data.pageviews} page views`} unique />
             <MetricCard title="New Visitors" value={data.new ?? "—"} subtitle="first time ever" color="blue" />
             <MetricCard title="Returning" value={data.returning ?? "—"} subtitle="seen before today" color="amber" />
             <MetricCard title="Page Views" value={data.pageviews} subtitle="incl. repeat pages" color="red" />
-            <MetricCard title="Total Visitors" value={data.totalVisitors ?? "—"} subtitle="all-time, ever joined" color="emerald" />
+            <MetricCard title="Total Visitors" value={data.totalVisitors ?? "—"} subtitle="all-time, ever joined" unique />
           </div>
 
           <div className="grid lg:grid-cols-3 gap-4">

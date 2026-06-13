@@ -246,7 +246,7 @@ export default function MatchAnalyticsPage() {
                           <span className="text-blue-500">{m.pre_views}</span> pre
                         </span>
                       </td>
-                      <td className="py-2.5 text-right text-[13px] text-gray-600 tabular-nums hidden sm:table-cell">{m.unique_viewers}</td>
+                      <td className="py-2.5 text-right text-[13px] font-bold text-yellow-600 tabular-nums hidden sm:table-cell">{m.unique_viewers}</td>
                       <td className="py-2.5 text-right text-[12px] text-gray-500 hidden md:table-cell">{formatDuration(m.avg_duration)}</td>
                       <td className="py-2.5 text-right text-[12px] text-gray-400 hidden lg:table-cell">
                         {new Date(m.last_viewed).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}

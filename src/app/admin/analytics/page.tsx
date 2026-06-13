@@ -124,7 +124,7 @@ export default function AnalyticsPage() {
           <section>
             <h2 className="text-[12px] font-extrabold text-gray-900 uppercase tracking-wider mb-2">People</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <MetricCard title="Unique people" value={data.people.unique} subtitle="distinct humans" color="emerald" />
+              <MetricCard title="Unique people" value={data.people.unique} subtitle="distinct humans" unique />
               <MetricCard title="New" value={data.people.newVisitors} subtitle="first time ever" color="blue" />
               <MetricCard title="Returning" value={data.people.returning} subtitle="joined earlier, active now" color="amber" />
               <MetricCard title="Returning rate" value={`${data.people.returningRate}%`} subtitle="of this window" color="amber" />
@@ -144,7 +144,7 @@ export default function AnalyticsPage() {
               <MetricCard title="Page views" value={data.activity.pageViews} subtitle={`${data.activity.loadsPerPerson} per person`} color="red" />
               <MetricCard title="Match views" value={data.activity.matchViews} subtitle={`${data.activity.liveViews} live · ${data.activity.preViews} pre`} color="red" />
               <MetricCard title="Matches watched" value={data.activity.matchesWatched} subtitle="distinct matches" color="emerald" />
-              <MetricCard title="Match watchers" value={data.activity.uniqueWatchers} subtitle={`${data.activity.watchersLive} watched live · ${data.activity.watchersPreOnly} only pre`} color="blue" />
+              <MetricCard title="Match watchers" value={data.activity.uniqueWatchers} subtitle={`${data.activity.watchersLive} watched live · ${data.activity.watchersPreOnly} only pre`} unique />
             </div>
           </section>
 
@@ -186,7 +186,7 @@ export default function AnalyticsPage() {
           </section>
 
           <p className="text-[11px] text-gray-400 leading-relaxed">
-            &ldquo;Unique people&rdquo; counts distinct browsers; views count every load including refreshes and
+            Yellow numbers are unique people (distinct browsers); views count every load including refreshes and
             re-opens, so views are always higher. New = first ever visit landed in this window; Returning =
             active now but first joined before it. Windows are UTC days.
           </p>
