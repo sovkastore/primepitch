@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+
+type SocialLink = { id: string; label: string; enabled: boolean; url: string };
 
 export default function AdminSettingsPage() {
   const [aggregating, setAggregating] = useState(false);
@@ -11,6 +13,39 @@ export default function AdminSettingsPage() {
   const [changingPassword, setChangingPassword] = useState(false);
 
   const supabase = createClient();
+
+  const [socials, setSocials] = useState<SocialLink[]>([]);
+  const [savingSocials, setSavingSocials] = useState(false);
+  const [socialsMsg, setSocialsMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/social-links", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setSocials(Array.isArray(d.links) ? d.links : []))
+      .catch(() => {});
+  }, []);
+
+  function updateSocial(id: string, patch: Partial<SocialLink>) {
+    setSocials((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  }
+
+  async function saveSocials() {
+    setSavingSocials(true);
+    setSocialsMsg("");
+    try {
+      const res = await fetch("/api/admin/social-links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ links: socials }),
+      });
+      if (!res.ok) throw new Error();
+      setSocialsMsg("Saved.");
+    } catch {
+      setSocialsMsg("Failed to save.");
+    } finally {
+      setSavingSocials(false);
+    }
+  }
 
   async function runAggregation() {
     setAggregating(true);
@@ -112,6 +147,61 @@ export default function AdminSettingsPage() {
             <p className="text-[12px] text-gray-600 mt-3 bg-gray-50 p-3 rounded-xl">
               {aggregateResult}
             </p>
+          )}
+        </div>
+      </div>
+
+      {/* Connection info */}
+      {/* Connect / social links */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+        <h2 className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">
+          Connect Links
+        </h2>
+        <p className="text-[13px] text-gray-600">
+          Toggle each one on or off and set where it points. Only the ones turned
+          on (with a link) show in the site menu under &ldquo;Connect with us.&rdquo;
+        </p>
+        <div className="space-y-4">
+          {socials.map((s) => (
+            <div key={s.id} className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-semibold text-gray-800">{s.label}</span>
+                <button
+                  type="button"
+                  onClick={() => updateSocial(s.id, { enabled: !s.enabled })}
+                  className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${s.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
+                  aria-label={`Toggle ${s.label}`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${s.enabled ? "left-[18px]" : "left-0.5"}`} />
+                </button>
+              </div>
+              <input
+                type="url"
+                value={s.url}
+                onChange={(e) => updateSocial(s.id, { url: e.target.value })}
+                placeholder={
+                  s.id === "telegram" ? "https://t.me/yourchannel"
+                  : s.id === "x" ? "https://x.com/yourhandle"
+                  : s.id === "whatsapp" ? "https://wa.me/234XXXXXXXXXX"
+                  : "https://..."
+                }
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={saveSocials}
+            disabled={savingSocials}
+            className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors"
+          >
+            {savingSocials ? "Saving..." : "Save links"}
+          </button>
+          {socialsMsg && (
+            <span className={`text-[12px] font-medium ${socialsMsg === "Saved." ? "text-emerald-600" : "text-red-500"}`}>
+              {socialsMsg}
+            </span>
           )}
         </div>
       </div>
