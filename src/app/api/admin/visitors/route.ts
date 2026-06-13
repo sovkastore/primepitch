@@ -41,8 +41,18 @@ export async function GET(request: NextRequest) {
     let unique = new Set(rows.map((r) => r.visitor_id)).size;
     try {
       const { data: u } = await sb.rpc("unique_visitors_in_range", { p_start: start, p_end: end });
-      if (typeof u === "number") unique = u;
+      if (u != null && !Number.isNaN(Number(u))) unique = Number(u);
     } catch { /* RPC not created yet */ }
+
+    // Site-wide lifetime split: new (one visit ever) vs returning (came back).
+    // Exact counts — cap-immune.
+    let overall: { total: number; returning: number; oneTime: number; returningRate: number } | null = null;
+    try {
+      const { count: total } = await sb.from("visitors").select("visitor_id", { count: "exact", head: true });
+      const { count: ret } = await sb.from("visitors").select("visitor_id", { count: "exact", head: true }).gt("visit_count", 1);
+      const t = total ?? 0, r = ret ?? 0;
+      overall = { total: t, returning: r, oneTime: Math.max(0, t - r), returningRate: t ? Math.round((r / t) * 1000) / 10 : 0 };
+    } catch { /* visitors table not present */ }
 
     // Device + hourly breakdown
     const byDevice: Record<string, number> = {};
@@ -110,7 +120,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       date, unique, new: newVisitors, returning, pageviews,
-      totalVisitors, byDevice, byHour, trend, roster,
+      totalVisitors, byDevice, byHour, trend, roster, overall,
     });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });

@@ -24,6 +24,7 @@ interface VisitorData {
   byHour: { hour: number; views: number; visitors: number }[];
   trend: { date: string; unique: number; new: number }[];
   roster: RosterRow[];
+  overall: { total: number; returning: number; oneTime: number; returningRate: number } | null;
 }
 
 const DEVICE_COLORS: Record<string, string> = {
@@ -96,6 +97,34 @@ export default function VisitorsPage() {
         </div>
       ) : (
         <>
+          {data.overall && (
+            <div className="rounded-2xl border border-gray-100 bg-white p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[12px] font-extrabold text-gray-900 tracking-wider uppercase">Overall · all time</h3>
+                <span className="text-[11px] font-bold text-emerald-600">{data.overall.returningRate}% return</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-2xl font-black text-gray-900 tabular-nums">{data.overall.total}</p>
+                  <p className="text-[10px] font-semibold text-gray-400 mt-0.5">total visitors</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-amber-600 tabular-nums">{data.overall.returning}</p>
+                  <p className="text-[10px] font-semibold text-gray-400 mt-0.5">returning (came back)</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-blue-500 tabular-nums">{data.overall.oneTime}</p>
+                  <p className="text-[10px] font-semibold text-gray-400 mt-0.5">one-time only</p>
+                </div>
+              </div>
+              {/* Returning-rate bar */}
+              <div className="mt-3 h-2 w-full rounded-full bg-gray-100 overflow-hidden flex">
+                <div className="h-full bg-amber-400" style={{ width: `${data.overall.returningRate}%` }} />
+                <div className="h-full bg-blue-300" style={{ width: `${100 - data.overall.returningRate}%` }} />
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             <MetricCard title="Unique Visitors" value={data.unique} subtitle={`${data.pageviews} page views`} color="emerald" />
             <MetricCard title="New Visitors" value={data.new ?? "—"} subtitle="first time ever" color="blue" />
