@@ -35,6 +35,14 @@ export async function GET() {
     const onlineNow = activeNow?.length || 0;
     const liveViewers = activeNow?.filter((r) => r.match_id).length || 0;
 
+    // Per-match breakdown so the overview can count genuinely-live viewers
+    // client-side (same status logic as Pulse).
+    const matchViewers: Record<string, number> = {};
+    activeNow?.forEach((r) => {
+      if (r.match_id) matchViewers[r.match_id] = (matchViewers[r.match_id] || 0) + 1;
+    });
+    const activeMatches = Object.entries(matchViewers).map(([match_id, viewers]) => ({ match_id, viewers }));
+
     const { count: matchViewsToday } = await sb
       .from("match_views")
       .select("*", { count: "exact", head: true })
@@ -87,6 +95,7 @@ export async function GET() {
       uniqueToday,
       onlineNow,
       liveViewers,
+      activeMatches,
       matchViewsToday: matchViewsToday || 0,
       weekViews: weekViews || 0,
       dailyStats: dailyStats || [],

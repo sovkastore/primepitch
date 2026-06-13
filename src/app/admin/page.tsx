@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { visibleInterval } from "@/lib/poll";
+import { getAllMatches, getMatchStatus } from "@/lib/api";
+import { normTitle } from "@/lib/match-merge";
 
 // Launchpad / home. Headline live numbers + links to the five core pages.
 // Detailed analytics live on Analytics, Matches, Visitors; real-time on Pulse.
@@ -12,6 +14,7 @@ interface OverviewData {
   onlineNow: number;
   liveViewers: number;
   todayViews: number;
+  activeMatches?: { match_id: string; viewers: number }[];
 }
 
 const CARDS = [
@@ -34,6 +37,8 @@ function Stat({ label, value, sub, people }: { label: string; value: number; sub
 
 export default function AdminHome() {
   const [data, setData] = useState<OverviewData | null>(null);
+  const [feedStatus, setFeedStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
+  const [titleStatus, setTitleStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
 
   useEffect(() => {
     const fetchData = () => {
@@ -41,6 +46,50 @@ export default function AdminHome() {
     };
     return visibleInterval(fetchData, 30_000);
   }, []);
+
+  // Same live/upcoming/ended source Pulse uses, refreshed every 5 min.
+  useEffect(() => {
+    let on = true;
+    const load = () =>
+      getAllMatches()
+        .then((ms) => {
+          if (!on) return;
+          const map: Record<string, "live" | "upcoming" | "ended"> = {};
+          const tmap: Record<string, "live" | "upcoming" | "ended"> = {};
+          const RANK = { live: 0, upcoming: 1, ended: 2 } as const;
+          for (const m of ms) {
+            const st = getMatchStatus(m);
+            map[String(m.id)] = st;
+            const tk = normTitle(m.title);
+            if (!tmap[tk] || RANK[st] < RANK[tmap[tk]]) tmap[tk] = st;
+          }
+          setFeedStatus(map);
+          setTitleStatus(tmap);
+        })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60_000);
+    return () => { on = false; clearInterval(t); };
+  }, []);
+
+  const matchTitle = (matchId: string): string =>
+    matchId.split("--").pop()?.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || matchId;
+
+  const rowStatus = (matchId: string): "live" | "upcoming" | "ended" | null => {
+    if (!feedStatus) return null;
+    const parts = matchId.split("--");
+    const feedId = parts.length > 1 ? parts.slice(1).join("--") : matchId;
+    if (feedStatus[feedId]) return feedStatus[feedId];
+    const byTitle = titleStatus?.[normTitle(matchTitle(matchId))];
+    if (byTitle) return byTitle;
+    const isCustom = parts[0] === "admin" || /^(live-)?event/i.test(parts[0]) || parts.length === 1;
+    return isCustom ? null : "ended";
+  };
+
+  // Viewers on matches that are genuinely live right now.
+  const liveWatching = (data?.activeMatches ?? [])
+    .filter((m) => rowStatus(m.match_id) === "live")
+    .reduce((sum, m) => sum + m.viewers, 0);
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -50,9 +99,10 @@ export default function AdminHome() {
       </div>
 
       {/* Live snapshot */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <Stat label="Online Now" value={data?.onlineNow ?? 0} sub="on the site" people />
-        <Stat label="Watching Live" value={data?.liveViewers ?? 0} sub="on a stream" people />
+        <Stat label="Watching Live" value={liveWatching} sub="live matches only" people />
+        <Stat label="On a Match Page" value={data?.liveViewers ?? 0} sub="live, upcoming or ended" people />
         <Stat label="Today's Visitors" value={data?.uniqueToday ?? 0} sub="unique people" people />
         <Stat label="Page Views Today" value={data?.todayViews ?? 0} sub="incl. repeats" />
       </div>
