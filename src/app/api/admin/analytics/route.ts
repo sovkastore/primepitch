@@ -60,6 +60,19 @@ export async function GET(request: NextRequest) {
       topPages = ((data || []) as { path: string; views: number }[]).map((r) => ({ path: r.path, views: num(r.views) }));
     } catch { /* ignore */ }
 
+    // Traffic sources — referrers grouped in Postgres, hostnames rolled up here.
+    const refCounts: Record<string, number> = {};
+    try {
+      const { data } = await sb.rpc("referrer_breakdown", { p_start: start, p_end: end });
+      for (const r of (data || []) as { referrer: string; views: number }[]) {
+        let host = r.referrer;
+        try { host = new URL(r.referrer).hostname.replace(/^www\./, ""); } catch { /* keep raw */ }
+        refCounts[host] = (refCounts[host] || 0) + num(r.views);
+      }
+    } catch { /* ignore */ }
+    const topReferrers = Object.entries(refCounts)
+      .sort(([, a], [, b]) => b - a).slice(0, 8).map(([source, views]) => ({ source, views }));
+
     const pv = num(pageViews);
     const round1 = (x: number) => Math.round(x * 10) / 10;
 
@@ -86,6 +99,7 @@ export async function GET(request: NextRequest) {
       byDevice,
       topMatches,
       topPages,
+      topReferrers,
     });
   } catch (e) {
     console.error("Analytics API error:", e);

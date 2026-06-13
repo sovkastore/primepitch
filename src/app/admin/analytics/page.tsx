@@ -14,6 +14,7 @@ interface AnalyticsData {
   byDevice: Record<string, number>;
   topMatches: { match_id: string; title: string; views: number }[];
   topPages: { path: string; views: number }[];
+  topReferrers: { source: string; views: number }[];
 }
 
 type Preset = "today" | "yesterday" | "7d" | "30d" | "month" | "all" | "date";
@@ -149,7 +150,7 @@ export default function AnalyticsPage() {
           </section>
 
           {/* Breakdowns */}
-          <section className="grid lg:grid-cols-3 gap-4">
+          <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Devices */}
             <div className="bg-white rounded-2xl border border-gray-200 p-4">
               <h3 className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider mb-3">Devices</h3>
@@ -182,6 +183,17 @@ export default function AnalyticsPage() {
                 </div>
               ))}
               {data.topPages.length === 0 && <p className="text-[12px] text-gray-400">No data</p>}
+            </div>
+            {/* Traffic sources */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-4">
+              <h3 className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider mb-3">Traffic sources</h3>
+              {data.topReferrers.map((r) => (
+                <div key={r.source} className="flex items-center justify-between text-[13px] py-1 gap-2">
+                  <span className="text-gray-700 truncate">{r.source}</span>
+                  <span className="font-bold text-gray-900 tabular-nums shrink-0">{r.views}</span>
+                </div>
+              ))}
+              {data.topReferrers.length === 0 && <p className="text-[12px] text-gray-400">Direct / none recorded</p>}
             </div>
           </section>
 
