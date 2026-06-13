@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "xyz.xellnetwork.twa",
+    "sha256_cert_fingerprints": ["FE:8B:35:F4:4C:09:51:AE:67:22:A5:79:C3:AC:48:4A:C8:DC:1C:1D:51:8F:3F:A4:7E:89:AC:AB:9E:1A:86:38"]
+  }
+}]
