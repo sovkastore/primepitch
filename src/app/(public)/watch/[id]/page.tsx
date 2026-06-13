@@ -389,13 +389,6 @@ export default function WatchPage() {
 
       {/* Video player (live) OR Match card (upcoming) */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
-        {isHot && (
-          <div className="mb-3 flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-orange-500 px-4 py-2.5 text-white ring-1 ring-red-300/70 animate-hot-glow">
-            <span className="animate-hot-flame text-lg leading-none">🔥</span>
-            <span className="text-[12px] font-black uppercase tracking-wider">Hot match</span>
-            <span className="text-[11px] font-semibold text-white/85">— featured {isLive ? "and live right now" : "— don't miss it"}</span>
-          </div>
-        )}
         {isEnded ? (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
@@ -429,7 +422,21 @@ export default function WatchPage() {
             </div>
           </div>
         ) : isUpcoming ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <div
+            className={
+              "rounded-2xl shadow-sm p-6 " +
+              (isHot
+                ? "bg-white border-2 border-red-300 ring-1 ring-red-200 animate-hot-glow"
+                : "bg-white border border-gray-100")
+            }
+          >
+            {isHot && (
+              <div className="-mx-6 -mt-6 mb-5 px-5 py-3 rounded-t-2xl bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white flex items-center gap-2">
+                <span className="animate-hot-flame text-lg leading-none">🔥</span>
+                <span className="text-[12px] font-black uppercase tracking-wider">Hot Match</span>
+                <span className="text-[11px] font-semibold text-white/85">— featured — don&apos;t miss it</span>
+              </div>
+            )}
             {/* Top: UPCOMING badge + sport */}
             <div className="flex items-center justify-between mb-4">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg text-[9px] font-black text-blue-600 tracking-wide">
@@ -481,11 +488,16 @@ export default function WatchPage() {
             className={
               "relative w-full bg-black rounded-xl overflow-hidden " +
               (isHot
-                ? "border-2 border-red-400 ring-2 ring-red-500/50 animate-hot-entrance"
+                ? "border-2 border-red-300 ring-1 ring-red-200 animate-hot-glow"
                 : "border border-gray-200")
             }
             style={{ aspectRatio: "16/9" }}
           >
+            {isHot && (
+              <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-red-600 to-orange-500 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-red-300/70 shadow-lg">
+                <span className="animate-hot-flame">🔥</span> Hot
+              </span>
+            )}
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
