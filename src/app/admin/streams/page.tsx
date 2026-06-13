@@ -82,6 +82,8 @@ export default function StreamsManagerPage() {
   // Accordion: which card is expanded, and a cache of its resolved servers.
   const [expanded, setExpanded] = useState<string | null>(null);
   const [servers, setServers] = useState<Record<string, ServerState>>({});
+  // Tracks per-server "Use" button state, keyed by `${matchId}::${embedUrl}`.
+  const [pinning, setPinning] = useState<Record<string, "saving" | "done">>({});
 
   const loadServers = useCallback(async (e: Entry, force = false) => {
     if (!force && servers[e.matchId] && !servers[e.matchId].error) return;
@@ -158,6 +160,35 @@ export default function StreamsManagerPage() {
   async function setReplaceMode(matchId: string, replace: boolean) {
     patchEntry(matchId, (e) => ({ ...e, overrides: e.overrides.map((o) => ({ ...o, replace_original: replace })) }));
     await fetch("/api/admin/stream-override", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ match_id: matchId, replace_original: replace }) }).catch(() => {});
+  }
+
+  // Pin a resolved server (e.g. an echo server) as a manual override, added
+  // alongside any existing manual servers. Lets admins pick a streamed.pk server
+  // straight from the panel instead of pasting an embed URL by hand.
+  async function pinServer(e: Entry, s: ResolvedStream) {
+    const key = `${e.matchId}::${s.embedUrl}`;
+    setPinning((p) => ({ ...p, [key]: "saving" }));
+    try {
+      const res = await fetch("/api/admin/stream-override", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          match_id: e.matchId,
+          match_title: e.match.title,
+          match_data: e.match,
+          embed_url: s.embedUrl,
+          source: s.source || "echo",
+          server_label: s.language || `Server ${s.streamNo}`,
+          replace_original: e.overrides[0]?.replace_original ?? false,
+          append: true,
+        }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      setPinning((p) => ({ ...p, [key]: "done" }));
+      fetchData();
+    } catch {
+      setPinning((p) => { const n = { ...p }; delete n[key]; return n; });
+    }
   }
 
   // Sports present across all matches (for the filter dropdown)
@@ -298,6 +329,14 @@ export default function StreamsManagerPage() {
                               {i === 0 && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">shown first</span>}
                               {s.hd && <span className="text-[9px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">HD</span>}
                               <span className="text-[10px] text-gray-400 truncate flex-1 min-w-0">{s.source}{s.language ? ` · ${s.language}` : ""}</span>
+                              {(() => {
+                                const pk = `${e.matchId}::${s.embedUrl}`;
+                                const added = e.overrides.some((o) => o.embed_url === s.embedUrl) || pinning[pk] === "done";
+                                if (added) return <span className="text-[11px] font-bold text-emerald-600 shrink-0">✓ Added</span>;
+                                return (
+                                  <button onClick={() => pinServer(e, s)} disabled={pinning[pk] === "saving"} className="text-[11px] font-bold text-emerald-600 hover:text-emerald-800 shrink-0 disabled:opacity-50">{pinning[pk] === "saving" ? "…" : "Use"}</button>
+                                );
+                              })()}
                               <a href={s.embedUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-blue-600 hover:text-blue-800 shrink-0">Preview</a>
                               <button onClick={() => navigator.clipboard?.writeText(s.embedUrl)} className="text-[11px] font-bold text-gray-400 hover:text-gray-700 shrink-0">Copy</button>
                             </div>
