@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Match, getWatchHref, getBadgeUrl, SPORT_LABELS } from "@/lib/api";
+import { Match, getWatchHref, getBadgeUrl, SPORT_LABELS, showVersus } from "@/lib/api";
 import { getCountryFlagUrl } from "@/lib/country-flags";
 
 const HOUR = 60 * 60 * 1000;
@@ -102,7 +102,7 @@ export default function UpcomingRow({
   const dateStr = d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
   const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   const href = getWatchHref(match);
-  const hasTeams = match.teams?.home && match.teams?.away;
+  const hasTeams = showVersus(match);
   const label = SPORT_LABELS[match.category] || match.category;
 
   return (

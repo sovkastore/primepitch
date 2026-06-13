@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
-import { Match, getMatchStatus, getUpcomingTime, getWatchHref, getPosterUrl, SPORT_ICONS, SPORT_LABELS } from "@/lib/api";
+import { Match, getMatchStatus, getUpcomingTime, getWatchHref, getPosterUrl, SPORT_ICONS, SPORT_LABELS, showVersus } from "@/lib/api";
 
 export default function MatchCard({ match, compact }: { match: Match; compact?: boolean }) {
   const status = getMatchStatus(match);
@@ -10,7 +10,7 @@ export default function MatchCard({ match, compact }: { match: Match; compact?: 
   const label = SPORT_LABELS[match.category] || match.category;
   const href = getWatchHref(match);
   const isLive = status === "live";
-  const hasTeams = match.teams?.home && match.teams?.away;
+  const hasTeams = showVersus(match);
   const poster = match.poster ? getPosterUrl(match.poster) : null;
 
   if (compact) {
