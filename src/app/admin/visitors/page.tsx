@@ -101,7 +101,7 @@ export default function VisitorsPage() {
             <div className="rounded-2xl border border-gray-100 bg-white p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[12px] font-extrabold text-gray-900 tracking-wider uppercase">Overall · all time</h3>
-                <span className="text-[11px] font-bold text-emerald-600">{data.overall.returningRate}% return</span>
+                <span className="text-[11px] font-bold text-emerald-600">{data.overall.returningRate}% came back</span>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -110,11 +110,11 @@ export default function VisitorsPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-black text-amber-600 tabular-nums">{data.overall.returning}</p>
-                  <p className="text-[10px] font-semibold text-gray-400 mt-0.5">returning (came back)</p>
+                  <p className="text-[10px] font-semibold text-gray-400 mt-0.5">came back another day</p>
                 </div>
                 <div>
                   <p className="text-2xl font-black text-blue-500 tabular-nums">{data.overall.oneTime}</p>
-                  <p className="text-[10px] font-semibold text-gray-400 mt-0.5">one-time only</p>
+                  <p className="text-[10px] font-semibold text-gray-400 mt-0.5">visited one day only</p>
                 </div>
               </div>
               {/* Returning-rate bar */}

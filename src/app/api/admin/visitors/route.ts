@@ -44,15 +44,22 @@ export async function GET(request: NextRequest) {
       if (u != null && !Number.isNaN(Number(u))) unique = Number(u);
     } catch { /* RPC not created yet */ }
 
-    // Site-wide lifetime split: new (one visit ever) vs returning (came back).
-    // Exact counts — cap-immune.
+    // Site-wide lifetime split: visitors who genuinely came back on another day
+    // vs those who only ever visited on one day. Exact counts — cap-immune.
     let overall: { total: number; returning: number; oneTime: number; returningRate: number } | null = null;
     try {
       const { count: total } = await sb.from("visitors").select("visitor_id", { count: "exact", head: true });
-      const { count: ret } = await sb.from("visitors").select("visitor_id", { count: "exact", head: true }).gt("visit_count", 1);
-      const t = total ?? 0, r = ret ?? 0;
-      overall = { total: t, returning: r, oneTime: Math.max(0, t - r), returningRate: t ? Math.round((r / t) * 1000) / 10 : 0 };
-    } catch { /* visitors table not present */ }
+      const t = total ?? 0;
+      let cameBack = 0;
+      const { data: rb } = await sb.rpc("returning_visitors_multiday");
+      if (rb != null && !Number.isNaN(Number(rb))) cameBack = Number(rb);
+      overall = {
+        total: t,
+        returning: cameBack,
+        oneTime: Math.max(0, t - cameBack),
+        returningRate: t ? Math.round((cameBack / t) * 1000) / 10 : 0,
+      };
+    } catch { /* visitors table or RPC not present */ }
 
     // Device + hourly breakdown
     const byDevice: Record<string, number> = {};
