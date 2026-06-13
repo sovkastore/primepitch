@@ -171,7 +171,7 @@ export default function PulsePage() {
               </>
             )}
           </span>
-          {typeof m.peak === "number" && m.peak > 0 && (
+          {rowStatus(m.match_id) === "live" && typeof m.peak === "number" && m.peak > 0 && (
             <span className="text-[9px] font-semibold text-gray-400 tabular-nums">peak {m.peak}</span>
           )}
         </div>
