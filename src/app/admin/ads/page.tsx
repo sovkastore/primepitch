@@ -2,26 +2,37 @@
 
 import { useState, useEffect } from "react";
 
-type Cap = "off" | "30m" | "1h" | "2h" | "24h";
 type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
-type Format = { label: string; enabled: boolean; zone: string; src: string; cap: Cap; delay: Delay };
+type Unit = "off" | "minutes" | "hours";
+type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
   formats: Record<string, Format>;
 };
 
+const MAX_CAP_MIN = 10080; // 7 days
+
 const DEFAULTS: AdsConfig = {
   master: false,
   domains: "all",
   formats: {
-    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "1h", delay: "0" },
-    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: "1h", delay: "0" },
+    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
+    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
   },
 };
 
+// Legacy string caps -> minutes (for configs saved before numeric caps).
+function toMinutes(v: unknown): number {
+  const legacy: Record<string, number> = { off: 0, "30m": 30, "1h": 60, "2h": 120, "24h": 1440 };
+  const n = typeof v === "string" && v in legacy ? legacy[v] : Math.floor(Number(v));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(n, MAX_CAP_MIN);
+}
+
 export default function AdminAdsPage() {
   const [cfg, setCfg] = useState<AdsConfig>(DEFAULTS);
+  const [units, setUnits] = useState<Record<string, Unit>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -30,7 +41,17 @@ export default function AdminAdsPage() {
     fetch("/api/admin/ads-config", { cache: "no-store" })
       .then((r) => r.json())
       .then((d: AdsConfig) => {
-        if (d && d.formats) setCfg({ ...d, formats: { ...DEFAULTS.formats, ...d.formats } });
+        if (d && d.formats) {
+          const formats: Record<string, Format> = { ...DEFAULTS.formats, ...d.formats };
+          const u: Record<string, Unit> = {};
+          for (const [id, f] of Object.entries(formats)) {
+            const m = toMinutes(f.cap);
+            formats[id] = { ...f, cap: m };
+            u[id] = m === 0 ? "off" : m % 60 === 0 ? "hours" : "minutes";
+          }
+          setCfg({ ...d, formats });
+          setUnits(u);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -41,6 +62,24 @@ export default function AdminAdsPage() {
       ...prev,
       formats: { ...prev.formats, [id]: { ...prev.formats[id], ...patch } },
     }));
+  }
+
+  // Change the unit (No limit / Minutes / Hours), keeping a sensible value.
+  function changeUnit(id: string, unit: Unit) {
+    setUnits((prev) => ({ ...prev, [id]: unit }));
+    const cur = cfg.formats[id]?.cap || 0;
+    if (unit === "off") updateFormat(id, { cap: 0 });
+    else if (unit === "hours") updateFormat(id, { cap: (cur === 0 ? 1 : Math.max(1, Math.round(cur / 60))) * 60 });
+    else updateFormat(id, { cap: cur === 0 ? 30 : cur }); // minutes
+  }
+
+  // Change the typed number, interpreted in the current unit.
+  function changeValue(id: string, raw: string) {
+    const unit = units[id] ?? "minutes";
+    let n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 1) n = 1;
+    const mins = Math.min(unit === "hours" ? n * 60 : n, MAX_CAP_MIN);
+    updateFormat(id, { cap: mins });
   }
 
   async function save() {
@@ -183,19 +222,32 @@ export default function AdminAdsPage() {
 
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-gray-800">How often per visitor</label>
-              <select
-                value={f.cap}
-                onChange={(e) => updateFormat(id, { cap: e.target.value as Cap })}
-                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              >
-                <option value="off">No limit</option>
-                <option value="30m">Every 30 minutes</option>
-                <option value="1h">Every hour</option>
-                <option value="2h">Every 2 hours</option>
-                <option value="24h">Once a day</option>
-              </select>
+              <div className="flex gap-2">
+                {(units[id] ?? "off") !== "off" && (
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={(units[id] === "hours" ? Math.max(1, Math.round((f.cap || 0) / 60)) : (f.cap || 0)) || ""}
+                    onChange={(e) => changeValue(id, e.target.value)}
+                    className="w-24 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  />
+                )}
+                <select
+                  value={units[id] ?? "off"}
+                  onChange={(e) => changeUnit(id, e.target.value as Unit)}
+                  className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                >
+                  <option value="off">No limit</option>
+                  <option value="minutes">Every … minutes</option>
+                  <option value="hours">Every … hours</option>
+                </select>
+              </div>
               <p className="text-[12px] text-gray-500">
-                The limit is per device (saved in the browser), so it is a best-effort cap, not exact.
+                {(units[id] ?? "off") === "off"
+                  ? "Shows as often as the network allows."
+                  : `Shows at most once every ${f.cap || 0} minute${(f.cap || 0) === 1 ? "" : "s"} per device.`}
+                {" "}Saved in the browser, so it is a best-effort cap, not exact.
               </p>
             </div>
           </div>

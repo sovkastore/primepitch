@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-type Cap = "off" | "30m" | "1h" | "2h" | "24h";
+type Cap = number | string; // minutes (number); legacy string keys still tolerated
 type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string };
 type AdsConfig = {
   master: boolean;
@@ -18,13 +18,18 @@ function domainAllowed(setting: AdsConfig["domains"], host: string): boolean {
 }
 
 // Frequency cap, enforced per device via localStorage.
-// off -> always load. Otherwise load at most once per N minutes on this device.
-const CAP_MINUTES: Record<string, number> = { "30m": 30, "1h": 60, "2h": 120, "24h": 1440 };
+// cap is minutes between loads; 0 (or missing) = no limit.
+const LEGACY_CAP: Record<string, number> = { off: 0, "30m": 30, "1h": 60, "2h": 120, "24h": 1440 };
+function capMinutes(cap: Cap | undefined): number {
+  if (typeof cap === "number") return cap > 0 ? cap : 0;
+  if (typeof cap === "string") return LEGACY_CAP[cap] ?? 0;
+  return 0;
+}
 
-function capAllows(id: string, cap: Cap): boolean {
+function capAllows(id: string, cap: Cap | undefined): boolean {
   try {
-    const mins = CAP_MINUTES[cap];
-    if (!mins) return true; // "off" or anything unknown -> always load
+    const mins = capMinutes(cap);
+    if (mins <= 0) return true; // no limit
     const k = `ad_t_${id}`;
     const last = Number(localStorage.getItem(k) || 0);
     if (Date.now() - last < mins * 60 * 1000) return false;

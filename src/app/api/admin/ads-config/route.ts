@@ -3,9 +3,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 const KEY = "ads_config";
 
-type Cap = "off" | "30m" | "1h" | "2h" | "24h";
 type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
-type Format = { label: string; enabled: boolean; zone: string; src: string; cap: Cap; delay: Delay };
+type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -16,14 +15,22 @@ const DEFAULTS: AdsConfig = {
   master: false,
   domains: "all",
   formats: {
-    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "1h", delay: "0" },
-    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: "1h", delay: "0" },
+    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
+    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
   },
 };
 
 const ALLOWED_DOMAINS = new Set(["all", "workers_dev", "xellnetwork"]);
-const ALLOWED_CAPS = new Set(["off", "30m", "1h", "2h", "24h"]);
 const ALLOWED_DELAYS = new Set(["0", "1m", "2m", "3m", "5m", "10m"]);
+const MAX_CAP_MIN = 10080; // 7 days
+
+// minutes between loads; 0 = no limit. Tolerates legacy string values.
+function cleanCap(v: unknown): number {
+  const legacy: Record<string, number> = { off: 0, "30m": 30, "1h": 60, "2h": 120, "24h": 1440 };
+  let n = typeof v === "string" && v in legacy ? legacy[v] : Math.floor(Number(v));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(n, MAX_CAP_MIN);
+}
 // Only known formats can be saved (prevents arbitrary script injection).
 const ALLOWED_FORMATS = new Set(["inpage_push", "vignette"]);
 
@@ -54,7 +61,7 @@ export async function POST(request: NextRequest) {
         enabled: !!f.enabled,
         zone: typeof f.zone === "string" ? f.zone.trim().replace(/[^0-9]/g, "") : "",
         src: typeof f.src === "string" && /^https:\/\/[a-z0-9.\-/_]+$/i.test(f.src.trim()) ? f.src.trim() : "",
-        cap: ALLOWED_CAPS.has(f.cap as string) ? (f.cap as Cap) : "off",
+        cap: cleanCap(f.cap),
         delay: ALLOWED_DELAYS.has(f.delay as string) ? (f.delay as Delay) : "0",
       };
     }
