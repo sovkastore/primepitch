@@ -15,6 +15,8 @@ interface MatchRow {
   title: string;
   sport: string;
   views: number;
+  live_views: number;
+  pre_views: number;
   unique_viewers: number;
   unique_live: number;
   unique_pre: number;
@@ -236,7 +238,14 @@ export default function MatchAnalyticsPage() {
                         </span>
                       </td>
                       <td className="py-2.5 text-[11px] text-gray-500 font-medium">{m.sport}</td>
-                      <td className="py-2.5 text-right text-[13px] font-bold text-gray-900 tabular-nums">{m.views}</td>
+                      <td className="py-2.5 text-right tabular-nums">
+                        <span className="block text-[13px] font-bold text-gray-900">{m.views}</span>
+                        <span className="block mt-0.5 text-[10px] font-semibold text-gray-400">
+                          <span className="text-emerald-600">{m.live_views}</span> live
+                          <span className="mx-0.5 text-gray-300">·</span>
+                          <span className="text-blue-500">{m.pre_views}</span> pre
+                        </span>
+                      </td>
                       <td className="py-2.5 text-right text-[13px] text-gray-600 tabular-nums hidden sm:table-cell">{m.unique_viewers}</td>
                       <td className="py-2.5 text-right text-[12px] text-gray-500 hidden md:table-cell">{formatDuration(m.avg_duration)}</td>
                       <td className="py-2.5 text-right text-[12px] text-gray-400 hidden lg:table-cell">

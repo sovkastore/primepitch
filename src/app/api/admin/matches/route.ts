@@ -57,6 +57,8 @@ export async function GET(request: NextRequest) {
       title: string;
       sport: string;
       views: number;
+      liveViews: number;
+      preViews: number;
       uniqueViewers: Set<string>;
       liveViewers: Set<string>;
       totalDuration: number;
@@ -71,6 +73,8 @@ export async function GET(request: NextRequest) {
           title: r.match_title || r.match_id,
           sport: r.sport || "",
           views: 0,
+          liveViews: 0,
+          preViews: 0,
           uniqueViewers: new Set(),
           liveViewers: new Set(),
           totalDuration: 0,
@@ -81,6 +85,7 @@ export async function GET(request: NextRequest) {
       }
       const g = grouped[r.match_id];
       g.views++;
+      if (r.is_live) g.liveViews++; else g.preViews++;
       g.uniqueViewers.add(r.visitor_id);
       // A visitor who ever loaded the page while the match was live counts as a
       // live watcher; everyone else only showed up before kickoff.
@@ -98,6 +103,8 @@ export async function GET(request: NextRequest) {
       titleViews: number;
       sport: string;
       views: number;
+      liveViews: number;
+      preViews: number;
       uniqueViewers: Set<string>;
       liveViewers: Set<string>;
       totalDuration: number;
@@ -122,6 +129,8 @@ export async function GET(request: NextRequest) {
             titleViews: g.views,
             sport: g.sport,
             views: 0,
+            liveViews: 0,
+            preViews: 0,
             uniqueViewers: new Set(),
             liveViewers: new Set(),
             totalDuration: 0,
@@ -131,6 +140,8 @@ export async function GET(request: NextRequest) {
         }
         const m = merged[key];
         m.views += g.views;
+        m.liveViews += g.liveViews;
+        m.preViews += g.preViews;
         g.uniqueViewers.forEach((v) => m.uniqueViewers.add(v));
         g.liveViewers.forEach((v) => m.liveViewers.add(v));
         m.totalDuration += g.totalDuration;
@@ -156,6 +167,8 @@ export async function GET(request: NextRequest) {
         title: g.title,
         sport: g.sport,
         views: g.views,
+        live_views: g.liveViews,
+        pre_views: g.preViews,
         unique_viewers: g.uniqueViewers.size,
         unique_live: g.liveViewers.size,
         unique_pre: g.uniqueViewers.size - g.liveViewers.size,
