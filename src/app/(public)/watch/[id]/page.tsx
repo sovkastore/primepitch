@@ -254,10 +254,15 @@ export default function WatchPage() {
   // Track match view + heartbeat
   useEffect(() => {
     if (!currentMatch || trackedRef.current) return;
-    trackedRef.current = true;
+    // Never record a visit to an ended match page — not as a load, not as a
+    // watcher, not toward peak/unique. Only live (watching) and upcoming
+    // (before kickoff) are tracked. This also keeps the "not-live" bucket
+    // meaning strictly "before kickoff" (never after the match).
+    if (matchStatus === "ended" && !forceLive) return;
 
     const visitor_id = getVisitorId();
     if (!visitor_id) return;
+    trackedRef.current = true;
 
     fetch("/api/track/match-view", {
       method: "POST",
@@ -268,12 +273,12 @@ export default function WatchPage() {
         source,
         match_title: currentMatch.title,
         sport: currentMatch.category,
-        is_live: getMatchStatus(currentMatch) === "live",
+        is_live: matchStatus === "live" || forceLive,
       }),
     }).catch(() => {});
     // Presence heartbeats are handled site-wide by <Analytics/> (every 2.5 min,
     // includes match_id on watch pages) — no per-page heartbeat anymore.
-  }, [currentMatch, rawId, source]);
+  }, [currentMatch, rawId, source, matchStatus, forceLive]);
 
   const currentStream = streams[activeStream];
 
