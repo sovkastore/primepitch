@@ -2,18 +2,16 @@
 
 import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
-import { Match, getWatchHref, SPORT_LABELS, isFinishedStatus, showVersus } from "@/lib/api";
+import { Match, getWatchHref, SPORT_LABELS, isFinishedStatus, showVersus, bothTeamsHaveVisuals } from "@/lib/api";
 import type { LiveScore } from "@/lib/use-batch-scores";
 
 export default function LiveMatchRow({ match, score = null }: { match: Match; score?: LiveScore | null }) {
   const href = getWatchHref(match);
   const versus = showVersus(match);
-  // Only use the two-circle team layout when BOTH sides have a real logo image.
-  // Without logos, the circle just shows a letter, which looks like a broken
-  // placeholder — so fall back to a clean "Name vs Name" line instead.
-  const homeBadge = match.teams?.home?.badge?.trim();
-  const awayBadge = match.teams?.away?.badge?.trim();
-  const useTeamLayout = versus && Boolean(homeBadge && awayBadge);
+  // Only use the two-circle team layout when BOTH sides have a real logo or
+  // country flag. Without one, the circle just shows a letter, which looks like
+  // a broken placeholder — so fall back to a clean "Name vs Name" line instead.
+  const useTeamLayout = versus && bothTeamsHaveVisuals(match);
   const titleText =
     versus && match.teams?.home?.name && match.teams?.away?.name
       ? `${match.teams.home.name} vs ${match.teams.away.name}`

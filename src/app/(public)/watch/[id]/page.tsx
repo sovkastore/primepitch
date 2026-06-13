@@ -6,7 +6,7 @@ import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
 import LiveMatchRow from "@/components/LiveMatchRow";
 import UpcomingRow from "@/components/UpcomingRow";
-import { Match, getMatchStatus, getLiveMatches, getMatchKey, getMatchFlags, SPORT_LABELS, showVersus, EVENT_SPORTS } from "@/lib/api";
+import { Match, getMatchStatus, getLiveMatches, getMatchKey, getMatchFlags, SPORT_LABELS, showVersus, EVENT_SPORTS, bothTeamsHaveVisuals } from "@/lib/api";
 import { getVisitorId } from "@/lib/visitor";
 import { visibleInterval } from "@/lib/poll";
 import { useBatchScores } from "@/lib/use-batch-scores";
@@ -103,7 +103,7 @@ export default function WatchPage() {
     .replace(/\b\w/g, (c) => c.toUpperCase()) || "Live Match";
 
   const displayTitle = currentMatch?.title || fallbackName;
-  const hasTeams = showVersus(currentMatch);
+  const hasTeams = showVersus(currentMatch) && bothTeamsHaveVisuals(currentMatch);
   const sportLabel = SPORT_LABELS[currentMatch?.category || ""] || currentMatch?.category || "";
   // A match that can't be found in any current list and has no streams has
   // ENDED (feeds drop matches once played) — never show it as "upcoming".

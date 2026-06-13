@@ -1,4 +1,5 @@
 import { normTitle } from "./match-merge";
+import { getCountryFlagUrl } from "./country-flags";
 
 const BASE_URL = "https://streamed.pk/api";
 
@@ -193,6 +194,20 @@ export function getWatchHref(match: Match): string {
 export function getMatchKey(match: Match): string {
   const s = match.sources?.[0];
   return s ? `${s.source}--${s.id}` : match.id;
+}
+
+// A team has a "visual" if it has a real logo image OR a resolvable country
+// flag (mirrors TeamBadge's own fallback order). When neither side does, cards
+// should show a clean "Name vs Name" line instead of gray letter-in-circle
+// placeholders.
+export function hasTeamVisual(team?: { name?: string; badge?: string }): boolean {
+  if (!team) return false;
+  if (team.badge && team.badge.trim()) return true;
+  return Boolean(team.name && getCountryFlagUrl(team.name));
+}
+
+export function bothTeamsHaveVisuals(match: Match): boolean {
+  return hasTeamVisual(match.teams?.home) && hasTeamVisual(match.teams?.away);
 }
 
 // The upstream feed sometimes lists an always-on TV channel as "live" hours

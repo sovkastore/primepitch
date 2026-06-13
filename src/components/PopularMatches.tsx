@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
-import { Match, getMatchStatus, getWatchHref, getPosterUrl, SPORT_LABELS, showVersus } from "@/lib/api";
+import { Match, getMatchStatus, getWatchHref, getPosterUrl, SPORT_LABELS, showVersus, bothTeamsHaveVisuals } from "@/lib/api";
 
 interface PopularMatchesProps {
   matches: Match[];
@@ -27,7 +27,7 @@ export default function PopularMatches({ matches, activeSport }: PopularMatchesP
         {popular.map((match, i) => {
           const isLive = getMatchStatus(match) === "live";
           const href = getWatchHref(match);
-          const hasTeams = showVersus(match);
+          const hasTeams = showVersus(match) && bothTeamsHaveVisuals(match);
           const poster = match.poster ? getPosterUrl(match.poster) : null;
           const label = SPORT_LABELS[match.category] || match.category;
 
