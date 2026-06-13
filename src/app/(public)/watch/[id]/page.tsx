@@ -493,11 +493,6 @@ export default function WatchPage() {
             }
             style={{ aspectRatio: "16/9" }}
           >
-            {isHot && (
-              <span className="absolute top-2 left-2 z-20 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-red-600 to-orange-500 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-red-300/70 shadow-lg">
-                <span className="animate-hot-flame">🔥</span> Hot
-              </span>
-            )}
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
