@@ -16,13 +16,14 @@ const DEFAULTS: AdsConfig = {
   domains: "all",
   formats: {
     inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "1h" },
+    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: "1h" },
   },
 };
 
 const ALLOWED_DOMAINS = new Set(["all", "workers_dev", "xellnetwork"]);
 const ALLOWED_CAPS = new Set(["off", "30m", "1h", "2h", "24h"]);
 // Only known formats can be saved (prevents arbitrary script injection).
-const ALLOWED_FORMATS = new Set(["inpage_push"]);
+const ALLOWED_FORMATS = new Set(["inpage_push", "vignette"]);
 
 export async function GET() {
   try {

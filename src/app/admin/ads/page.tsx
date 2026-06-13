@@ -15,6 +15,7 @@ const DEFAULTS: AdsConfig = {
   domains: "all",
   formats: {
     inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: "1h" },
+    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: "1h" },
   },
 };
 
@@ -28,7 +29,7 @@ export default function AdminAdsPage() {
     fetch("/api/admin/ads-config", { cache: "no-store" })
       .then((r) => r.json())
       .then((d: AdsConfig) => {
-        if (d && d.formats) setCfg(d);
+        if (d && d.formats) setCfg({ ...d, formats: { ...DEFAULTS.formats, ...d.formats } });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
