@@ -131,7 +131,10 @@ export default function PulsePage() {
     ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "ended").reduce((sum, m) => sum + m.viewers, 0)
     : 0;
   const trueLiveViewers = Math.max(0, (data.liveViewers ?? 0) - nonLiveViewers);
-  const watchPagesActive = data.activeMatches.filter((m) => rowStatus(m.match_id) !== "ended").length;
+  // People sitting on a pre-kickoff (upcoming) match page — waiting, not watching.
+  const waitingViewers = feedStatus
+    ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "upcoming").reduce((sum, m) => sum + m.viewers, 0)
+    : 0;
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -162,14 +165,14 @@ export default function PulsePage() {
           <p className="text-[10px] text-gray-400">{endedViewers > 0 ? `+${endedViewers} on ended` : "on a stream now"}</p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 text-center">
-          <p className="text-3xl sm:text-5xl font-black text-gray-900 tabular-nums">{watchPagesActive}</p>
-          <p className="text-[11px] sm:text-sm text-gray-500 mt-2 font-medium">Watch Pages</p>
-          <p className="text-[10px] text-gray-400">being watched</p>
+          <p className="text-3xl sm:text-5xl font-black text-emerald-600 tabular-nums">{waitingViewers}</p>
+          <p className="text-[11px] sm:text-sm text-gray-500 mt-2 font-medium">Waiting</p>
+          <p className="text-[10px] text-gray-400">pre-kickoff</p>
         </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <ChartWrapper title="Watch pages — who's on them now">
+        <ChartWrapper title="On match pages now">
           {data.activeMatches.length > 0 ? (
             <div className="space-y-2">
               {data.activeMatches.map((m) => (
