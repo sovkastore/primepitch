@@ -24,15 +24,34 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // Aggregate by match_id
-    const allQuery = getSupabaseAdmin()
-      .from("match_views")
-      .select("match_id, match_title, sport, duration_sec, visitor_id, created_at, is_live");
-    if (sport) allQuery.eq("sport", sport);
-    if (from) allQuery.gte("created_at", from);
-    if (to) allQuery.lte("created_at", to);
-
-    const { data: allData } = await allQuery;
+    // Aggregate by match_id. Supabase caps a single select at 1000 rows, which
+    // silently undercounted unique/views once the log grew past 1000 (every
+    // match was computed from an incomplete sample). Page through ALL matching
+    // rows so the counts are exact. Ordered by id for stable pagination.
+    const PAGE = 1000;
+    const allData: Array<{
+      match_id: string;
+      match_title: string | null;
+      sport: string | null;
+      duration_sec: number | null;
+      visitor_id: string;
+      created_at: string;
+      is_live: boolean | null;
+    }> = [];
+    for (let i = 0; i < 200; i++) {
+      let pageQuery = getSupabaseAdmin()
+        .from("match_views")
+        .select("match_id, match_title, sport, duration_sec, visitor_id, created_at, is_live")
+        .order("id", { ascending: true })
+        .range(i * PAGE, i * PAGE + PAGE - 1);
+      if (sport) pageQuery = pageQuery.eq("sport", sport);
+      if (from) pageQuery = pageQuery.gte("created_at", from);
+      if (to) pageQuery = pageQuery.lte("created_at", to);
+      const { data: pageData, error: pageErr } = await pageQuery;
+      if (pageErr || !pageData || pageData.length === 0) break;
+      allData.push(...pageData);
+      if (pageData.length < PAGE) break;
+    }
 
     const grouped: Record<string, {
       title: string;
