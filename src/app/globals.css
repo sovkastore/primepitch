@@ -151,30 +151,25 @@ body {
   vertical-align: middle;
 }
 
-/* Admin-toggled HOT fixture badge — pulsing red/orange glow for an
-   eye-catching, "extraordinary" feel. */
+/* Admin-toggled HOT badge — a soft, STILL glow (no scaling/movement) so it
+   reads as special without being distracting. */
 @keyframes hotGlow {
-  0%, 100% {
-    box-shadow: 0 0 6px rgba(239, 68, 68, 0.65), 0 0 2px rgba(239, 68, 68, 0.9);
-    transform: scale(1);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.95), 0 0 8px rgba(249, 115, 22, 0.95);
-    transform: scale(1.06);
-  }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.0); }
+  50%      { box-shadow: 0 0 10px 1px rgba(239, 68, 68, 0.40); }
 }
-.animate-hot-glow { animation: hotGlow 1.15s ease-in-out infinite; }
+.animate-hot-glow { animation: hotGlow 2.4s ease-in-out infinite; }
 
+/* Flame: gentle opacity flicker only — no rotation or resizing. */
 @keyframes hotFlame {
-  0%, 100% { transform: rotate(-6deg) scale(1); }
-  50% { transform: rotate(6deg) scale(1.18); }
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.72; }
 }
-.animate-hot-flame { display: inline-block; animation: hotFlame 0.9s ease-in-out infinite; }
+.animate-hot-flame { display: inline-block; animation: hotFlame 2s ease-in-out infinite; }
 
-/* HOT match watch-page: one-shot entrance flash for the player frame. */
+/* HOT match watch-page: one-shot, subtle entrance glow for the player frame. */
 @keyframes hotEntrance {
   0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-  25%  { box-shadow: 0 0 34px 8px rgba(239, 68, 68, 0.6); }
+  30%  { box-shadow: 0 0 20px 4px rgba(239, 68, 68, 0.45); }
   100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
-.animate-hot-entrance { animation: hotEntrance 1.2s ease-out 1; }
+.animate-hot-entrance { animation: hotEntrance 1.1s ease-out 1; }
