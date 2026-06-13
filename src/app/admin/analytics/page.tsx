@@ -125,14 +125,14 @@ export default function AnalyticsPage() {
             <h2 className="text-[12px] font-extrabold text-gray-900 uppercase tracking-wider mb-2">People</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <MetricCard title="Unique people" value={data.people.unique} subtitle="distinct humans" unique />
-              <MetricCard title="New" value={data.people.newVisitors} subtitle="first time ever" color="blue" />
-              <MetricCard title="Returning" value={data.people.returning} subtitle="joined earlier, active now" color="amber" />
+              <MetricCard title="New" value={data.people.newVisitors} subtitle="first time ever" unique />
+              <MetricCard title="Returning" value={data.people.returning} subtitle="joined earlier, active now" unique />
               <MetricCard title="Returning rate" value={`${data.people.returningRate}%`} subtitle="of this window" color="amber" />
             </div>
             {data.people.unique > 0 && (
               <div className="mt-2 h-2 w-full rounded-full bg-gray-100 overflow-hidden flex">
-                <div className="h-full bg-amber-400" style={{ width: `${data.people.returningRate}%` }} />
-                <div className="h-full bg-blue-300" style={{ width: `${100 - data.people.returningRate}%` }} />
+                <div className="h-full bg-yellow-500" style={{ width: `${data.people.returningRate}%` }} />
+                <div className="h-full bg-yellow-200" style={{ width: `${100 - data.people.returningRate}%` }} />
               </div>
             )}
           </section>

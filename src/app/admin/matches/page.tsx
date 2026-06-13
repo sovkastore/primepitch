@@ -186,7 +186,7 @@ export default function MatchAnalyticsPage() {
               <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={isMobile ? 96 : 120} tickFormatter={(v) => isMobile && v.length > 12 ? v.slice(0, 12) + "…" : v} />
               <Tooltip />
-              <Bar dataKey="views" fill="#10b981" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="views" fill="#94a3b8" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
@@ -232,18 +232,18 @@ export default function MatchAnalyticsPage() {
                         )}
                         {m.title}
                         <span className="block mt-0.5 text-[10px] font-semibold text-gray-400">
-                          <span className="text-emerald-600">{m.unique_live}</span> watched live
+                          <span className="text-yellow-600">{m.unique_live}</span> watched live
                           <span className="mx-1 text-gray-300">·</span>
-                          <span className="text-blue-500">{m.unique_pre}</span> before kickoff
+                          <span className="text-yellow-600">{m.unique_pre}</span> before kickoff
                         </span>
                       </td>
                       <td className="py-2.5 text-[11px] text-gray-500 font-medium">{m.sport}</td>
                       <td className="py-2.5 text-right tabular-nums">
                         <span className="block text-[13px] font-bold text-gray-900">{m.views}</span>
                         <span className="block mt-0.5 text-[10px] font-semibold text-gray-400">
-                          <span className="text-emerald-600">{m.live_views}</span> live
+                          <span className="text-gray-500">{m.live_views}</span> live
                           <span className="mx-0.5 text-gray-300">·</span>
-                          <span className="text-blue-500">{m.pre_views}</span> pre
+                          <span className="text-gray-500">{m.pre_views}</span> pre
                         </span>
                       </td>
                       <td className="py-2.5 text-right text-[13px] font-bold text-yellow-600 tabular-nums hidden sm:table-cell">{m.unique_viewers}</td>

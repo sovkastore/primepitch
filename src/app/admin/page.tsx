@@ -96,19 +96,19 @@ export default function AdminOverview() {
           title="Today's Visitors"
           value={data.uniqueToday}
           subtitle={`${data.todayViews} page views`}
-          color="emerald"
+          unique
         />
         <MetricCard
           title="Online Now"
           value={data.onlineNow}
           subtitle="on the site"
-          color="emerald"
+          unique
         />
         <MetricCard
           title="Live Viewers"
           value={data.liveViewers}
           subtitle="watching a stream"
-          color="red"
+          unique
         />
         <MetricCard
           title="Match Views Today"
@@ -138,8 +138,8 @@ export default function AdminOverview() {
                 <Tooltip
                   labelFormatter={(v) => new Date(v).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                 />
-                <Line type="monotone" dataKey="unique_visitors" stroke="#10b981" strokeWidth={2} dot={false} name="Unique Visitors" />
-                <Line type="monotone" dataKey="total_views" stroke="#6366f1" strokeWidth={2} dot={false} name="Total Views" />
+                <Line type="monotone" dataKey="unique_visitors" stroke="#ca8a04" strokeWidth={2} dot={false} name="Unique Visitors" />
+                <Line type="monotone" dataKey="total_views" stroke="#9ca3af" strokeWidth={2} dot={false} name="Total Views" />
               </LineChart>
             </ResponsiveContainer>
           ) : (
