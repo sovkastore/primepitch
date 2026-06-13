@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { SPORT_LABELS } from "@/lib/api";
 import Logo from "@/components/Logo";
 
@@ -9,6 +9,27 @@ const ALL_SPORTS = [
   "football", "basketball", "american-football", "ufc", "wwe", "boxing",
   "motor-sports", "tennis", "cricket", "hockey", "baseball", "rugby",
   "golf", "darts", "billiards", "afl", "other",
+];
+
+// Tap-to-open social/contact links shown under the sports list.
+// To add a channel later, just add one line here (handle → full URL).
+const SOCIALS: { id: string; label: string; href: string; color: string; icon: ReactNode }[] = [
+  {
+    id: "telegram",
+    label: "Telegram",
+    href: "https://t.me/primepitchlive",
+    color: "#229ED9",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true">
+        <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.14-3.05-1.99 1.93c-.23.23-.42.42-.83.42z" />
+      </svg>
+    ),
+  },
+  // Coming next — add when handles are ready:
+  // { id: "x", label: "X", href: "https://x.com/YOURHANDLE", color: "#000000",
+  //   icon: <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> },
+  // { id: "whatsapp", label: "WhatsApp", href: "https://wa.me/234XXXXXXXXXX", color: "#25D366",
+  //   icon: <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.928-1.029z"/></svg> },
 ];
 
 export default function Navbar() {
@@ -63,6 +84,26 @@ export default function Navbar() {
               {SPORT_LABELS[id] || id}
             </Link>
           ))}
+
+          {/* Connect with us — tap-to-open social/contact links */}
+          <div className="pt-3 mt-2 border-t border-gray-100">
+            <p className="px-3 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
+              Connect with us
+            </p>
+            {SOCIALS.map((s) => (
+              <a
+                key={s.id}
+                href={s.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+              >
+                <span style={{ color: s.color }} className="shrink-0">{s.icon}</span>
+                {s.label}
+              </a>
+            ))}
+          </div>
         </div>
       )}
     </>
