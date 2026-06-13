@@ -136,6 +136,54 @@ export default function PulsePage() {
     ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "upcoming").reduce((sum, m) => sum + m.viewers, 0)
     : 0;
 
+  // Split active match pages: live matches get their own container; everything
+  // else (pre-kickoff / ended) stays under "On match pages now".
+  const liveActive = data.activeMatches.filter((m) => rowStatus(m.match_id) === "live");
+  const nonLiveActive = data.activeMatches.filter((m) => rowStatus(m.match_id) !== "live");
+
+  // Shared row used by both containers.
+  const renderActiveRow = (m: { match_id: string; viewers: number }) => (
+    <div key={m.match_id} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50">
+      <span className="flex items-center gap-1.5 flex-1 min-w-0">
+        <span className="text-[13px] text-gray-700 truncate min-w-0">{titleFor(m.match_id)}</span>
+        <button onClick={() => renameMatch(m.match_id)} title="Rename this match" className="text-[12px] text-gray-300 hover:text-gray-600 shrink-0">✏️</button>
+        {rowStatus(m.match_id) === "ended" && (
+          <span className="text-[9px] font-black text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded shrink-0">ENDED</span>
+        )}
+        {rowStatus(m.match_id) === "upcoming" && (
+          <span className="text-[9px] font-black text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded shrink-0">SOON</span>
+        )}
+        {rowStatus(m.match_id) === "live" && (
+          <span className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
+          </span>
+        )}
+      </span>
+      <div className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5">
+          {rowStatus(m.match_id) === "ended" ? (
+            <span className="text-[10px] text-gray-400">{m.viewers} on page</span>
+          ) : (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-[13px] font-bold text-emerald-600 tabular-nums">{m.viewers}</span>
+            </>
+          )}
+        </span>
+        {matchHasOverride(m.match_id) ? (
+          <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded">OVERRIDDEN</span>
+        ) : (
+          <button
+            onClick={() => setOverrideModal({ matchId: m.match_id, append: false, title: getMatchTitle(m.match_id) })}
+            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
+          >
+            Override
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6 max-w-7xl">
       <div className="flex items-center justify-between">
@@ -171,49 +219,21 @@ export default function PulsePage() {
         </div>
       </div>
 
+      {/* Live matches get their own priority container */}
+      <ChartWrapper title="🔴 Watching live now" className="border-red-200 ring-1 ring-red-100">
+        {liveActive.length > 0 ? (
+          <div className="space-y-2">{liveActive.map(renderActiveRow)}</div>
+        ) : (
+          <p className="text-sm text-gray-400 text-center py-8">No one is watching a live match right now</p>
+        )}
+      </ChartWrapper>
+
       <div className="grid lg:grid-cols-2 gap-4">
         <ChartWrapper title="On match pages now">
-          {data.activeMatches.length > 0 ? (
-            <div className="space-y-2">
-              {data.activeMatches.map((m) => (
-                <div key={m.match_id} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50">
-                  <span className="flex items-center gap-1.5 flex-1 min-w-0">
-                    <span className="text-[13px] text-gray-700 truncate min-w-0">{titleFor(m.match_id)}</span>
-                    <button onClick={() => renameMatch(m.match_id)} title="Rename this match" className="text-[12px] text-gray-300 hover:text-gray-600 shrink-0">✏️</button>
-                    {rowStatus(m.match_id) === "ended" && (
-                      <span className="text-[9px] font-black text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded shrink-0">ENDED</span>
-                    )}
-                    {rowStatus(m.match_id) === "upcoming" && (
-                      <span className="text-[9px] font-black text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded shrink-0">SOON</span>
-                    )}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1.5">
-                      {rowStatus(m.match_id) === "ended" ? (
-                        <span className="text-[10px] text-gray-400">{m.viewers} on page</span>
-                      ) : (
-                        <>
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                          <span className="text-[13px] font-bold text-emerald-600 tabular-nums">{m.viewers}</span>
-                        </>
-                      )}
-                    </span>
-                    {matchHasOverride(m.match_id) ? (
-                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded">OVERRIDDEN</span>
-                    ) : (
-                      <button
-                        onClick={() => setOverrideModal({ matchId: m.match_id, append: false, title: getMatchTitle(m.match_id) })}
-                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
-                      >
-                        Override
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+          {nonLiveActive.length > 0 ? (
+            <div className="space-y-2">{nonLiveActive.map(renderActiveRow)}</div>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-8">No one watching matches right now</p>
+            <p className="text-sm text-gray-400 text-center py-8">No one waiting on a match page right now</p>
           )}
         </ChartWrapper>
 
