@@ -249,8 +249,14 @@ export default function MatchAnalyticsPage() {
                         </span>
                       </td>
                       <td className="py-2.5 text-right tabular-nums">
-                        <span className="block text-[13px] font-bold text-emerald-600">{m.peak_viewers}</span>
-                        <span className="block mt-0.5 text-[9px] font-semibold text-gray-400">at once</span>
+                        {m.status === "upcoming" ? (
+                          <span className="block text-[13px] font-bold text-gray-300">—</span>
+                        ) : (
+                          <>
+                            <span className="block text-[13px] font-bold text-emerald-600">{m.peak_viewers}</span>
+                            <span className="block mt-0.5 text-[9px] font-semibold text-gray-400">at once</span>
+                          </>
+                        )}
                       </td>
                       <td className="py-2.5 text-right text-[13px] font-bold text-emerald-600 tabular-nums hidden sm:table-cell">{m.unique_viewers}</td>
                       <td className="py-2.5 text-right text-[12px] text-gray-500 hidden md:table-cell">{formatDuration(m.avg_duration)}</td>
