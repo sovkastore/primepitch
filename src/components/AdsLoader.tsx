@@ -62,6 +62,7 @@ export default function AdsLoader() {
         if (!res.ok) return;
         const cfg = (await res.json()) as AdsConfig;
         if (done || !cfg?.master) return; // master kill-switch
+        if (window.location.pathname.startsWith("/admin")) return; // never on admin
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
         for (const [id, f] of Object.entries(cfg.formats || {})) {
           if (!f?.enabled) continue;
