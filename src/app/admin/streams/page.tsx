@@ -40,6 +40,9 @@ interface Entry {
   flags: FlagRow | null;
 }
 
+interface ResolvedStream { id: string; streamNo: number; language: string; hd: boolean; embedUrl: string; source: string }
+interface ServerState { loading: boolean; streams: ResolvedStream[]; serving: string; error: boolean }
+
 const SERVING: Record<string, { label: string; cls: string }> = {
   echo:     { label: "Echo",         cls: "bg-emerald-50 text-emerald-600" },
   auto:     { label: "Auto-fallback", cls: "bg-blue-50 text-blue-600" },
@@ -75,6 +78,29 @@ export default function StreamsManagerPage() {
   const [sportFilter, setSportFilter] = useState("all");
   const [modal, setModal] = useState<{ matchId: string; title: string; sport: string; matchData: Match; append: boolean } | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  // Accordion: which card is expanded, and a cache of its resolved servers.
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [servers, setServers] = useState<Record<string, ServerState>>({});
+
+  const loadServers = useCallback(async (e: Entry, force = false) => {
+    if (!force && servers[e.matchId] && !servers[e.matchId].error) return;
+    setServers((p) => ({ ...p, [e.matchId]: { loading: true, streams: [], serving: e.serving, error: false } }));
+    try {
+      const res = await fetch(`/api/match-streams/${encodeURIComponent(e.matchId)}?title=${encodeURIComponent(e.match.title)}&sport=${encodeURIComponent(e.match.category)}`);
+      const d = await res.json();
+      setServers((p) => ({ ...p, [e.matchId]: { loading: false, streams: Array.isArray(d.streams) ? d.streams : [], serving: d.serving || "none", error: false } }));
+    } catch {
+      setServers((p) => ({ ...p, [e.matchId]: { loading: false, streams: [], serving: "none", error: true } }));
+    }
+  }, [servers]);
+
+  const toggleExpand = useCallback((e: Entry) => {
+    setExpanded((cur) => {
+      const next = cur === e.matchId ? null : e.matchId;
+      if (next) loadServers(e);
+      return next;
+    });
+  }, [loadServers]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -232,8 +258,8 @@ export default function StreamsManagerPage() {
             const flags = e.flags;
             return (
               <div key={e.matchId} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                {/* Header */}
-                <div className="px-4 py-3 flex items-center gap-3">
+                {/* Header (tap to see the servers actually serving this match) */}
+                <button onClick={() => toggleExpand(e)} className="w-full px-4 py-3 flex items-center gap-3 text-left">
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     {t?.home?.badge && <img src={getBadgeUrl(t.home.badge)} alt="" className="w-6 h-6 object-contain shrink-0" />}
                     <span className="text-[13px] font-bold text-gray-900 truncate">
@@ -242,7 +268,44 @@ export default function StreamsManagerPage() {
                     {t?.away?.badge && <img src={getBadgeUrl(t.away.badge)} alt="" className="w-6 h-6 object-contain shrink-0" />}
                   </div>
                   <span className={`text-[9px] font-bold px-2 py-1 rounded shrink-0 ${serv.cls}`}>{serv.label.toUpperCase()}</span>
-                </div>
+                  <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${expanded === e.matchId ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Servers panel — lazily loaded for the selected card only */}
+                {expanded === e.matchId && (
+                  <div className="px-4 pb-3 border-b border-gray-100">
+                    {(() => {
+                      const st = servers[e.matchId];
+                      if (!st || st.loading) return <p className="text-[12px] text-gray-400 py-2">Loading servers…</p>;
+                      if (st.streams.length === 0) return (
+                        <div className="py-2 flex items-center justify-between">
+                          <p className="text-[12px] text-gray-400">{e.status === "upcoming" ? "No stream source yet — nothing to preview." : "No working server right now."}</p>
+                          <button onClick={() => loadServers(e, true)} className="text-[11px] font-bold text-gray-500 hover:text-gray-800">↻ Refresh</button>
+                        </div>
+                      );
+                      return (
+                        <div className="space-y-1.5 py-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Servers on the site ({st.streams.length})</span>
+                            <button onClick={() => loadServers(e, true)} className="text-[11px] font-bold text-gray-500 hover:text-gray-800">↻ Refresh</button>
+                          </div>
+                          {st.streams.map((s, i) => (
+                            <div key={s.id || i} className="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0">
+                              <span className="text-[12px] font-bold text-gray-800 shrink-0">Server {s.streamNo || i + 1}</span>
+                              {i === 0 && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">shown first</span>}
+                              {s.hd && <span className="text-[9px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">HD</span>}
+                              <span className="text-[10px] text-gray-400 truncate flex-1 min-w-0">{s.source}{s.language ? ` · ${s.language}` : ""}</span>
+                              <a href={s.embedUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-blue-600 hover:text-blue-800 shrink-0">Preview</a>
+                              <button onClick={() => navigator.clipboard?.writeText(s.embedUrl)} className="text-[11px] font-bold text-gray-400 hover:text-gray-700 shrink-0">Copy</button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
 
                 {/* Sub row: time + actions */}
                 <div className="px-4 pb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
