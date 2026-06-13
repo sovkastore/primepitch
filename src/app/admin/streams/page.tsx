@@ -143,6 +143,8 @@ export default function StreamsManagerPage() {
   const inSport = (e: Entry) => sportFilter === "all" || e.match.category === sportFilter;
   const liveCount = live.filter(inSport).length;
   const upcomingCount = upcoming.filter(inSport).length;
+  // Fallback health: live matches with no working stream at all.
+  const noStreamLive = live.filter((e) => e.serving === "none");
 
   const entries = tab === "live" ? live : upcoming;
   const filtered = useMemo(() => {
@@ -157,7 +159,7 @@ export default function StreamsManagerPage() {
   return (
     <div className="space-y-5 max-w-5xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Match Manager</h1>
+        <h1 className="text-xl font-bold text-gray-900">Streams</h1>
         {lastUpdated && (
           <span className="text-[11px] text-gray-400 font-medium">Updated {lastUpdated.toLocaleTimeString()}</span>
         )}
@@ -165,6 +167,24 @@ export default function StreamsManagerPage() {
       <p className="text-[13px] text-gray-500 -mt-3">
         Every live &amp; upcoming match — attach a fallback to any of them, force-live, hide, or manage servers.
       </p>
+
+      {/* Fallback health alert — live matches with no working stream */}
+      {!loading && noStreamLive.length > 0 && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <p className="text-[13px] font-bold text-red-700">
+              {noStreamLive.length} live {noStreamLive.length === 1 ? "match has" : "matches have"} no working stream
+            </p>
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+            {noStreamLive.slice(0, 6).map((e) => (
+              <span key={e.matchId} className="text-[11px] text-red-600 font-medium">{e.match.title}</span>
+            ))}
+          </div>
+          <p className="text-[10px] text-red-400 mt-1">Attach a fallback below to fix.</p>
+        </div>
+      )}
 
       {/* Tabs + sport filter + search */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
