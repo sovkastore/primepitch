@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import LiveMatchRow from "@/components/LiveMatchRow";
 import UpcomingRow from "@/components/UpcomingRow";
-import { Match, getMatchStatus, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches, SPORT_ICONS, SPORT_LABELS } from "@/lib/api";
+import { Match, getMatchStatus, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches, suppressPrematureLive, SPORT_ICONS, SPORT_LABELS } from "@/lib/api";
 import { classifyFight, FIGHT_SUB_LABELS, FIGHT_SUB_ICONS, FightSubcategory } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
 import { useBatchScores } from "@/lib/use-batch-scores";
@@ -65,11 +65,14 @@ export default function SportPage() {
   }, []);
 
   // Only the streamable live matches that belong to this page.
-  const live = liveMatches.filter((m) => {
-    if (m.category !== apiSport) return false;
-    if (fightSub) return classifyFight(m.title) === fightSub;
-    return true;
-  });
+  const live = suppressPrematureLive(
+    liveMatches.filter((m) => {
+      if (m.category !== apiSport) return false;
+      if (fightSub) return classifyFight(m.title) === fightSub;
+      return true;
+    }),
+    matches
+  );
 
   // Keys already shown as live — so a curated/forced-live match isn't ALSO listed under Upcoming.
   const liveKeys = new Set(liveMatches.map(getMatchKey));

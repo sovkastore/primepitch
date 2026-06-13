@@ -1,3 +1,5 @@
+import { normTitle } from "./match-merge";
+
 const BASE_URL = "https://streamed.pk/api";
 
 export interface MatchTeam {
@@ -191,6 +193,26 @@ export function getWatchHref(match: Match): string {
 export function getMatchKey(match: Match): string {
   const s = match.sources?.[0];
   return s ? `${s.source}--${s.id}` : match.id;
+}
+
+// The upstream feed sometimes lists an always-on TV channel as "live" hours
+// before kickoff — it shows unrelated programming until the match starts.
+// Drop those premature copies: if the same fixture is still scheduled as
+// upcoming (kickoff comfortably in the future), it isn't really live yet.
+// Self-healing: once the real kickoff time passes, the upcoming copy is no
+// longer "future" and the live copy is allowed through normally.
+// Admin-created live events (source "admin") are always kept, so anything you
+// force live yourself still wins.
+export function suppressPrematureLive(live: Match[], allMatches: Match[]): Match[] {
+  const now = Date.now();
+  const base = (t: string) => normTitle((t || "").replace(/\([^)]*\)/g, " "));
+  const upcomingFixtures = new Set(
+    allMatches.filter((m) => m.date - now > 10 * 60 * 1000).map((m) => base(m.title))
+  );
+  return live.filter((m) => {
+    if (m.sources?.[0]?.source === "admin") return true;
+    return !upcomingFixtures.has(base(m.title));
+  });
 }
 
 // streamed.pk sends two rows for the same fixture (e.g. "South Korea vs Czechia"

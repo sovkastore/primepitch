@@ -5,7 +5,7 @@ import SportsNav from "@/components/SportsNav";
 import LiveNow from "@/components/LiveNow";
 import TodayMatches from "@/components/Upcoming";
 import Logo from "@/components/Logo";
-import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedupeMatches } from "@/lib/api";
+import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedupeMatches, suppressPrematureLive } from "@/lib/api";
 import { classifyFight } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
 import { readPageCache, writePageCache } from "@/lib/page-cache";
@@ -181,7 +181,7 @@ export default function HomePage() {
   const filtered = filterBySport(matches, activeSport)
     .filter((m) => !hiddenIds.has(getMatchKey(m)))
     .map((m) => (hotIds.has(getMatchKey(m)) ? { ...m, hot: true } : m));
-  const liveForSport = filterBySport(mergedLive, activeSport);
+  const liveForSport = filterBySport(suppressPrematureLive(mergedLive, matches), activeSport);
   // Don't also list a match under Upcoming if it's already shown as Live.
   const liveKeys = new Set(mergedLive.map(getMatchKey));
 
