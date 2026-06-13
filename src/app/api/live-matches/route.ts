@@ -24,6 +24,7 @@ interface FlagSets {
   disableAuto: Set<string>;
   featured: Set<string>;
   renames: Map<string, string>;
+  forceEnded: Set<string>;
 }
 
 async function getFlags(): Promise<FlagSets> {
@@ -32,10 +33,11 @@ async function getFlags(): Promise<FlagSets> {
   const featured = new Set<string>();
   const forcedLive = new Map<string, Match>();
   const renames = new Map<string, string>();
+  const forceEnded = new Set<string>();
   try {
     const { data } = await getSupabaseAdmin()
       .from("match_flags")
-      .select("match_id, hidden, forced_live, featured, disable_auto, match_data, display_title");
+      .select("match_id, hidden, forced_live, featured, disable_auto, match_data, display_title, force_ended");
     for (const r of (data ?? []) as Array<{
       match_id: string;
       hidden: boolean;
@@ -44,17 +46,19 @@ async function getFlags(): Promise<FlagSets> {
       disable_auto: boolean;
       match_data: Match | null;
       display_title?: string | null;
+      force_ended?: boolean | null;
     }>) {
       if (r.hidden) hidden.add(r.match_id);
       if (r.disable_auto) disableAuto.add(r.match_id);
       if (r.featured) featured.add(r.match_id);
       if (r.forced_live && r.match_data) forcedLive.set(r.match_id, r.match_data);
       if (r.display_title) renames.set(r.match_id, r.display_title);
+      if (r.force_ended) forceEnded.add(r.match_id);
     }
   } catch {
     /* match_flags may not exist yet — degrade to no flags */
   }
-  return { hidden, forcedLive, disableAuto, featured, renames };
+  return { hidden, forcedLive, disableAuto, featured, renames, forceEnded };
 }
 
 async function getOverrideBacked(): Promise<Map<string, Match>> {
@@ -118,6 +122,11 @@ export async function GET() {
     // Admin renames: swap in the display title where one is set.
     matches = matches.map((m) =>
       flags.renames.has(keyOf(m)) ? { ...m, title: flags.renames.get(keyOf(m))! } : m
+    );
+    // Manual "End now": keep the card in the list but mark it ended so the
+    // public card renders FULL TIME (greyed, unclickable) instead of LIVE.
+    matches = matches.map((m) =>
+      flags.forceEnded.has(keyOf(m)) ? { ...m, ended: true } : m
     );
     // Featured first (stable otherwise)
     matches = matches

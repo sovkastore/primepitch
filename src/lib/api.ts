@@ -17,6 +17,7 @@ export interface Match {
     home?: MatchTeam;
     away?: MatchTeam;
   };
+  ended?: boolean; // admin forced this match to FULL TIME (manual "End now")
 }
 
 export interface Stream {
@@ -85,6 +86,16 @@ export async function getLiveMatches(): Promise<Match[]> {
   } catch {
     return [];
   }
+}
+
+// Score-feed statuses that mean the match is over (extra-time / penalties safe,
+// because the feed only reports these once the real match ends).
+const FINISHED_STATUSES = new Set([
+  "finished", "ft", "aet", "after_penalties", "ended", "awarded",
+  "fulltime", "full_time", "full-time", "match_finished", "complete", "completed",
+]);
+export function isFinishedStatus(status?: string | null): boolean {
+  return !!status && FINISHED_STATUSES.has(status.toLowerCase().replace(/\s+/g, "_"));
 }
 
 export function getMatchStatus(match: Match): "live" | "upcoming" | "ended" {

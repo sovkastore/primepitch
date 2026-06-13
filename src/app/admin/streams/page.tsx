@@ -29,6 +29,7 @@ interface FlagRow {
   forced_live: boolean;
   featured: boolean;
   disable_auto: boolean;
+  force_ended: boolean;
 }
 interface Entry {
   match: Match;
@@ -102,7 +103,7 @@ export default function StreamsManagerPage() {
   }
 
   async function setFlag(e: Entry, patch: Partial<FlagRow>) {
-    const base: FlagRow = e.flags ?? { match_id: e.matchId, hidden: false, forced_live: false, featured: false, disable_auto: false };
+    const base: FlagRow = e.flags ?? { match_id: e.matchId, hidden: false, forced_live: false, featured: false, disable_auto: false, force_ended: false };
     const next = { ...base, ...patch };
     patchEntry(e.matchId, (x) => ({ ...x, flags: next }));
     await fetch("/api/admin/match-flags", {
@@ -235,6 +236,10 @@ export default function StreamsManagerPage() {
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
                     <Toggle on={!!flags?.forced_live} onClick={() => setFlag(e, { forced_live: !flags?.forced_live })} color="blue" />
                     Force live
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
+                    <Toggle on={!!flags?.force_ended} onClick={() => setFlag(e, { force_ended: !flags?.force_ended })} color="red" />
+                    End now
                   </label>
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
                     <Toggle on={!!flags?.hidden} onClick={() => setFlag(e, { hidden: !flags?.hidden })} color="red" />
