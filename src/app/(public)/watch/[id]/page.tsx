@@ -6,7 +6,7 @@ import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
 import LiveMatchRow from "@/components/LiveMatchRow";
 import UpcomingRow from "@/components/UpcomingRow";
-import { Match, getMatchStatus, getLiveMatches, getMatchKey, SPORT_LABELS, showVersus, EVENT_SPORTS } from "@/lib/api";
+import { Match, getMatchStatus, getLiveMatches, getMatchKey, getMatchFlags, SPORT_LABELS, showVersus, EVENT_SPORTS } from "@/lib/api";
 import { getVisitorId } from "@/lib/visitor";
 import { visibleInterval } from "@/lib/poll";
 import { useBatchScores } from "@/lib/use-batch-scores";
@@ -86,6 +86,13 @@ export default function WatchPage() {
   const [showHint, setShowHint] = useState(true);
   const [gaveUp, setGaveUp] = useState(false);
   const [forceLive, setForceLive] = useState(false);
+  const [hotKeys, setHotKeys] = useState<Set<string>>(new Set());
+
+  // One-time read of HOT flags so an upcoming/custom hot match's page is also
+  // special (live matches already carry `hot` via the live feed).
+  useEffect(() => {
+    getMatchFlags().then((f) => setHotKeys(new Set(f.hot))).catch(() => {});
+  }, []);
 
   const trackedRef = useRef(false);
   const streamTriesRef = useRef(0);
@@ -113,6 +120,9 @@ export default function WatchPage() {
     return () => { w.__ppMatchEnded = false; };
   }, [matchStatus, forceLive]);
   const isUpcoming = !isLive && !isEnded && matchStatus === "upcoming";
+  // HOT (admin-flagged). Live matches carry it via the live feed; for upcoming /
+  // custom listings we read the flag once so their pages are special too.
+  const isHot = !isEnded && (currentMatch?.hot === true || hotKeys.has(rawId));
 
   const scheduledTime = currentMatch
     ? new Date(currentMatch.date).toLocaleString("en-US", {
@@ -379,6 +389,13 @@ export default function WatchPage() {
 
       {/* Video player (live) OR Match card (upcoming) */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
+        {isHot && (
+          <div className="mb-3 flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-orange-500 px-4 py-2.5 text-white ring-1 ring-red-300/70 animate-hot-glow">
+            <span className="animate-hot-flame text-lg leading-none">🔥</span>
+            <span className="text-[12px] font-black uppercase tracking-wider">Hot match</span>
+            <span className="text-[11px] font-semibold text-white/85">— featured {isLive ? "and live right now" : "— don't miss it"}</span>
+          </div>
+        )}
         {isEnded ? (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
@@ -460,7 +477,15 @@ export default function WatchPage() {
             </div>
           </div>
         ) : (
-          <div className="relative w-full bg-black rounded-xl overflow-hidden border border-gray-200" style={{ aspectRatio: "16/9" }}>
+          <div
+            className={
+              "relative w-full bg-black rounded-xl overflow-hidden " +
+              (isHot
+                ? "border-2 border-red-400 ring-2 ring-red-500/50 animate-hot-entrance"
+                : "border border-gray-200")
+            }
+            style={{ aspectRatio: "16/9" }}
+          >
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />

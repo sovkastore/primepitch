@@ -12,23 +12,38 @@ export default function LiveMatchRow({ match, score = null }: { match: Match; sc
   // Ended = admin forced it (manual "End now"), or the score feed reports the
   // match finished (extra-time / penalties safe).
   const ended = match.ended === true || isFinishedStatus(score?.status);
+  const hot = match.hot === true && !ended;
 
   const inner = (
-    <div className="bg-white rounded-2xl border border-gray-100 card-lift p-4 overflow-hidden">
+    <div
+      className={
+        "rounded-2xl card-lift p-4 overflow-hidden " +
+        (hot
+          ? "bg-white border-2 border-red-300 ring-1 ring-red-200 animate-hot-glow"
+          : "bg-white border border-gray-100")
+      }
+    >
       {/* Thin accent */}
       <div className={`h-1 -mx-4 -mt-4 mb-3 ${ended ? "bg-gray-200" : "accent-live"}`} />
       {/* Top: LIVE / FULL TIME badge + sport */}
       <div className="flex items-center justify-between mb-3">
-        {ended ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 border border-gray-200 rounded-lg text-[9px] font-black text-gray-500 tracking-wide">
-            FULL TIME
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 border border-red-100 rounded-lg text-[9px] font-black text-red-500 tracking-wide">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            LIVE
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {ended ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 border border-gray-200 rounded-lg text-[9px] font-black text-gray-500 tracking-wide">
+              FULL TIME
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 border border-red-100 rounded-lg text-[9px] font-black text-red-500 tracking-wide">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              LIVE
+            </span>
+          )}
+          {hot && (
+            <span className="inline-flex items-center gap-0.5 rounded-lg bg-gradient-to-r from-red-600 via-red-500 to-orange-500 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-white ring-1 ring-red-300/70 animate-hot-glow">
+              <span className="animate-hot-flame">🔥</span> HOT
+            </span>
+          )}
+        </div>
         <span className="text-[10px] font-semibold text-gray-400 truncate max-w-[55%] text-right">{score?.league || label}</span>
       </div>
 

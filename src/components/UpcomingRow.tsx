@@ -128,7 +128,7 @@ export default function UpcomingRow({
         className={
           "flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4 rounded-2xl transition-colors border " +
           (hot
-            ? "bg-red-50 border-red-200 ring-1 ring-red-200 hover:bg-red-100"
+            ? "bg-red-50 border-red-300 ring-1 ring-red-200 hover:bg-red-100 animate-hot-glow"
             : "bg-gray-50 hover:bg-gray-100 border-gray-100")
         }
       >
