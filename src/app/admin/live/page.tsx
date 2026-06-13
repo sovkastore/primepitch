@@ -120,10 +120,17 @@ export default function PulsePage() {
   }
 
   // Viewers parked on ended matches don't count as live.
+  // Viewers parked on ended OR upcoming (not-yet-kicked-off) pages don't count
+  // as watching live — live means a live match only.
+  const nonLiveViewers = feedStatus
+    ? data.activeMatches
+        .filter((m) => { const s = rowStatus(m.match_id); return s === "ended" || s === "upcoming"; })
+        .reduce((sum, m) => sum + m.viewers, 0)
+    : 0;
   const endedViewers = feedStatus
     ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "ended").reduce((sum, m) => sum + m.viewers, 0)
     : 0;
-  const trueLiveViewers = Math.max(0, (data.liveViewers ?? 0) - endedViewers);
+  const trueLiveViewers = Math.max(0, (data.liveViewers ?? 0) - nonLiveViewers);
   const watchPagesActive = data.activeMatches.filter((m) => rowStatus(m.match_id) !== "ended").length;
 
   return (
