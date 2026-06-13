@@ -228,3 +228,14 @@ export async function getMatchFlags(): Promise<{ hidden: string[]; featured: str
     return { hidden: [], featured: [] };
   }
 }
+
+// Field/event sports have no opponent — the feed sometimes splits their event
+// name into a bogus "home vs away" (e.g. "Formula 1 2026" / "Spain GP"). For
+// these, never show the versus layout; show the single event title instead.
+export const EVENT_SPORTS = new Set(["motor-sports", "golf"]);
+export function showVersus(
+  m?: { teams?: { home?: unknown; away?: unknown } | null; category?: string } | null
+): boolean {
+  if (!m) return false;
+  return !!(m.teams?.home && m.teams?.away) && !EVENT_SPORTS.has(m.category || "");
+}

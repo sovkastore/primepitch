@@ -6,7 +6,7 @@ import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
 import LiveMatchRow from "@/components/LiveMatchRow";
 import UpcomingRow from "@/components/UpcomingRow";
-import { Match, getMatchStatus, getLiveMatches, getMatchKey, SPORT_LABELS } from "@/lib/api";
+import { Match, getMatchStatus, getLiveMatches, getMatchKey, SPORT_LABELS, showVersus, EVENT_SPORTS } from "@/lib/api";
 import { getVisitorId } from "@/lib/visitor";
 import { visibleInterval } from "@/lib/poll";
 import { useBatchScores } from "@/lib/use-batch-scores";
@@ -96,7 +96,7 @@ export default function WatchPage() {
     .replace(/\b\w/g, (c) => c.toUpperCase()) || "Live Match";
 
   const displayTitle = currentMatch?.title || fallbackName;
-  const hasTeams = currentMatch?.teams?.home && currentMatch?.teams?.away;
+  const hasTeams = showVersus(currentMatch);
   const sportLabel = SPORT_LABELS[currentMatch?.category || ""] || currentMatch?.category || "";
   // A match that can't be found in any current list and has no streams has
   // ENDED (feeds drop matches once played) — never show it as "upcoming".
@@ -325,6 +325,8 @@ export default function WatchPage() {
   const [finalTeams, setFinalTeams] = useState<{ home: string; away: string } | null>(null);
   useEffect(() => {
     if (!isEnded) return;
+    // Event sports (racing/golf) have no head-to-head — show the title, not a vs.
+    if (EVENT_SPORTS.has(currentMatch?.category || "")) return;
     // Team names from match data, else from the title/slug ("A vs B ...").
     let h = currentMatch?.teams?.home?.name || "";
     let a = currentMatch?.teams?.away?.name || "";

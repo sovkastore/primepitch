@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
-import { Match, getWatchHref, SPORT_LABELS, isFinishedStatus } from "@/lib/api";
+import { Match, getWatchHref, SPORT_LABELS, isFinishedStatus, showVersus } from "@/lib/api";
 import type { LiveScore } from "@/lib/use-batch-scores";
 
 export default function LiveMatchRow({ match, score = null }: { match: Match; score?: LiveScore | null }) {
   const href = getWatchHref(match);
-  const hasTeams = match.teams?.home && match.teams?.away;
+  const hasTeams = showVersus(match);
   const label = SPORT_LABELS[match.category] || match.category;
   // Ended = admin forced it (manual "End now"), or the score feed reports the
   // match finished (extra-time / penalties safe).
