@@ -84,8 +84,10 @@ function RowBadge({ badge, name }: { badge?: string; name?: string }) {
       />
     );
   }
-  // 3. neutral placeholder (never a blank/broken row)
-  return <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gray-200 shrink-0" />;
+  // 3. No image from the feed — render nothing rather than an empty circle that
+  // looks like it's still waiting for a logo/photo. (Real badges keep their
+  // fixed w/h via the <img>, so this causes no layout shift.)
+  return null;
 }
 
 // Shared upcoming-fixture row used by the home page, sport pages and the watch
