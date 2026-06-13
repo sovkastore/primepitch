@@ -150,3 +150,23 @@ body {
   background: var(--green);
   vertical-align: middle;
 }
+
+/* Admin-toggled HOT fixture badge — pulsing red/orange glow for an
+   eye-catching, "extraordinary" feel. */
+@keyframes hotGlow {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.65), 0 0 2px rgba(239, 68, 68, 0.9);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.95), 0 0 8px rgba(249, 115, 22, 0.95);
+    transform: scale(1.06);
+  }
+}
+.animate-hot-glow { animation: hotGlow 1.15s ease-in-out infinite; }
+
+@keyframes hotFlame {
+  0%, 100% { transform: rotate(-6deg) scale(1); }
+  50% { transform: rotate(6deg) scale(1.18); }
+}
+.animate-hot-flame { display: inline-block; animation: hotFlame 0.9s ease-in-out infinite; }

@@ -90,6 +90,20 @@ function RowBadge({ badge, name }: { badge?: string; name?: string }) {
   return null;
 }
 
+// Admin-toggled HOT badge: red/orange gradient pill with a pulsing glow and a
+// flickering flame — deliberately eye-catching for flagship fixtures.
+function HotBadge() {
+  return (
+    <span className="relative inline-flex shrink-0 items-center" aria-label="Hot fixture">
+      <span
+        className="relative inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-orange-500 px-2 py-[3px] text-[9px] font-black uppercase tracking-wider text-white ring-1 ring-red-300/70 animate-hot-glow"
+      >
+        <span className="animate-hot-flame">🔥</span> HOT
+      </span>
+    </span>
+  );
+}
+
 // Shared upcoming-fixture row used by the home page, sport pages and the watch
 // page's "MORE UPCOMING" list. Team names stay on a single line at a compact
 // size so the full names show instead of collapsing to "I… vs M…".
@@ -106,12 +120,20 @@ export default function UpcomingRow({
   const href = getWatchHref(match);
   const hasTeams = showVersus(match);
   const label = SPORT_LABELS[match.category] || match.category;
+  const hot = !!match.hot;
 
   return (
     <Link href={href} className="group block">
-      <div className="flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors border border-gray-100">
+      <div
+        className={
+          "flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4 rounded-2xl transition-colors border " +
+          (hot
+            ? "bg-red-50 border-red-200 ring-1 ring-red-200 hover:bg-red-100"
+            : "bg-gray-50 hover:bg-gray-100 border-gray-100")
+        }
+      >
         <StartCell date={match.date} timeStr={timeStr} dateStr={dateStr} />
-        <div className="w-px h-8 bg-gray-200 shrink-0" />
+        <div className={"w-px h-8 shrink-0 " + (hot ? "bg-red-200" : "bg-gray-200")} />
         {hasTeams ? (
           <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
             <RowBadge badge={match.teams!.home!.badge} name={match.teams!.home!.name} />
@@ -125,6 +147,7 @@ export default function UpcomingRow({
             <p className="text-[10px] sm:text-[11px] font-bold text-gray-800 truncate">{match.title}</p>
           </div>
         )}
+        {hot && <HotBadge />}
         {showSport && (
           <span className="hidden sm:inline text-[9px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg shrink-0 font-bold">{label}</span>
         )}

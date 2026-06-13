@@ -18,6 +18,7 @@ export interface Match {
     away?: MatchTeam;
   };
   ended?: boolean; // admin forced this match to FULL TIME (manual "End now")
+  hot?: boolean; // admin manually flagged this fixture as HOT (red animated badge)
 }
 
 export interface Stream {
@@ -218,14 +219,15 @@ export function dedupeMatches(matches: Match[]): Match[] {
   return order.map((k) => best.get(k)!);
 }
 
-// Hidden/featured flags for the public upcoming lists.
-export async function getMatchFlags(): Promise<{ hidden: string[]; featured: string[] }> {
+// Hidden/featured/hot flags for the public upcoming lists.
+export async function getMatchFlags(): Promise<{ hidden: string[]; featured: string[]; hot: string[] }> {
   try {
     const res = await fetch(`/api/match-flags`, { cache: "no-store" });
-    if (!res.ok) return { hidden: [], featured: [] };
-    return await res.json();
+    if (!res.ok) return { hidden: [], featured: [], hot: [] };
+    const j = await res.json();
+    return { hidden: j.hidden ?? [], featured: j.featured ?? [], hot: j.hot ?? [] };
   } catch {
-    return { hidden: [], featured: [] };
+    return { hidden: [], featured: [], hot: [] };
   }
 }
 

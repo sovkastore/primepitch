@@ -1,20 +1,23 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
-// Public: which matches are hidden / featured, so the upcoming lists can honor them.
+// Public: which matches are hidden / featured / hot, so the upcoming lists
+// can honor them.
 export async function GET() {
   try {
     const { data } = await getSupabaseAdmin()
       .from("match_flags")
-      .select("match_id, hidden, featured");
+      .select("match_id, hidden, featured, hot");
     const hidden: string[] = [];
     const featured: string[] = [];
-    for (const r of (data ?? []) as Array<{ match_id: string; hidden: boolean; featured: boolean }>) {
+    const hot: string[] = [];
+    for (const r of (data ?? []) as Array<{ match_id: string; hidden: boolean; featured: boolean; hot: boolean }>) {
       if (r.hidden) hidden.push(r.match_id);
       if (r.featured) featured.push(r.match_id);
+      if (r.hot) hot.push(r.match_id);
     }
-    return NextResponse.json({ hidden, featured });
+    return NextResponse.json({ hidden, featured, hot });
   } catch {
-    return NextResponse.json({ hidden: [], featured: [] });
+    return NextResponse.json({ hidden: [], featured: [], hot: [] });
   }
 }

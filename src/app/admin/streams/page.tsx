@@ -30,6 +30,7 @@ interface FlagRow {
   featured: boolean;
   disable_auto: boolean;
   force_ended: boolean;
+  hot: boolean;
 }
 interface Entry {
   match: Match;
@@ -129,7 +130,7 @@ export default function StreamsManagerPage() {
   }
 
   async function setFlag(e: Entry, patch: Partial<FlagRow>) {
-    const base: FlagRow = e.flags ?? { match_id: e.matchId, hidden: false, forced_live: false, featured: false, disable_auto: false, force_ended: false };
+    const base: FlagRow = e.flags ?? { match_id: e.matchId, hidden: false, forced_live: false, featured: false, disable_auto: false, force_ended: false, hot: false };
     const next = { ...base, ...patch };
     patchEntry(e.matchId, (x) => ({ ...x, flags: next }));
     await fetch("/api/admin/match-flags", {
@@ -316,6 +317,10 @@ export default function StreamsManagerPage() {
                   >
                     {e.overrides.length > 0 ? "+ Add stream" : "Add fallback"}
                   </button>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-red-600">
+                    <Toggle on={!!flags?.hot} onClick={() => setFlag(e, { hot: !flags?.hot })} color="red" />
+                    🔥 Hot
+                  </label>
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
                     <Toggle on={!!flags?.forced_live} onClick={() => setFlag(e, { forced_live: !flags?.forced_live })} color="blue" />
                     Force live

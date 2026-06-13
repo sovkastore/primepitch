@@ -40,6 +40,7 @@ export default function HomePage() {
   // curated live list yet — bridged in so they appear LIVE instantly (no gap).
   const [bridged, setBridged] = useState<Match[]>([]);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [hotIds, setHotIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activeSport, setActiveSport] = useState<string | null>("football");
 
@@ -143,9 +144,15 @@ export default function HomePage() {
     return () => { cancelled = true; clearInterval(iv); if (to) clearTimeout(to); };
   }, [matches, liveMatches, hiddenIds]);
 
-  // Hidden matches (admin) — keep them out of the upcoming list.
+  // Hidden matches (admin) — keep them out of the upcoming list. Hot fixtures
+  // (admin) get the red HOT badge.
   useEffect(() => {
-    getMatchFlags().then((f) => setHiddenIds(new Set(f.hidden))).catch(() => {});
+    getMatchFlags()
+      .then((f) => {
+        setHiddenIds(new Set(f.hidden));
+        setHotIds(new Set(f.hot));
+      })
+      .catch(() => {});
   }, []);
 
   if (loading) {
@@ -171,7 +178,9 @@ export default function HomePage() {
   for (const m of bridged) if (!mergedLiveMap.has(getMatchKey(m))) mergedLiveMap.set(getMatchKey(m), m);
   const mergedLive = Array.from(mergedLiveMap.values());
 
-  const filtered = filterBySport(matches, activeSport).filter((m) => !hiddenIds.has(getMatchKey(m)));
+  const filtered = filterBySport(matches, activeSport)
+    .filter((m) => !hiddenIds.has(getMatchKey(m)))
+    .map((m) => (hotIds.has(getMatchKey(m)) ? { ...m, hot: true } : m));
   const liveForSport = filterBySport(mergedLive, activeSport);
   // Don't also list a match under Upcoming if it's already shown as Live.
   const liveKeys = new Set(mergedLive.map(getMatchKey));

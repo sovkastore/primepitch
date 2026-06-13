@@ -21,6 +21,7 @@ export default function SportPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [liveMatches, setLiveMatches] = useState<Match[]>([]);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [hotIds, setHotIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   const icon = SPORT_ICONS[sport] || "⚽";
@@ -55,7 +56,12 @@ export default function SportPage() {
 
   // Hidden matches (admin) — keep them out of the upcoming list.
   useEffect(() => {
-    getMatchFlags().then((f) => setHiddenIds(new Set(f.hidden))).catch(() => {});
+    getMatchFlags()
+      .then((f) => {
+        setHiddenIds(new Set(f.hidden));
+        setHotIds(new Set(f.hot));
+      })
+      .catch(() => {});
   }, []);
 
   // Only the streamable live matches that belong to this page.
@@ -71,8 +77,10 @@ export default function SportPage() {
   const scores = useBatchScores(live);
   const isUpcomingRow = (m: Match) =>
     getMatchStatus(m) === "upcoming" && !hiddenIds.has(getMatchKey(m)) && !liveKeys.has(getMatchKey(m));
+  // Stamp the admin "HOT" flag onto a fixture so UpcomingRow can show the badge.
+  const stampHot = (m: Match): Match => (hotIds.has(getMatchKey(m)) ? { ...m, hot: true } : m);
 
-  const upcoming = matches.filter(isUpcomingRow).sort((a, b) => a.date - b.date);
+  const upcoming = matches.filter(isUpcomingRow).map(stampHot).sort((a, b) => a.date - b.date);
 
   if (loading) {
     return (
@@ -97,7 +105,7 @@ export default function SportPage() {
       grouped[classifyFight(m.title)].live.push(m);
     }
     for (const m of matches) {
-      if (isUpcomingRow(m)) grouped[classifyFight(m.title)].upcoming.push(m);
+      if (isUpcomingRow(m)) grouped[classifyFight(m.title)].upcoming.push(stampHot(m));
     }
 
     return (
