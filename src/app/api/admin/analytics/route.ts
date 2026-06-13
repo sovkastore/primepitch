@@ -32,12 +32,12 @@ export async function GET(request: NextRequest) {
     } catch { /* RPC missing */ }
 
     // --- Match activity -----------------------------------------------------
-    let matchViews = 0, uniqueWatchers = 0, matchesWatched = 0, liveViews = 0, preViews = 0;
+    let matchViews = 0, uniqueWatchers = 0, matchesWatched = 0, liveViews = 0, preViews = 0, watchersLive = 0, watchersPreOnly = 0;
     try {
       const { data, error } = await sb.rpc("match_activity_in_range", { p_start: start, p_end: end });
       if (error) throw error;
-      const r = (data || [])[0] as { match_views: number; unique_watchers: number; matches_watched: number; live_views: number; pre_views: number } | undefined;
-      if (r) { matchViews = num(r.match_views); uniqueWatchers = num(r.unique_watchers); matchesWatched = num(r.matches_watched); liveViews = num(r.live_views); preViews = num(r.pre_views); }
+      const r = (data || [])[0] as { match_views: number; unique_watchers: number; matches_watched: number; live_views: number; pre_views: number; watchers_live: number; watchers_pre_only: number } | undefined;
+      if (r) { matchViews = num(r.match_views); uniqueWatchers = num(r.unique_watchers); matchesWatched = num(r.matches_watched); liveViews = num(r.live_views); preViews = num(r.pre_views); watchersLive = num(r.watchers_live); watchersPreOnly = num(r.watchers_pre_only); }
     } catch { /* RPC missing */ }
 
     // --- Breakdowns (reuse existing RPCs) -----------------------------------
@@ -78,6 +78,8 @@ export async function GET(request: NextRequest) {
         uniqueWatchers,
         liveViews,
         preViews,
+        watchersLive,
+        watchersPreOnly,
         loadsPerPerson: active ? round1(pv / active) : 0,
         matchLoadsPerWatcher: uniqueWatchers ? round1(matchViews / uniqueWatchers) : 0,
       },

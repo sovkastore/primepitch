@@ -9,7 +9,7 @@ interface AnalyticsData {
   people: { unique: number; newVisitors: number; returning: number; returningRate: number };
   activity: {
     pageViews: number; matchViews: number; matchesWatched: number; uniqueWatchers: number;
-    liveViews: number; preViews: number; loadsPerPerson: number; matchLoadsPerWatcher: number;
+    liveViews: number; preViews: number; watchersLive: number; watchersPreOnly: number; loadsPerPerson: number; matchLoadsPerWatcher: number;
   };
   byDevice: Record<string, number>;
   topMatches: { match_id: string; title: string; views: number }[];
@@ -144,7 +144,7 @@ export default function AnalyticsPage() {
               <MetricCard title="Page views" value={data.activity.pageViews} subtitle={`${data.activity.loadsPerPerson} per person`} color="red" />
               <MetricCard title="Match views" value={data.activity.matchViews} subtitle={`${data.activity.liveViews} live · ${data.activity.preViews} pre`} color="red" />
               <MetricCard title="Matches watched" value={data.activity.matchesWatched} subtitle="distinct matches" color="emerald" />
-              <MetricCard title="Match watchers" value={data.activity.uniqueWatchers} subtitle={`${data.activity.matchLoadsPerWatcher} loads each`} color="blue" />
+              <MetricCard title="Match watchers" value={data.activity.uniqueWatchers} subtitle={`${data.activity.watchersLive} watched live · ${data.activity.watchersPreOnly} only pre`} color="blue" />
             </div>
           </section>
 
