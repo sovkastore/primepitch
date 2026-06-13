@@ -465,7 +465,13 @@ export default function WatchPage() {
                   src={currentStream.embedUrl}
                   className="absolute inset-0 w-full h-full"
                   allowFullScreen
-                  allow="encrypted-media"
+                  allow="encrypted-media; fullscreen"
+                  // Caged player: allow what video needs (scripts, same-origin,
+                  // fullscreen, casting) but DENY pop-ups and page-takeover —
+                  // which is what blocks the "tap → opens an ad tab" hijacking
+                  // and pop-under ads. Embeds are cross-origin so they can't
+                  // remove this sandbox. Overlay ads inside the frame remain.
+                  sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
                   onLoad={() => setIframeLoaded(true)}
                 />
 
