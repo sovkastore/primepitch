@@ -7,7 +7,17 @@ import type { LiveScore } from "@/lib/use-batch-scores";
 
 export default function LiveMatchRow({ match, score = null }: { match: Match; score?: LiveScore | null }) {
   const href = getWatchHref(match);
-  const hasTeams = showVersus(match);
+  const versus = showVersus(match);
+  // Only use the two-circle team layout when BOTH sides have a real logo image.
+  // Without logos, the circle just shows a letter, which looks like a broken
+  // placeholder — so fall back to a clean "Name vs Name" line instead.
+  const homeBadge = match.teams?.home?.badge?.trim();
+  const awayBadge = match.teams?.away?.badge?.trim();
+  const useTeamLayout = versus && Boolean(homeBadge && awayBadge);
+  const titleText =
+    versus && match.teams?.home?.name && match.teams?.away?.name
+      ? `${match.teams.home.name} vs ${match.teams.away.name}`
+      : match.title;
   const label = SPORT_LABELS[match.category] || match.category;
   // Ended = admin forced it (manual "End now"), or the score feed reports the
   // match finished (extra-time / penalties safe).
@@ -47,7 +57,7 @@ export default function LiveMatchRow({ match, score = null }: { match: Match; sc
         <span className="text-[10px] font-semibold text-gray-400 truncate max-w-[55%] text-right">{score?.league || label}</span>
       </div>
 
-      {hasTeams ? (
+      {useTeamLayout ? (
         <div className="flex items-center gap-3">
           {/* Home team */}
           <div className="flex-1 flex flex-col items-center gap-2">
@@ -96,7 +106,16 @@ export default function LiveMatchRow({ match, score = null }: { match: Match; sc
           </div>
         </div>
       ) : (
-        <p className="text-[13px] font-bold text-gray-900 text-center">{match.title}</p>
+        <div className="text-center">
+          <p className="text-[13px] font-bold text-gray-900">{titleText}</p>
+          {score && (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-900 rounded-lg">
+              <span className="text-sm font-black text-white tabular-nums">{score.home}</span>
+              <span className="text-[10px] text-gray-400 font-bold">-</span>
+              <span className="text-sm font-black text-white tabular-nums">{score.away}</span>
+            </div>
+          )}
+        </div>
       )}
 
       {/* WATCH / ENDED button */}
