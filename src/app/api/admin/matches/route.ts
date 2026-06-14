@@ -74,6 +74,7 @@ export async function GET(request: NextRequest) {
       lastViewed: string;
       firstViewed: string;
       lastLiveView: string | null;
+      firstLiveView: string | null;
     }> = {};
 
     allData?.forEach((r) => {
@@ -90,6 +91,7 @@ export async function GET(request: NextRequest) {
           lastViewed: r.created_at,
           firstViewed: r.created_at,
           lastLiveView: null,
+          firstLiveView: null,
         };
       }
       const g = grouped[r.match_id];
@@ -103,6 +105,7 @@ export async function GET(request: NextRequest) {
       if (r.created_at > g.lastViewed) g.lastViewed = r.created_at;
       if (r.created_at < g.firstViewed) g.firstViewed = r.created_at;
       if (r.is_live && (!g.lastLiveView || r.created_at > g.lastLiveView)) g.lastLiveView = r.created_at;
+      if (r.is_live && (!g.firstLiveView || r.created_at < g.firstLiveView)) g.firstLiveView = r.created_at;
     });
 
 
@@ -121,6 +124,7 @@ export async function GET(request: NextRequest) {
       lastViewed: string;
       firstViewed: string;
       lastLiveView: string | null;
+      firstLiveView: string | null;
     }> = {};
 
     const entries = Object.entries(grouped).map(([id, g]) => ({ id, ...g }));
@@ -149,6 +153,7 @@ export async function GET(request: NextRequest) {
             lastViewed: g.lastViewed,
             firstViewed: g.firstViewed,
             lastLiveView: null,
+            firstLiveView: g.firstLiveView,
           };
         }
         const m = merged[key];
@@ -161,6 +166,7 @@ export async function GET(request: NextRequest) {
         m.totalDuration += g.totalDuration;
         if (g.lastViewed > m.lastViewed) m.lastViewed = g.lastViewed;
         if (g.firstViewed < m.firstViewed) m.firstViewed = g.firstViewed;
+        if (g.firstLiveView && (!m.firstLiveView || g.firstLiveView < m.firstLiveView)) m.firstLiveView = g.firstLiveView;
         if (g.lastLiveView && (!m.lastLiveView || g.lastLiveView > m.lastLiveView)) m.lastLiveView = g.lastLiveView;
         // Represent the merged match with its most-viewed listing's title/sport.
         if (g.views > m.titleViews) { m.title = g.title; m.titleViews = g.views; m.sport = g.sport; m.match_id = g.id; }
@@ -190,20 +196,25 @@ export async function GET(request: NextRequest) {
       return nowMs - Date.parse(g.lastLiveView) <= LIVE_WINDOW ? "live" : "played";
     };
 
-    // Keep only matches whose START day (first view) falls in the selected
-    // window. Their full view counts — including any post-midnight tail pulled
-    // in via the buffer — are attributed to that start day, so a match appears
-    // once, on the day it kicked off, never split across two days.
+    // Attribute each match to the day it KICKED OFF, approximated by its first
+    // *live* view. Pre-kickoff preview visits (is_live = false) can land on the
+    // day before kickoff, so using them would mis-bucket a match (e.g. a 2am
+    // match previewed the previous afternoon). Fall back to first view only for
+    // matches that have no live views yet (pure upcoming). The full view counts —
+    // including any post-midnight tail pulled in via the buffer — are attributed
+    // to that day, so a match appears once, on the day it kicked off.
+    const startDayOf = (g: { firstLiveView: string | null; firstViewed: string }) =>
+      g.firstLiveView ?? g.firstViewed;
     const fromMs = from ? Date.parse(from) : null;
     const toMs = to ? Date.parse(to) : null;
-    const inStartWindow = (firstViewed: string) => {
+    const inStartWindow = (startDay: string) => {
       if (fromMs === null && toMs === null) return true;
-      const t = Date.parse(firstViewed);
+      const t = Date.parse(startDay);
       return (fromMs === null || t >= fromMs) && (toMs === null || t <= toMs);
     };
 
     const matches = Object.values(merged)
-      .filter((g) => inStartWindow(g.firstViewed))
+      .filter((g) => inStartWindow(startDayOf(g)))
       .map((g) => ({
         match_id: g.match_id,
         title: g.title,
@@ -217,7 +228,7 @@ export async function GET(request: NextRequest) {
         peak_viewers: Math.max(0, ...g.matchIds.map((id) => peakById[id] ?? 0)),
         avg_duration: g.views > 0 ? Math.round(g.totalDuration / g.views) : 0,
         last_viewed: g.lastViewed,
-        start_day: g.firstViewed,
+        start_day: startDayOf(g),
         status: classify(g),
       }))
       .filter((m) => status === "all" || m.status === status)
@@ -230,7 +241,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       matches,
-      total: Object.values(merged).filter((g) => (status === "all" || classify(g) === status) && inStartWindow(g.firstViewed)).length,
+      total: Object.values(merged).filter((g) => (status === "all" || classify(g) === status) && inStartWindow(startDayOf(g))).length,
       page,
       raw: data,
       rawTotal: count,
