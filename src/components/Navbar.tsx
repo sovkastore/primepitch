@@ -92,19 +92,6 @@ export default function Navbar() {
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 top-14 bg-white z-[999] overflow-y-auto">
           <div className="max-w-md mx-auto px-4 py-4 space-y-1.5">
-            {/* Contact */}
-            <Link
-              href="/contact"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 transition-colors"
-            >
-              <span className="shrink-0 w-10 h-10 rounded-xl bg-gray-100 grid place-items-center text-gray-500">
-                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2" strokeWidth={2} /><path strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" d="m4 7 8 6 8-6" /></svg>
-              </span>
-              <span className="flex-1 text-[15px] font-semibold text-gray-800">Contact us</span>
-              <svg className="shrink-0 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
-            </Link>
-
             {/* Subscribe — primary action */}
             <Link
               href="/subscribe"
