@@ -136,7 +136,7 @@ export default function Navbar() {
               <span className="shrink-0 w-10 h-10 rounded-xl bg-gray-100 grid place-items-center text-gray-500">
                 <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9" strokeWidth={2} /><path strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" d="M12 3a9 9 0 0 0 0 18M3 12h18M5.6 6.5c2 1.2 10.8 1.2 12.8 0M5.6 17.5c2-1.2 10.8-1.2 12.8 0" /></svg>
               </span>
-              <span className="flex-1 text-left text-[15px] font-semibold text-gray-800">Sports</span>
+              <span className="flex-1 text-left text-[15px] font-semibold text-gray-800">All Sports</span>
               <svg className={`shrink-0 w-4 h-4 text-gray-400 transition-transform ${sportsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
             </button>
             {sportsOpen && (
