@@ -44,6 +44,7 @@ type PublicSocial = { id: string; label: string; url: string };
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sportsOpen, setSportsOpen] = useState(false);
   const [socials, setSocials] = useState<PublicSocial[]>([]);
   const [socialsLoaded, setSocialsLoaded] = useState(false);
 
@@ -90,23 +91,62 @@ export default function Navbar() {
       {/* Mobile fullscreen menu — outside nav to avoid stacking context */}
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 top-14 bg-white z-[999] px-4 py-3 space-y-0.5 overflow-y-auto">
+          {/* Pinned at the top */}
+          <Link
+            href="/contact"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Contact Us
+          </Link>
+          <Link
+            href="/subscribe"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+          >
+            🔔 Subscribe — Goal Alerts
+          </Link>
+
+          {/* Featured event */}
           <Link
             href="/world-cup"
             onClick={() => setMobileOpen(false)}
-            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors mb-1"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors mt-1"
           >
             🏆 FIFA World Cup 2026
           </Link>
-          {ALL_SPORTS.map((id) => (
-            <Link
-              key={id}
-              href={`/${id}`}
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+
+          {/* Sports — collapsible */}
+          <button
+            type="button"
+            onClick={() => setSportsOpen((v) => !v)}
+            aria-expanded={sportsOpen}
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors mt-1"
+          >
+            <span>Sports</span>
+            <svg
+              className={`w-4 h-4 text-gray-400 transition-transform ${sportsOpen ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              {SPORT_LABELS[id] || id}
-            </Link>
-          ))}
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {sportsOpen && (
+            <div className="pl-2">
+              {ALL_SPORTS.map((id) => (
+                <Link
+                  key={id}
+                  href={`/${id}`}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                >
+                  {SPORT_LABELS[id] || id}
+                </Link>
+              ))}
+            </div>
+          )}
 
           {/* Connect with us — admin-managed, tap-to-open links */}
           {socials.length > 0 && (
