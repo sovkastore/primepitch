@@ -72,7 +72,7 @@ export default function SportPage() {
       return true;
     }),
     matches
-  );
+  ).filter((m) => !isFlagged(m, hiddenIds));
 
   // Keys already shown as live — so a curated/forced-live match isn't ALSO listed under Upcoming.
   const liveKeys = new Set(liveMatches.map(getMatchKey));

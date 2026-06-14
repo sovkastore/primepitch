@@ -177,7 +177,9 @@ export default function HomePage() {
   const mergedLiveMap = new Map<string, Match>();
   for (const m of liveMatches) mergedLiveMap.set(getMatchKey(m), m);
   for (const m of bridged) if (!mergedLiveMap.has(getMatchKey(m))) mergedLiveMap.set(getMatchKey(m), m);
-  const mergedLive = Array.from(mergedLiveMap.values());
+  // Admin-hidden matches must drop out of LIVE too, not just Upcoming — once a
+  // hidden match kicks off it would otherwise reappear in the live row.
+  const mergedLive = Array.from(mergedLiveMap.values()).filter((m) => !isFlagged(m, hiddenIds));
 
   const filtered = filterBySport(matches, activeSport)
     .filter((m) => !isFlagged(m, hiddenIds))
