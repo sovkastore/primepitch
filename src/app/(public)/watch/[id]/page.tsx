@@ -7,7 +7,7 @@ import TeamBadge from "@/components/TeamBadge";
 import LiveMatchRow from "@/components/LiveMatchRow";
 import UpcomingRow from "@/components/UpcomingRow";
 import PreRollGate from "@/components/PreRollGate";
-import { Match, getMatchStatus, getLiveMatches, getMatchKey, getMatchFlags, SPORT_LABELS, showVersus, EVENT_SPORTS, bothTeamsHaveVisuals } from "@/lib/api";
+import { Match, getMatchStatus, getLiveMatches, getMatchKey, getMatchFlags, isFlagged, SPORT_LABELS, showVersus, EVENT_SPORTS, bothTeamsHaveVisuals } from "@/lib/api";
 import { getVisitorId } from "@/lib/visitor";
 import { visibleInterval } from "@/lib/poll";
 import { useBatchScores } from "@/lib/use-batch-scores";
@@ -123,7 +123,7 @@ export default function WatchPage() {
   const isUpcoming = !isLive && !isEnded && matchStatus === "upcoming";
   // HOT (admin-flagged). Live matches carry it via the live feed; for upcoming /
   // custom listings we read the flag once so their pages are special too.
-  const isHot = !isEnded && (currentMatch?.hot === true || hotKeys.has(rawId));
+  const isHot = !isEnded && (currentMatch?.hot === true || hotKeys.has(rawId) || (currentMatch ? isFlagged(currentMatch, hotKeys) : false));
 
   const scheduledTime = currentMatch
     ? new Date(currentMatch.date).toLocaleString("en-US", {

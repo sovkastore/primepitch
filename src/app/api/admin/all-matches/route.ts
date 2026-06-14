@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { resolveStreams } from "@/lib/streams";
-import { getMatchStatus } from "@/lib/api";
+import { getMatchStatus, matchFlagKeys } from "@/lib/api";
 import type { Match } from "@/lib/api";
 
 // Admin Match Manager data: ALL live + upcoming matches (regardless of viewers/streams),
@@ -106,10 +106,29 @@ export async function GET() {
       /* ignore */
     }
 
+    // Match a flag to a fixture by ANY of its ids, not just sources[0], so a flag
+    // saved earlier still attaches after streamed.pk reshuffles the sources. The
+    // returned row keeps its real stored match_id, so an admin toggle targets and
+    // clears the actual row (no orphaned duplicate left hiding the match).
+    const findFlag = (m: Match): FlagRow | null => {
+      const keys = matchFlagKeys(m);
+      for (const k of keys) {
+        const f = flagsByMatch.get(k);
+        if (f) return f;
+      }
+      const bare = new Set(keys.filter((k) => !k.includes("--")));
+      for (const [stored, row] of flagsByMatch) {
+        const i = stored.indexOf("--");
+        const portion = i === -1 ? stored : stored.slice(i + 2);
+        if (bare.has(portion)) return row;
+      }
+      return null;
+    };
+
     const liveOut = await Promise.all(
       live.map(async (m) => {
         const matchId = keyOf(m);
-        const flags = flagsByMatch.get(matchId) ?? null;
+        const flags = findFlag(m);
         const overrides = overridesByMatch.get(matchId) ?? [];
         const s = m.sources?.[0];
         let serving = "none";
@@ -135,7 +154,7 @@ export async function GET() {
         status: "upcoming",
         serving: "upcoming",
         overrides: overridesByMatch.get(matchId) ?? [],
-        flags: flagsByMatch.get(matchId) ?? null,
+        flags: findFlag(m),
       };
     });
 

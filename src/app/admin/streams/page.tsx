@@ -138,7 +138,7 @@ export default function StreamsManagerPage() {
     await fetch("/api/admin/match-flags", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ match_id: e.matchId, match_data: e.match, ...patch }),
+      body: JSON.stringify({ match_id: e.flags?.match_id ?? e.matchId, match_data: e.match, ...patch }),
     }).catch(() => {});
   }
 

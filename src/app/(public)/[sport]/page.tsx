@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import LiveMatchRow from "@/components/LiveMatchRow";
 import UpcomingRow from "@/components/UpcomingRow";
-import { Match, getMatchStatus, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches, suppressPrematureLive, SPORT_ICONS, SPORT_LABELS } from "@/lib/api";
+import { Match, getMatchStatus, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches, suppressPrematureLive, isFlagged, SPORT_ICONS, SPORT_LABELS } from "@/lib/api";
 import { classifyFight, FIGHT_SUB_LABELS, FIGHT_SUB_ICONS, FightSubcategory } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
 import { useBatchScores } from "@/lib/use-batch-scores";
@@ -79,9 +79,9 @@ export default function SportPage() {
   // ONE batched score request for every live card on this page.
   const scores = useBatchScores(live);
   const isUpcomingRow = (m: Match) =>
-    getMatchStatus(m) === "upcoming" && !hiddenIds.has(getMatchKey(m)) && !liveKeys.has(getMatchKey(m));
+    getMatchStatus(m) === "upcoming" && !isFlagged(m, hiddenIds) && !liveKeys.has(getMatchKey(m));
   // Stamp the admin "HOT" flag onto a fixture so UpcomingRow can show the badge.
-  const stampHot = (m: Match): Match => (hotIds.has(getMatchKey(m)) ? { ...m, hot: true } : m);
+  const stampHot = (m: Match): Match => (isFlagged(m, hotIds) ? { ...m, hot: true } : m);
 
   const upcoming = matches.filter(isUpcomingRow).map(stampHot).sort((a, b) => a.date - b.date);
 

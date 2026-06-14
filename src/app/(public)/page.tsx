@@ -6,7 +6,7 @@ import LiveNow from "@/components/LiveNow";
 import TodayMatches from "@/components/Upcoming";
 import Logo from "@/components/Logo";
 import PreRollGate from "@/components/PreRollGate";
-import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedupeMatches, suppressPrematureLive } from "@/lib/api";
+import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedupeMatches, suppressPrematureLive, isFlagged } from "@/lib/api";
 import { classifyFight } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
 import { readPageCache, writePageCache } from "@/lib/page-cache";
@@ -118,7 +118,7 @@ export default function HomePage() {
         (m) =>
           getMatchStatus(m) === "live" &&
           !liveKeySet.has(getMatchKey(m)) &&
-          !hiddenIds.has(getMatchKey(m))
+          !isFlagged(m, hiddenIds)
       );
     const run = () => {
       const cands = candidatesNow();
@@ -180,8 +180,8 @@ export default function HomePage() {
   const mergedLive = Array.from(mergedLiveMap.values());
 
   const filtered = filterBySport(matches, activeSport)
-    .filter((m) => !hiddenIds.has(getMatchKey(m)))
-    .map((m) => (hotIds.has(getMatchKey(m)) ? { ...m, hot: true } : m));
+    .filter((m) => !isFlagged(m, hiddenIds))
+    .map((m) => (isFlagged(m, hotIds) ? { ...m, hot: true } : m));
   const liveForSport = filterBySport(suppressPrematureLive(mergedLive, matches), activeSport);
   // Don't also list a match under Upcoming if it's already shown as Live.
   const liveKeys = new Set(mergedLive.map(getMatchKey));

@@ -196,6 +196,40 @@ export function getMatchKey(match: Match): string {
   return s ? `${s.source}--${s.id}` : match.id;
 }
 
+// streamed.pk returns a match's `sources` in an unstable order and adds/removes
+// them as kick-off nears, so getMatchKey (which keys off sources[0]) is NOT a
+// reliable identity for admin flags over time: a flag saved as
+// "echo--malaga-..." silently stops matching once a different source sorts
+// first, and the hidden/hot match pops back into the list. These helpers match a
+// flag against EVERY id a match could carry — its bare id and each source (full
+// "source--id" and the bare id portion) — so a flag sticks regardless of how the
+// feed reshuffles sources.
+export function matchFlagKeys(match: Match): string[] {
+  const out = new Set<string>();
+  if (match.id) out.add(match.id);
+  for (const s of match.sources ?? []) {
+    if (s?.source && s?.id) out.add(`${s.source}--${s.id}`);
+    if (s?.id) out.add(s.id);
+  }
+  return [...out];
+}
+
+// True if any stored flag key in `flagSet` refers to this match. Compares full
+// keys, and also the bare id portion (after "source--"), since the source prefix
+// is the part that drifts.
+export function isFlagged(match: Match, flagSet: Set<string>): boolean {
+  if (!flagSet || flagSet.size === 0) return false;
+  const keys = matchFlagKeys(match);
+  for (const k of keys) if (flagSet.has(k)) return true;
+  const bare = new Set(keys.filter((k) => !k.includes("--")));
+  for (const stored of flagSet) {
+    const i = stored.indexOf("--");
+    const portion = i === -1 ? stored : stored.slice(i + 2);
+    if (bare.has(portion)) return true;
+  }
+  return false;
+}
+
 // A team has a "visual" if it has a real logo image OR a resolvable country
 // flag (mirrors TeamBadge's own fallback order). When neither side does, cards
 // should show a clean "Name vs Name" line instead of gray letter-in-circle
