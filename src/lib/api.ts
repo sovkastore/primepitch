@@ -226,15 +226,31 @@ export function normTeamName(s: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 }
+// Same national team shows up under different names across feeds. Map known
+// variants to one canonical token so they match (for both dedupe and hiding).
+const TEAM_ALIASES: Record<string, string> = {
+  ivorycoast: "cotedivoire",
+  southkorea: "korearepublic",
+  korea: "korearepublic",
+  usa: "unitedstates",
+  us: "unitedstates",
+  unitedstatesofamerica: "unitedstates",
+  czechrepublic: "czechia",
+  holland: "netherlands",
+  turkey: "turkiye",
+};
+function canonTeam(tok: string): string {
+  return TEAM_ALIASES[tok] || tok;
+}
 export function normTeamKey(match: { teams?: { home?: { name?: string }; away?: { name?: string } }; title?: string }): string {
   const h = match.teams?.home?.name;
   const a = match.teams?.away?.name;
-  if (h && a) return [normTeamName(h), normTeamName(a)].sort().join("|");
+  if (h && a) return [canonTeam(normTeamName(h)), canonTeam(normTeamName(a))].sort().join("|");
   const parts = (match.title || "").split(/\s+(?:vs\.?|v\.?|-|–|—)\s+/i);
   if (parts.length === 2 && parts[0] && parts[1]) {
-    return [normTeamName(parts[0]), normTeamName(parts[1])].sort().join("|");
+    return [canonTeam(normTeamName(parts[0])), canonTeam(normTeamName(parts[1]))].sort().join("|");
   }
-  return normTeamName(match.title || "");
+  return canonTeam(normTeamName(match.title || ""));
 }
 
 // True if any stored flag key in `flagSet` refers to this match. Compares full
@@ -293,20 +309,26 @@ export function suppressPrematureLive(live: Match[], allMatches: Match[]): Match
 // category + home name + kickoff hour, keeping the entry with the most data
 // (both badges > one > teams-only). Title-only entries (ceremonies/PPV) are kept as-is.
 export function dedupeMatches(matches: Match[]): Match[] {
-  const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Prefer the entry with real structured teams, then the one with more badges,
+  // so a rich "Ivory Coast vs Ecuador" wins over a title-only "Côte d'Ivoire…".
   const richness = (m: Match) =>
-    (m.teams?.home?.badge ? 1 : 0) + (m.teams?.away?.badge ? 1 : 0);
+    (m.teams?.home?.name ? 4 : 0) + (m.teams?.home?.badge ? 1 : 0) + (m.teams?.away?.badge ? 1 : 0);
   const best = new Map<string, Match>();
   const order: string[] = [];
   for (const m of matches) {
-    const home = m.teams?.home?.name;
-    if (!home) {
-      const k = `t|${m.id}`;
-      if (!best.has(k)) { best.set(k, m); order.push(k); }
-      continue;
-    }
     const hour = m.date ? Math.round(m.date / 3_600_000) : 0;
-    const key = `${m.category}|${norm(home)}|${hour}`;
+    const pair = normTeamKey(m); // accent-folded, alias-mapped, order-independent
+    let key: string;
+    if (!EVENT_SPORTS.has(m.category) && pair.includes("|")) {
+      // Real two-team fixture — collapse the same match across feeds even when
+      // one copy is title-only or spells a team differently. Team identity (not
+      // the feed's home/away or id) is what makes it the same fixture.
+      key = `p|${hour}|${pair}`;
+    } else if (m.teams?.home?.name) {
+      key = `${m.category}|${normTeamName(m.teams.home.name)}|${hour}`;
+    } else {
+      key = `t|${m.id}`;
+    }
     const existing = best.get(key);
     if (!existing) { best.set(key, m); order.push(key); }
     else if (richness(m) > richness(existing)) best.set(key, m);
