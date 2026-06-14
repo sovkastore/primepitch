@@ -246,11 +246,14 @@ export function normTeamKey(match: { teams?: { home?: { name?: string }; away?: 
   const h = match.teams?.home?.name;
   const a = match.teams?.away?.name;
   if (h && a) return [canonTeam(normTeamName(h)), canonTeam(normTeamName(a))].sort().join("|");
-  const parts = (match.title || "").split(/\s+(?:vs\.?|v\.?|-|–|—)\s+/i);
+  // Drop "(Dutch & Spanish)" / "(German)" language-or-commentary suffixes so a
+  // stream titled that way resolves to the same fixture as the scheduled match.
+  const cleaned = (match.title || "").replace(/\([^)]*\)/g, " ");
+  const parts = cleaned.split(/\s+(?:vs\.?|v\.?|-|–|—)\s+/i);
   if (parts.length === 2 && parts[0] && parts[1]) {
     return [canonTeam(normTeamName(parts[0])), canonTeam(normTeamName(parts[1]))].sort().join("|");
   }
-  return canonTeam(normTeamName(match.title || ""));
+  return canonTeam(normTeamName(cleaned));
 }
 
 // True if any stored flag key in `flagSet` refers to this match. Compares full

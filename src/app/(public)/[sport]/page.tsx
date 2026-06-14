@@ -78,10 +78,19 @@ export default function SportPage() {
 
   // Keys already shown as live — so a curated/forced-live match isn't ALSO listed under Upcoming.
   const liveKeys = new Set(liveMatches.map(getMatchKey));
+  // Team-identity set from the matches actually shown live, so the same fixture
+  // can't appear in both lists even when the live stream has a different id/name.
+  const liveTeamKeys = new Set(live.map(normTeamKey).filter((k) => k.includes("|")));
   // ONE batched score request for every live card on this page.
   const scores = useBatchScores(live);
-  const isUpcomingRow = (m: Match) =>
-    getMatchStatus(m) === "upcoming" && !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)) && !liveKeys.has(getMatchKey(m));
+  const isUpcomingRow = (m: Match) => {
+    if (getMatchStatus(m) !== "upcoming") return false;
+    if (isFlagged(m, hiddenIds) || hiddenTitles.has(normTeamKey(m))) return false;
+    if (liveKeys.has(getMatchKey(m))) return false;
+    const tk = normTeamKey(m);
+    if (tk.includes("|") && liveTeamKeys.has(tk)) return false; // already live
+    return true;
+  };
   // Stamp the admin "HOT" flag onto a fixture so UpcomingRow can show the badge.
   const stampHot = (m: Match): Match => (isFlagged(m, hotIds) ? { ...m, hot: true } : m);
 

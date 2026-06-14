@@ -184,10 +184,22 @@ export default function HomePage() {
   // hidden match kicks off it would otherwise reappear in the live row.
   const mergedLive = Array.from(mergedLiveMap.values()).filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)));
 
-  const filtered = filterBySport(matches, activeSport)
-    .filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)))
-    .map((m) => (isFlagged(m, hotIds) ? { ...m, hot: true } : m));
+  // The matches actually shown as LIVE (after the premature-live guard). Build a
+  // team-identity set from these so the same fixture can't also sit in Upcoming,
+  // even when the live stream carries a different id or name. Using the shown
+  // (post-suppression) list — not mergedLive — means a fixture whose early stream
+  // got suppressed still stays in Upcoming rather than vanishing from both.
   const liveForSport = filterBySport(suppressPrematureLive(mergedLive, matches), activeSport);
+  const liveTeamKeys = new Set(liveForSport.map(normTeamKey).filter((k) => k.includes("|")));
+
+  const filtered = filterBySport(matches, activeSport)
+    .filter((m) => {
+      if (isFlagged(m, hiddenIds) || hiddenTitles.has(normTeamKey(m))) return false;
+      const tk = normTeamKey(m);
+      if (tk.includes("|") && liveTeamKeys.has(tk)) return false; // already live
+      return true;
+    })
+    .map((m) => (isFlagged(m, hotIds) ? { ...m, hot: true } : m));
   // Don't also list a match under Upcoming if it's already shown as Live.
   const liveKeys = new Set(mergedLive.map(getMatchKey));
 
