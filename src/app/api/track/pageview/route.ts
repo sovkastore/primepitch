@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { countryFromRequest } from "@/lib/geo";
 
 export async function POST(request: Request) {
   try {
@@ -10,12 +11,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
+    const country = countryFromRequest(request);
+
     await getSupabaseAdmin().from("page_views").insert({
       visitor_id,
       path,
       referrer: referrer || null,
       user_agent: user_agent || null,
       device_type: device_type || null,
+      country,
     });
 
     // Maintain the visitor roster (first_seen / last_seen / visit_count).

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { countryFromRequest } from "@/lib/geo";
 
 export async function POST(request: Request) {
   try {
@@ -10,6 +11,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
+    const country = countryFromRequest(request);
+
     // Insert match view
     await getSupabaseAdmin().from("match_views").insert({
       visitor_id,
@@ -18,6 +21,7 @@ export async function POST(request: Request) {
       match_title: match_title || null,
       sport: sport || null,
       is_live: is_live ?? true,
+      country,
     });
 
     // Upsert active viewer
