@@ -5,10 +5,20 @@ import { useState, useEffect } from "react";
 type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
 type Unit = "off" | "minutes" | "hours";
 type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
+type Trigger = "visit" | "interval" | "match" | "server";
+type Preroll = {
+  enabled: boolean;
+  vastTag: string;
+  trigger: Trigger;
+  cap: number;
+  skipAfter: number;
+  noFillTimeout: number;
+};
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
   formats: Record<string, Format>;
+  preroll: Preroll;
 };
 
 const MAX_CAP_MIN = 10080; // 7 days
@@ -20,6 +30,14 @@ const DEFAULTS: AdsConfig = {
     inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
   },
+  preroll: { enabled: false, vastTag: "", trigger: "interval", cap: 5, skipAfter: 5, noFillTimeout: 3 },
+};
+
+const TRIGGER_LABELS: Record<Trigger, string> = {
+  visit: "Once per visit",
+  interval: "Every X minutes",
+  match: "Every match open",
+  server: "Every server switch",
 };
 
 // Legacy string caps -> minutes (for configs saved before numeric caps).
@@ -49,7 +67,7 @@ export default function AdminAdsPage() {
             formats[id] = { ...f, cap: m };
             u[id] = m === 0 ? "off" : m % 60 === 0 ? "hours" : "minutes";
           }
-          setCfg({ ...d, formats });
+          setCfg({ ...d, formats, preroll: { ...DEFAULTS.preroll, ...(d.preroll ?? {}) } });
           setUnits(u);
         }
       })
@@ -62,6 +80,10 @@ export default function AdminAdsPage() {
       ...prev,
       formats: { ...prev.formats, [id]: { ...prev.formats[id], ...patch } },
     }));
+  }
+
+  function updatePreroll(patch: Partial<Preroll>) {
+    setCfg((prev) => ({ ...prev, preroll: { ...prev.preroll, ...patch } }));
   }
 
   // Change the unit (No limit / Minutes / Hours), keeping a sensible value.
@@ -253,6 +275,99 @@ export default function AdminAdsPage() {
           </div>
         );
       })}
+
+      {/* ── Pre-roll Video (VAST) ───────────────────────── */}
+      <div className={`rounded-2xl border p-5 space-y-4 ${cfg.preroll.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[15px] font-bold text-gray-900">Pre-roll Video</h3>
+            <p className="text-[12px] text-gray-500 mt-0.5">
+              Plays a short video ad before the stream on the watch page. If no ad is available, the stream shows immediately.
+            </p>
+          </div>
+          <button
+            onClick={() => updatePreroll({ enabled: !cfg.preroll.enabled })}
+            className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${cfg.preroll.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
+            aria-label="Toggle pre-roll"
+          >
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${cfg.preroll.enabled ? "left-[18px]" : "left-0.5"}`} />
+          </button>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-semibold text-gray-800">VAST tag URL</label>
+          <input
+            type="text"
+            value={cfg.preroll.vastTag}
+            onChange={(e) => updatePreroll({ vastTag: e.target.value })}
+            placeholder="https://…"
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          />
+          <p className="text-[12px] text-gray-500">Paste the VAST link from your ad network. Must start with https://</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-semibold text-gray-800">When to show it</label>
+          <select
+            value={cfg.preroll.trigger}
+            onChange={(e) => updatePreroll({ trigger: e.target.value as Trigger })}
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          >
+            {(Object.keys(TRIGGER_LABELS) as Trigger[]).map((t) => (
+              <option key={t} value={t}>{TRIGGER_LABELS[t]}</option>
+            ))}
+          </select>
+        </div>
+
+        {cfg.preroll.trigger === "interval" && (
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-gray-800">Minutes between plays</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              value={cfg.preroll.cap || ""}
+              onChange={(e) => {
+                let n = Math.floor(Number(e.target.value));
+                if (!Number.isFinite(n) || n < 1) n = 1;
+                updatePreroll({ cap: Math.min(n, MAX_CAP_MIN) });
+              }}
+              className="w-32 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            />
+            <p className="text-[12px] text-gray-500">A device won’t see another pre-roll until this many minutes pass.</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-gray-800">Skip after (sec)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={60}
+              value={cfg.preroll.skipAfter}
+              onChange={(e) => updatePreroll({ skipAfter: Math.max(0, Math.min(60, Math.floor(Number(e.target.value)) || 0)) })}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-gray-800">No-ad wait (sec)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={15}
+              value={cfg.preroll.noFillTimeout}
+              onChange={(e) => updatePreroll({ noFillTimeout: Math.max(1, Math.min(15, Math.floor(Number(e.target.value)) || 1)) })}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            />
+          </div>
+        </div>
+        <p className="text-[12px] text-gray-500">
+          “Skip after” is best-effort — the ad’s own skip timer can override it. “No-ad wait” is how long to wait for an ad before giving up and showing the stream.
+        </p>
+      </div>
 
       <div className="flex items-center gap-3">
         <button

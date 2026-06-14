@@ -6,6 +6,7 @@ import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
 import LiveMatchRow from "@/components/LiveMatchRow";
 import UpcomingRow from "@/components/UpcomingRow";
+import PreRollGate from "@/components/PreRollGate";
 import { Match, getMatchStatus, getLiveMatches, getMatchKey, getMatchFlags, SPORT_LABELS, showVersus, EVENT_SPORTS, bothTeamsHaveVisuals } from "@/lib/api";
 import { getVisitorId } from "@/lib/visitor";
 import { visibleInterval } from "@/lib/poll";
@@ -530,6 +531,7 @@ export default function WatchPage() {
                     </span>
                   </div>
                 )}
+                <PreRollGate streamKey={currentStream.embedUrl} />
               </>
             ) : liveScore?.period === "HT" ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">

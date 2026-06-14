@@ -5,10 +5,20 @@ const KEY = "ads_config";
 
 type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
 type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
+type Trigger = "visit" | "interval" | "match" | "server";
+type Preroll = {
+  enabled: boolean;
+  vastTag: string;
+  trigger: Trigger;
+  cap: number; // minutes between plays (interval mode)
+  skipAfter: number; // seconds (best-effort; creative skipoffset wins)
+  noFillTimeout: number; // seconds to wait for an ad before revealing the stream
+};
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
   formats: Record<string, Format>;
+  preroll: Preroll;
 };
 
 const DEFAULTS: AdsConfig = {
@@ -18,6 +28,7 @@ const DEFAULTS: AdsConfig = {
     inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
   },
+  preroll: { enabled: false, vastTag: "", trigger: "interval", cap: 5, skipAfter: 5, noFillTimeout: 3 },
 };
 
 const ALLOWED_DOMAINS = new Set(["all", "workers_dev", "xellnetwork"]);
@@ -34,6 +45,33 @@ function cleanCap(v: unknown): number {
 // Only known formats can be saved (prevents arbitrary script injection).
 const ALLOWED_FORMATS = new Set(["inpage_push", "vignette"]);
 
+const ALLOWED_TRIGGERS = new Set(["visit", "interval", "match", "server"]);
+function cleanUrl(v: unknown): string {
+  if (typeof v !== "string") return "";
+  const s = v.trim();
+  try {
+    return new URL(s).protocol === "https:" ? s : "";
+  } catch {
+    return "";
+  }
+}
+function clampInt(v: unknown, min: number, max: number, fallback: number): number {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+function cleanPreroll(v: unknown): Preroll {
+  const p = (v ?? {}) as Partial<Preroll>;
+  return {
+    enabled: !!p.enabled,
+    vastTag: cleanUrl(p.vastTag),
+    trigger: ALLOWED_TRIGGERS.has(p.trigger as string) ? (p.trigger as Trigger) : "interval",
+    cap: cleanCap(p.cap),
+    skipAfter: clampInt(p.skipAfter, 0, 60, 5),
+    noFillTimeout: clampInt(p.noFillTimeout, 1, 15, 3),
+  };
+}
+
 export async function GET() {
   try {
     const { data } = await getSupabaseAdmin()
@@ -41,7 +79,12 @@ export async function GET() {
       .select("value")
       .eq("key", KEY)
       .maybeSingle();
-    return NextResponse.json((data?.value as AdsConfig) ?? DEFAULTS);
+    const stored = (data?.value as Partial<AdsConfig>) ?? DEFAULTS;
+    return NextResponse.json({
+      ...DEFAULTS,
+      ...stored,
+      preroll: { ...DEFAULTS.preroll, ...(stored.preroll ?? {}) },
+    });
   } catch {
     return NextResponse.json(DEFAULTS);
   }
@@ -74,6 +117,7 @@ export async function POST(request: NextRequest) {
       master: !!body.master,
       domains: ALLOWED_DOMAINS.has(body.domains as string) ? (body.domains as AdsConfig["domains"]) : "all",
       formats,
+      preroll: cleanPreroll(body.preroll),
     };
 
     const { error } = await getSupabaseAdmin()
