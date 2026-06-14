@@ -26,6 +26,7 @@ interface OverrideRow {
 interface FlagRow {
   match_id: string;
   hidden: boolean;
+  hide_one: boolean;
   forced_live: boolean;
   featured: boolean;
   disable_auto: boolean;
@@ -132,7 +133,7 @@ export default function StreamsManagerPage() {
   }
 
   async function setFlag(e: Entry, patch: Partial<FlagRow>) {
-    const base: FlagRow = e.flags ?? { match_id: e.matchId, hidden: false, forced_live: false, featured: false, disable_auto: false, force_ended: false, hot: false };
+    const base: FlagRow = e.flags ?? { match_id: e.matchId, hidden: false, hide_one: false, forced_live: false, featured: false, disable_auto: false, force_ended: false, hot: false };
     const next = { ...base, ...patch };
     patchEntry(e.matchId, (x) => ({ ...x, flags: next }));
     await fetch("/api/admin/match-flags", {
@@ -370,7 +371,11 @@ export default function StreamsManagerPage() {
                   </label>
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
                     <Toggle on={!!flags?.hidden} onClick={() => setFlag(e, { hidden: !flags?.hidden })} color="red" />
-                    Hide
+                    Hide match
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
+                    <Toggle on={!!flags?.hide_one} onClick={() => setFlag(e, { hide_one: !flags?.hide_one })} color="red" />
+                    Hide this copy
                   </label>
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
                     <Toggle on={!flags?.disable_auto} onClick={() => setFlag(e, { disable_auto: !flags?.disable_auto })} />

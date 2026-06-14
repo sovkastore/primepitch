@@ -13,7 +13,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { match_id, match_data, hidden, forced_live, featured, disable_auto, display_title, force_ended, hot } =
+    const { match_id, match_data, hidden, hide_one, forced_live, featured, disable_auto, display_title, force_ended, hot } =
       await request.json();
     if (!match_id) {
       return NextResponse.json({ error: "match_id required" }, { status: 400 });
@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
     if (typeof hidden === "boolean") row.hidden = hidden;
+    if (typeof hide_one === "boolean") row.hide_one = hide_one;
     if (typeof forced_live === "boolean") row.forced_live = forced_live;
     if (typeof featured === "boolean") row.featured = featured;
     if (typeof disable_auto === "boolean") row.disable_auto = disable_auto;
