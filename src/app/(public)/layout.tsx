@@ -2,6 +2,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
 import Analytics from "@/components/Analytics";
+import AnnouncementBar from "@/components/AnnouncementBar";
 
 export default function PublicLayout({
   children,
@@ -10,6 +11,7 @@ export default function PublicLayout({
 }) {
   return (
     <>
+      <AnnouncementBar />
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
