@@ -24,7 +24,7 @@ type Prefs = { wcAll: boolean; countries: string[]; alerts: Alerts };
 const DEFAULT_PREFS: Prefs = {
   wcAll: true,
   countries: [],
-  alerts: { startingSoon: true, kickoff: true, goal: true, halftime: false, fulltime: true },
+  alerts: { startingSoon: true, kickoff: true, goal: true, halftime: true, fulltime: true },
 };
 
 const ALERT_ROWS: { key: AlertKey; label: string; desc: string; icon: (c: string) => ReactNode }[] = [

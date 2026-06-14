@@ -12,7 +12,7 @@ const ALERT_LONG: Record<AlertKey, string> = {
   startingSoon: "Starting soon", kickoff: "Kicked off", goal: "Goals", halftime: "Half-time", fulltime: "Full-time",
 };
 const DEFAULT_ALERTS: Record<AlertKey, boolean> = {
-  startingSoon: true, kickoff: true, goal: true, halftime: false, fulltime: true,
+  startingSoon: true, kickoff: true, goal: true, halftime: true, fulltime: true,
 };
 
 type Row = {

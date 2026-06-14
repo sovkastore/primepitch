@@ -22,9 +22,9 @@ function cleanPrefs(raw: unknown): {
     : [];
   const a = (p.alerts && typeof p.alerts === "object" ? p.alerts : {}) as Record<string, unknown>;
   const alerts = {} as Record<AlertKey, boolean>;
-  // Sensible defaults: everything on except half-time.
+  // Default: every alert type on (people can switch any off).
   for (const k of ALERT_KEYS) {
-    alerts[k] = k in a ? a[k] === true : k !== "halftime";
+    alerts[k] = k in a ? a[k] === true : true;
   }
   return { wcAll, countries, alerts };
 }

@@ -13,7 +13,7 @@ const SOON_MIN = 15; // "starting soon" window, in minutes before kick-off
 
 type AlertKey = "startingSoon" | "kickoff" | "goal" | "halftime" | "fulltime";
 const DEFAULT_ALERTS: Record<AlertKey, boolean> = {
-  startingSoon: true, kickoff: true, goal: true, halftime: false, fulltime: true,
+  startingSoon: true, kickoff: true, goal: true, halftime: true, fulltime: true,
 };
 
 type Prefs = { wcAll?: boolean; countries?: string[]; alerts?: Partial<Record<AlertKey, boolean>> };
