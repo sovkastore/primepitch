@@ -4,8 +4,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 // Stores (or removes) a browser's Web Push subscription together with the
 // person's follow choices. Server-only table, reached with the service role.
 
-type AlertKey = "startingSoon" | "kickoff" | "goal" | "halftime" | "fulltime";
-const ALERT_KEYS: AlertKey[] = ["startingSoon", "kickoff", "goal", "halftime", "fulltime"];
+type AlertKey = "startingSoon" | "almostKickoff" | "kickoff" | "goal" | "halftime" | "secondHalf" | "fulltime";
+const ALERT_KEYS: AlertKey[] = ["startingSoon", "almostKickoff", "kickoff", "goal", "halftime", "secondHalf", "fulltime"];
 
 function cleanPrefs(raw: unknown): {
   wcAll: boolean;

@@ -3,16 +3,16 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type AlertKey = "startingSoon" | "kickoff" | "goal" | "halftime" | "fulltime";
-const ALERT_KEYS: AlertKey[] = ["startingSoon", "kickoff", "goal", "halftime", "fulltime"];
+type AlertKey = "startingSoon" | "almostKickoff" | "kickoff" | "goal" | "halftime" | "secondHalf" | "fulltime";
+const ALERT_KEYS: AlertKey[] = ["startingSoon", "almostKickoff", "kickoff", "goal", "halftime", "secondHalf", "fulltime"];
 const ALERT_SHORT: Record<AlertKey, string> = {
-  startingSoon: "Start", kickoff: "Kickoff", goal: "Goal", halftime: "HT", fulltime: "FT",
+  startingSoon: "Start", almostKickoff: "1min", kickoff: "Kickoff", goal: "Goal", halftime: "HT", secondHalf: "2nd", fulltime: "FT",
 };
 const ALERT_LONG: Record<AlertKey, string> = {
-  startingSoon: "Starting soon", kickoff: "Kicked off", goal: "Goals", halftime: "Half-time", fulltime: "Full-time",
+  startingSoon: "Starting soon", almostKickoff: "About to start", kickoff: "Kicked off", goal: "Goals", halftime: "Half-time", secondHalf: "Second half", fulltime: "Full-time",
 };
 const DEFAULT_ALERTS: Record<AlertKey, boolean> = {
-  startingSoon: true, kickoff: true, goal: true, halftime: true, fulltime: true,
+  startingSoon: true, almostKickoff: true, kickoff: true, goal: true, halftime: true, secondHalf: true, fulltime: true,
 };
 
 type Row = {
@@ -111,7 +111,7 @@ export default async function SubscribersPage() {
   const countryTally: Record<string, number> = {};
   let wcAllCount = 0;
   let countryFollowers = 0;
-  const alertCounts: Record<AlertKey, number> = { startingSoon: 0, kickoff: 0, goal: 0, halftime: 0, fulltime: 0 };
+  const alertCounts: Record<AlertKey, number> = { startingSoon: 0, almostKickoff: 0, kickoff: 0, goal: 0, halftime: 0, secondHalf: 0, fulltime: 0 };
 
   const parsed = rows.map((r) => {
     const pr = readPrefs(r.prefs, r.topics);

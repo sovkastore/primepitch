@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 const VAPID_PUBLIC =
   "BJAtbwmAROyuFpfNhPIVwZAfVOAF6AMHKfuac7GtxAfRGHNoKr_ZLniCsL3xfinHOK-7Nu-DRSdttIQ5Sx-OOPw";
 const SW_URL = "/alerts/sw.js";
-const PREFS_KEY = "pp_prefs";
+const PREFS_KEY = "pp_prefs_v2";
 
 type Status =
   | "checking"
@@ -17,21 +17,23 @@ type Status =
   | "blocked"
   | "working";
 
-type AlertKey = "startingSoon" | "kickoff" | "goal" | "halftime" | "fulltime";
+type AlertKey = "startingSoon" | "almostKickoff" | "kickoff" | "goal" | "halftime" | "secondHalf" | "fulltime";
 type Alerts = Record<AlertKey, boolean>;
 type Prefs = { wcAll: boolean; countries: string[]; alerts: Alerts };
 
 const DEFAULT_PREFS: Prefs = {
   wcAll: true,
   countries: [],
-  alerts: { startingSoon: true, kickoff: true, goal: true, halftime: true, fulltime: true },
+  alerts: { startingSoon: true, almostKickoff: true, kickoff: true, goal: true, halftime: true, secondHalf: true, fulltime: true },
 };
 
 const ALERT_ROWS: { key: AlertKey; label: string; desc: string; icon: (c: string) => ReactNode }[] = [
   { key: "startingSoon", label: "Starting soon", desc: "About 15 minutes before kick-off", icon: (c) => <ClockIcon className={c} /> },
+  { key: "almostKickoff", label: "About to start", desc: "About 1 minute before kick-off", icon: (c) => <PlayIcon className={c} /> },
   { key: "kickoff", label: "Kicked off", desc: "The moment the match goes live", icon: (c) => <FlagIcon className={c} /> },
   { key: "goal", label: "Goals", desc: "Every goal, with the new score", icon: (c) => <BallIcon className={c} /> },
   { key: "halftime", label: "Half-time", desc: "Score at the break", icon: (c) => <PauseIcon className={c} /> },
+  { key: "secondHalf", label: "Second half", desc: "When the second half gets under way", icon: (c) => <ResumeIcon className={c} /> },
   { key: "fulltime", label: "Full-time", desc: "Final result", icon: (c) => <WhistleIcon className={c} /> },
 ];
 
@@ -100,6 +102,21 @@ function CheckIcon({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
+function PlayIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" /><path d="M10 9l5 3-5 3V9Z" />
+    </svg>
+  );
+}
+function ResumeIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5" />
     </svg>
   );
 }

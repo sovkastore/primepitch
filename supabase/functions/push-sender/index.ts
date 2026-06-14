@@ -11,9 +11,9 @@ const WC_URL = "https://xellnetwork.xyz/api/world-cup";
 const WC_TOPICS = ["football", "football:world-cup"];
 const SOON_MIN = 15; // "starting soon" window, in minutes before kick-off
 
-type AlertKey = "startingSoon" | "kickoff" | "goal" | "halftime" | "fulltime";
+type AlertKey = "startingSoon" | "almostKickoff" | "kickoff" | "goal" | "halftime" | "secondHalf" | "fulltime";
 const DEFAULT_ALERTS: Record<AlertKey, boolean> = {
-  startingSoon: true, kickoff: true, goal: true, halftime: true, fulltime: true,
+  startingSoon: true, almostKickoff: true, kickoff: true, goal: true, halftime: true, secondHalf: true, fulltime: true,
 };
 
 type Prefs = { wcAll?: boolean; countries?: string[]; alerts?: Partial<Record<AlertKey, boolean>> };
@@ -28,7 +28,7 @@ type Fixture = {
   away_score: number | null;
   minute: number | null;
 };
-type State = { total: number; live: boolean; finished: boolean; startsoon_sent: boolean; halftime_sent: boolean };
+type State = { total: number; live: boolean; finished: boolean; startsoon_sent: boolean; almost_sent: boolean; halftime_sent: boolean; secondhalf_sent: boolean };
 
 const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const TEAM_ALIASES: Record<string, string> = {
@@ -90,25 +90,34 @@ function parsePrefs(sub: Sub): { wcAll: boolean; countries: string[]; alerts: Re
 
 type Ev = { kind: AlertKey; title: string; body: string; tag: string; countries: string[] };
 
-function buildEvents(f: Fixture, prev: State | undefined, coldStart: boolean, now: number): { events: Ev[]; startsoon: boolean; halftime: boolean } {
+function buildEvents(f: Fixture, prev: State | undefined, coldStart: boolean, now: number): { events: Ev[]; startsoon: boolean; almost: boolean; halftime: boolean; secondhalf: boolean } {
   const c = classify(f);
   const key = keyOf(f);
   const home = f.home.name, away = f.away.name;
   const cs = [canon(f.home.country || home), canon(f.away.country || away)];
   const mins = f.date ? (f.date - now) / 60000 : NaN;
   const soonWindow = Number.isFinite(mins) && mins <= SOON_MIN && mins > 0;
+  const almostWindow = Number.isFinite(mins) && mins <= 1.5 && mins > 0;
   const notStarted = !c.live && !c.finished;
+  const halftimeNow = c.live && isHalftimeSignal(f);
   const events: Ev[] = [];
   let startsoon = prev?.startsoon_sent ?? false;
+  let almost = prev?.almost_sent ?? false;
   let halftime = prev?.halftime_sent ?? false;
+  let secondhalf = prev?.secondhalf_sent ?? false;
   const score = `${f.home_score ?? 0}\u2013${f.away_score ?? 0}`;
 
   if (!coldStart) {
-    // STARTING SOON
+    // STARTING SOON (~15 min)
     if (notStarted && soonWindow && !startsoon) {
       const m = Math.max(1, Math.round(mins));
       events.push({ kind: "startingSoon", title: "Starting soon", body: `${home} vs ${away} kicks off in ${m} min`, tag: `pp-soon-${key}`, countries: cs });
       startsoon = true;
+    }
+    // ABOUT TO START (~1 min)
+    if (notStarted && almostWindow && !almost) {
+      events.push({ kind: "almostKickoff", title: "About to start", body: `${home} vs ${away} kicks off in 1 min`, tag: `pp-almost-${key}`, countries: cs });
+      almost = true;
     }
     // KICKOFF (transition into live)
     if (c.live && (!prev || !prev.live)) {
@@ -118,10 +127,15 @@ function buildEvents(f: Fixture, prev: State | undefined, coldStart: boolean, no
       const min = f.minute ? ` (${f.minute}')` : "";
       events.push({ kind: "goal", title: "Goal", body: `${home} ${score} ${away}${min}`, tag: `pp-goal-${key}-${c.total}`, countries: cs });
     }
-    // HALF-TIME (independent; best-effort on feed signal)
-    if (c.live && isHalftimeSignal(f) && !halftime) {
+    // HALF-TIME (best-effort on feed signal)
+    if (halftimeNow && !halftime) {
       events.push({ kind: "halftime", title: "Half-time", body: `${home} ${score} ${away}`, tag: `pp-ht-${key}`, countries: cs });
       halftime = true;
+    }
+    // SECOND HALF (resumed live after a half-time we saw)
+    if (c.live && !halftimeNow && halftime && !secondhalf) {
+      events.push({ kind: "secondHalf", title: "Second half", body: `Second half under way: ${home} ${score} ${away}`, tag: `pp-2h-${key}`, countries: cs });
+      secondhalf = true;
     }
     // FULL-TIME (only for matches we actually saw live)
     if (c.finished && prev && prev.live) {
@@ -130,9 +144,10 @@ function buildEvents(f: Fixture, prev: State | undefined, coldStart: boolean, no
   } else {
     // Cold start: seed flags so we don't fire for matches already past these points.
     if (notStarted && soonWindow) startsoon = true;
-    if (c.live && isHalftimeSignal(f)) halftime = true;
+    if (notStarted && almostWindow) almost = true;
+    if (halftimeNow) halftime = true;
   }
-  return { events, startsoon, halftime };
+  return { events, startsoon, almost, halftime, secondhalf };
 }
 
 Deno.serve(async (req: Request) => {
@@ -177,10 +192,10 @@ Deno.serve(async (req: Request) => {
 
   const { data: stateRows } = await supabase
     .from("push_match_state")
-    .select("match_key, total, live, finished, startsoon_sent, halftime_sent");
+    .select("match_key, total, live, finished, startsoon_sent, almost_sent, halftime_sent, secondhalf_sent");
   const state = new Map<string, State>();
   for (const r of stateRows ?? [])
-    state.set(r.match_key, { total: r.total, live: r.live, finished: r.finished, startsoon_sent: r.startsoon_sent, halftime_sent: r.halftime_sent });
+    state.set(r.match_key, { total: r.total, live: r.live, finished: r.finished, startsoon_sent: r.startsoon_sent, almost_sent: r.almost_sent, halftime_sent: r.halftime_sent, secondhalf_sent: r.secondhalf_sent });
   const coldStart = state.size === 0;
 
   const allEvents: Ev[] = [];
@@ -197,7 +212,7 @@ Deno.serve(async (req: Request) => {
     const relevant = c.live || c.finished || (notStarted && soonWindow);
     if (!relevant) continue;
 
-    const { events, startsoon, halftime } = buildEvents(f, prev, coldStart, now);
+    const { events, startsoon, almost, halftime, secondhalf } = buildEvents(f, prev, coldStart, now);
     for (const ev of events) allEvents.push(ev);
     seen.push({ key, status: f.status, score: `${f.home_score ?? "-"}-${f.away_score ?? "-"}`, kinds: events.map((e) => e.kind) });
 
@@ -207,7 +222,9 @@ Deno.serve(async (req: Request) => {
       live: c.live,
       finished: c.finished || (prev?.finished ?? false),
       startsoon_sent: startsoon,
+      almost_sent: almost,
       halftime_sent: halftime,
+      secondhalf_sent: secondhalf,
       home_team: f.home.name,
       away_team: f.away.name,
       updated_at: new Date().toISOString(),
