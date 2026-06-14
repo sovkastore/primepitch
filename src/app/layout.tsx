@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "PrimePitch" }],
   creator: "PrimePitch",
+  other: {
+    // HilltopAds site-ownership verification meta tag.
+    "aa161e4bfc7e68a64d454d1786941ab1601e90c2": "aa161e4bfc7e68a64d454d1786941ab1601e90c2",
+  },
   metadataBase: new URL("https://primepitch.live"),
   openGraph: {
     type: "website",
