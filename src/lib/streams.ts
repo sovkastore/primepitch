@@ -88,12 +88,15 @@ export async function resolveStreams(opts: {
   title?: string;
   sport?: string;
   disableAuto?: boolean;
+  /** When true, never use the auto-fallback (e.g. the match hasn't kicked off
+   *  yet). Native (echo) and admin overrides still resolve normally. */
+  gateAuto?: boolean;
 }): Promise<ResolvedStreams> {
-  const { source, id, title = "", sport = "football", disableAuto = false } = opts;
+  const { source, id, title = "", sport = "football", disableAuto = false, gateAuto = false } = opts;
   const matchId = `${source}--${id}`;
-  // Key includes the auto-fallback flag so toggling "Disable auto-fallback" re-resolves
-  // immediately (instead of serving a cached SportSRC result).
-  const cacheKey = `${matchId}|${disableAuto ? "na" : "a"}`;
+  // Key includes the auto-fallback + gate flags so toggling "Disable auto-fallback"
+  // or crossing kickoff re-resolves immediately (instead of serving a cached result).
+  const cacheKey = `${matchId}|${disableAuto ? "na" : "a"}|${gateAuto ? "g" : ""}`;
   const now = Date.now();
   const hit = cache.get(cacheKey);
   if (hit && now - hit.ts < TTL) return hit.data;
@@ -114,8 +117,9 @@ export async function resolveStreams(opts: {
   } else {
     streams = [...ov.streams, ...echo];
     serving = ov.streams.length > 0 ? "override" : echo.length > 0 ? "echo" : "none";
-    // Self-heal: only when nothing else is available and auto isn't disabled.
-    if (streams.length === 0 && !disableAuto && title) {
+    // Self-heal: only when nothing else is available, auto isn't disabled, and
+    // the match has kicked off (gateAuto prevents fallbacks counting as live early).
+    if (streams.length === 0 && !disableAuto && !gateAuto && title) {
       const fb = await searchFallbackStreams(title, sport);
       if (fb.length > 0) {
         streams = fb.map((s, i) => ({

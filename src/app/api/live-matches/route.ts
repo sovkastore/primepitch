@@ -111,12 +111,18 @@ export async function GET() {
         if (flags.forcedLive.has(mid)) return m; // explicit admin force — show regardless
         const s = m.sources?.[0];
         if (!s) return null;
+        // Before kickoff, an auto-fallback must not make a match "live" (fallback
+        // providers run a continuous feed, so one "exists" even pre-match). Only
+        // native (echo) or admin override may go live early; otherwise it stays
+        // Upcoming until kickoff. After kickoff, auto is allowed as a backup.
+        const beforeKickoff = getMatchStatus(m) === "upcoming";
         const r = await resolveStreams({
           source: s.source,
           id: s.id,
           title: m.title,
           sport: m.category,
           disableAuto: flags.disableAuto.has(mid),
+          gateAuto: beforeKickoff,
         });
         return r.streams.length > 0 ? m : null;
       })
