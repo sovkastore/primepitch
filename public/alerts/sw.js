@@ -23,7 +23,10 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/";
+  const raw = (event.notification.data && event.notification.data.url) || "/";
+  const target = new URL(raw, self.location.origin).href;
+  const targetPath = new URL(target).pathname;
+
   event.waitUntil(
     (async () => {
       // Record the open straight to Supabase (no Cloudflare hit). Simple request
@@ -41,12 +44,21 @@ self.addEventListener("notificationclick", (event) => {
       } catch (e) {
         /* tracking is best-effort */
       }
-      // Then focus an existing tab or open the site.
+
+      // Only reuse a tab that's already on the SAME page; otherwise open the
+      // target fresh. (Matching loosely on "/" would focus any open tab — which
+      // is what sent people to whatever page they had open.)
       const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const client of list) {
-        if (client.url.includes(url) && "focus" in client) return client.focus();
+        try {
+          if (new URL(client.url).pathname === targetPath && "focus" in client) {
+            return client.focus();
+          }
+        } catch (e) {
+          /* ignore unparsable client url */
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow(url);
+      if (self.clients.openWindow) return self.clients.openWindow(target);
     })()
   );
 });
