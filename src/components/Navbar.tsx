@@ -104,7 +104,7 @@ export default function Navbar() {
             onClick={() => setMobileOpen(false)}
             className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
           >
-            🔔 Subscribe — Goal Alerts
+            Subscribe
           </Link>
 
           {/* Featured event */}
