@@ -114,7 +114,9 @@ export default function Navbar() {
               onClick={() => setMobileOpen(false)}
               className="flex items-center gap-3 p-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 hover:bg-emerald-50 transition-colors"
             >
-              <span className="shrink-0 w-10 h-10 rounded-xl bg-white grid place-items-center text-lg shadow-sm">🏆</span>
+              <span className="shrink-0 w-10 h-10 rounded-xl bg-white grid place-items-center text-emerald-600 shadow-sm">
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z" /><path d="M17 5h2.5a1 1 0 0 1 1 1c0 2.2-1.6 3.8-3.5 4M7 5H4.5a1 1 0 0 0-1 1c0 2.2 1.6 3.8 3.5 4" /><path d="M12 13v3M9 20h6M10 20c0-1.5.5-2.5 2-2.5s2 1 2 2.5" /></svg>
+              </span>
               <span className="flex-1 min-w-0">
                 <span className="block text-[15px] font-bold text-gray-900 leading-tight">FIFA World Cup 2026</span>
                 <span className="block text-[12px] text-emerald-700/80">All 104 matches</span>

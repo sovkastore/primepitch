@@ -1,4 +1,4 @@
-// PrimePitch goal-alert service worker. Lives at /alerts/ scope so it never
+// PrimePitch alert service worker. Lives at /alerts/ scope so it never
 // collides with the ad-network worker registered at the site root.
 self.addEventListener("push", (event) => {
   let data = {};
@@ -10,9 +10,10 @@ self.addEventListener("push", (event) => {
   const title = data.title || "PrimePitch";
   const options = {
     body: data.body || "",
-    icon: data.icon || "/favicon.ico",
-    badge: data.badge || "/favicon.ico",
+    icon: data.icon || "/icon-192.png",
+    badge: data.badge || "/icon-192.png",
     tag: data.tag || undefined,
+    actions: Array.isArray(data.actions) ? data.actions : undefined,
     data: { url: data.url || "/" },
   };
   event.waitUntil(self.registration.showNotification(title, options));
@@ -20,6 +21,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  // Tapping the body or the "Open PrimePitch" action both open the site.
   const url = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
     self.clients
