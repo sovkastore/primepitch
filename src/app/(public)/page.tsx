@@ -6,7 +6,7 @@ import LiveNow from "@/components/LiveNow";
 import TodayMatches from "@/components/Upcoming";
 import Logo from "@/components/Logo";
 import PreRollGate from "@/components/PreRollGate";
-import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedupeMatches, suppressPrematureLive, isFlagged } from "@/lib/api";
+import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedupeMatches, suppressPrematureLive, isFlagged, normTeamKey } from "@/lib/api";
 import { classifyFight } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
 import { readPageCache, writePageCache } from "@/lib/page-cache";
@@ -41,6 +41,7 @@ export default function HomePage() {
   // curated live list yet — bridged in so they appear LIVE instantly (no gap).
   const [bridged, setBridged] = useState<Match[]>([]);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [hiddenTitles, setHiddenTitles] = useState<Set<string>>(new Set());
   const [hotIds, setHotIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activeSport, setActiveSport] = useState<string | null>("football");
@@ -118,7 +119,8 @@ export default function HomePage() {
         (m) =>
           getMatchStatus(m) === "live" &&
           !liveKeySet.has(getMatchKey(m)) &&
-          !isFlagged(m, hiddenIds)
+          !isFlagged(m, hiddenIds) &&
+          !hiddenTitles.has(normTeamKey(m))
       );
     const run = () => {
       const cands = candidatesNow();
@@ -143,7 +145,7 @@ export default function HomePage() {
     let to: ReturnType<typeof setTimeout> | undefined;
     if (nextKick && nextKick - now < 15 * 60_000) to = setTimeout(run, nextKick - now + 2000);
     return () => { cancelled = true; clearInterval(iv); if (to) clearTimeout(to); };
-  }, [matches, liveMatches, hiddenIds]);
+  }, [matches, liveMatches, hiddenIds, hiddenTitles]);
 
   // Hidden matches (admin) — keep them out of the upcoming list. Hot fixtures
   // (admin) get the red HOT badge.
@@ -151,6 +153,7 @@ export default function HomePage() {
     getMatchFlags()
       .then((f) => {
         setHiddenIds(new Set(f.hidden));
+        setHiddenTitles(new Set(f.hiddenTitles));
         setHotIds(new Set(f.hot));
       })
       .catch(() => {});
@@ -179,10 +182,10 @@ export default function HomePage() {
   for (const m of bridged) if (!mergedLiveMap.has(getMatchKey(m))) mergedLiveMap.set(getMatchKey(m), m);
   // Admin-hidden matches must drop out of LIVE too, not just Upcoming — once a
   // hidden match kicks off it would otherwise reappear in the live row.
-  const mergedLive = Array.from(mergedLiveMap.values()).filter((m) => !isFlagged(m, hiddenIds));
+  const mergedLive = Array.from(mergedLiveMap.values()).filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)));
 
   const filtered = filterBySport(matches, activeSport)
-    .filter((m) => !isFlagged(m, hiddenIds))
+    .filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)))
     .map((m) => (isFlagged(m, hotIds) ? { ...m, hot: true } : m));
   const liveForSport = filterBySport(suppressPrematureLive(mergedLive, matches), activeSport);
   // Don't also list a match under Upcoming if it's already shown as Live.

@@ -214,6 +214,29 @@ export function matchFlagKeys(match: Match): string[] {
   return [...out];
 }
 
+// A feed-agnostic identity for a fixture, built from the two team names with
+// accents folded (so "Málaga" === "Malaga") and order ignored. The same match
+// arrives from different feeds under different ids and even different league
+// labels ("Football" vs "Segunda División"), so id matching alone can't hide all
+// copies — this team key can. Falls back to the title when team names are absent.
+export function normTeamName(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // fold accents: á -> a
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+export function normTeamKey(match: { teams?: { home?: { name?: string }; away?: { name?: string } }; title?: string }): string {
+  const h = match.teams?.home?.name;
+  const a = match.teams?.away?.name;
+  if (h && a) return [normTeamName(h), normTeamName(a)].sort().join("|");
+  const parts = (match.title || "").split(/\s+(?:vs\.?|v\.?|-|–|—)\s+/i);
+  if (parts.length === 2 && parts[0] && parts[1]) {
+    return [normTeamName(parts[0]), normTeamName(parts[1])].sort().join("|");
+  }
+  return normTeamName(match.title || "");
+}
+
 // True if any stored flag key in `flagSet` refers to this match. Compares full
 // keys, and also the bare id portion (after "source--"), since the source prefix
 // is the part that drifts.
@@ -292,14 +315,14 @@ export function dedupeMatches(matches: Match[]): Match[] {
 }
 
 // Hidden/featured/hot flags for the public upcoming lists.
-export async function getMatchFlags(): Promise<{ hidden: string[]; featured: string[]; hot: string[] }> {
+export async function getMatchFlags(): Promise<{ hidden: string[]; featured: string[]; hot: string[]; hiddenTitles: string[] }> {
   try {
     const res = await fetch(`/api/match-flags`, { cache: "no-store" });
-    if (!res.ok) return { hidden: [], featured: [], hot: [] };
+    if (!res.ok) return { hidden: [], featured: [], hot: [], hiddenTitles: [] };
     const j = await res.json();
-    return { hidden: j.hidden ?? [], featured: j.featured ?? [], hot: j.hot ?? [] };
+    return { hidden: j.hidden ?? [], featured: j.featured ?? [], hot: j.hot ?? [], hiddenTitles: j.hiddenTitles ?? [] };
   } catch {
-    return { hidden: [], featured: [], hot: [] };
+    return { hidden: [], featured: [], hot: [], hiddenTitles: [] };
   }
 }
 

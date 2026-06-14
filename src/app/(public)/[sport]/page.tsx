@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import LiveMatchRow from "@/components/LiveMatchRow";
 import UpcomingRow from "@/components/UpcomingRow";
-import { Match, getMatchStatus, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches, suppressPrematureLive, isFlagged, SPORT_ICONS, SPORT_LABELS } from "@/lib/api";
+import { Match, getMatchStatus, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches, suppressPrematureLive, isFlagged, normTeamKey, SPORT_ICONS, SPORT_LABELS } from "@/lib/api";
 import { classifyFight, FIGHT_SUB_LABELS, FIGHT_SUB_ICONS, FightSubcategory } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
 import { useBatchScores } from "@/lib/use-batch-scores";
@@ -21,6 +21,7 @@ export default function SportPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [liveMatches, setLiveMatches] = useState<Match[]>([]);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [hiddenTitles, setHiddenTitles] = useState<Set<string>>(new Set());
   const [hotIds, setHotIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
@@ -59,6 +60,7 @@ export default function SportPage() {
     getMatchFlags()
       .then((f) => {
         setHiddenIds(new Set(f.hidden));
+        setHiddenTitles(new Set(f.hiddenTitles));
         setHotIds(new Set(f.hot));
       })
       .catch(() => {});
@@ -72,14 +74,14 @@ export default function SportPage() {
       return true;
     }),
     matches
-  ).filter((m) => !isFlagged(m, hiddenIds));
+  ).filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)));
 
   // Keys already shown as live — so a curated/forced-live match isn't ALSO listed under Upcoming.
   const liveKeys = new Set(liveMatches.map(getMatchKey));
   // ONE batched score request for every live card on this page.
   const scores = useBatchScores(live);
   const isUpcomingRow = (m: Match) =>
-    getMatchStatus(m) === "upcoming" && !isFlagged(m, hiddenIds) && !liveKeys.has(getMatchKey(m));
+    getMatchStatus(m) === "upcoming" && !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)) && !liveKeys.has(getMatchKey(m));
   // Stamp the admin "HOT" flag onto a fixture so UpcomingRow can show the badge.
   const stampHot = (m: Match): Match => (isFlagged(m, hotIds) ? { ...m, hot: true } : m);
 
