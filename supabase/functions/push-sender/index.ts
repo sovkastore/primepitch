@@ -229,11 +229,15 @@ Deno.serve(async (req: Request) => {
         icon: "/icon-192.png", badge: "/icon-192.png",
         actions: [{ action: "open", title: "Open PrimePitch" }], tag: ev.tag,
       });
+      const okEps: string[] = [];
       for (const { s, p } of parsed) {
         if (!p.alerts[ev.kind]) continue;
         const inScope = p.wcAll || ev.countries.some((c) => new Set(p.countries.map(canon)).has(c));
         if (!inScope) continue;
-        if (await sendTo(s, payload)) sent++;
+        if (await sendTo(s, payload)) { sent++; okEps.push(s.endpoint); }
+      }
+      if (okEps.length > 0) {
+        try { await supabase.rpc("bump_sent", { eps: okEps }); } catch (e) { console.error("bump_sent failed", (e as Error)?.message); }
       }
     }
   }
