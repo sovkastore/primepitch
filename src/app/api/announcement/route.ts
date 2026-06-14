@@ -10,6 +10,7 @@ type Announcement = {
   linkUrl: string;
   linkLabel: string;
   variant: "info" | "success" | "warning";
+  reshowHours: number;
 };
 
 const EMPTY: Announcement = {
@@ -18,6 +19,7 @@ const EMPTY: Announcement = {
   linkUrl: "",
   linkLabel: "",
   variant: "info",
+  reshowHours: 0,
 };
 
 export async function GET() {

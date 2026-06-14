@@ -9,6 +9,7 @@ type Announcement = {
   linkUrl: string;
   linkLabel: string;
   variant: Variant;
+  reshowHours: number;
 };
 
 const DEFAULTS: Announcement = {
@@ -17,7 +18,16 @@ const DEFAULTS: Announcement = {
   linkUrl: "",
   linkLabel: "",
   variant: "info",
+  reshowHours: 0,
 };
+
+const RESHOW_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: "Don't show again (until I change the message)" },
+  { value: 1, label: "After 1 hour" },
+  { value: 3, label: "After 3 hours" },
+  { value: 6, label: "After 6 hours" },
+  { value: 24, label: "After 24 hours" },
+];
 
 const VARIANT_LABELS: Record<Variant, string> = {
   info: "Info (blue)",
@@ -33,6 +43,7 @@ const VARIANT_PREVIEW: Record<Variant, string> = {
 
 export default function NotificationsPage() {
   const [cfg, setCfg] = useState<Announcement>(DEFAULTS);
+  const [dismissCount, setDismissCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -40,7 +51,10 @@ export default function NotificationsPage() {
   useEffect(() => {
     fetch("/api/admin/announcement", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => setCfg({ ...DEFAULTS, ...d }))
+      .then((d) => {
+        setCfg({ ...DEFAULTS, ...d });
+        setDismissCount(Number(d?.dismissCount) || 0);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -80,8 +94,8 @@ export default function NotificationsPage() {
         <p className="text-[13px] text-gray-600 mt-1">
           Show a message bar across the top of the site &mdash; a welcome note, an
           announcement, a nudge to subscribe, anything. Turn it off when you&rsquo;re
-          done. Visitors can dismiss it, and it stays dismissed until you change the
-          message.
+          done. Visitors can dismiss it; choose below how long before it returns for
+          them.
         </p>
       </div>
 
@@ -154,6 +168,23 @@ export default function NotificationsPage() {
             ))}
           </select>
         </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-semibold text-gray-800">Show again after dismiss</label>
+          <select
+            value={cfg.reshowHours}
+            onChange={(e) => update({ reshowHours: Number(e.target.value) })}
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          >
+            {RESHOW_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-gray-500">
+            If a visitor closes the banner, this is how long before it comes back for
+            them. &ldquo;Don&rsquo;t show again&rdquo; keeps it hidden until you change the message.
+          </p>
+        </div>
       </div>
 
       {/* Live preview */}
@@ -164,6 +195,22 @@ export default function NotificationsPage() {
           {cfg.linkUrl && cfg.linkLabel && (
             <span className="underline font-semibold">{cfg.linkLabel}</span>
           )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center gap-3">
+        <span className="grid place-items-center w-9 h-9 rounded-full bg-white border border-gray-200 text-gray-700 shrink-0">
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-gray-900">
+            Dismissed by {dismissCount} {dismissCount === 1 ? "person" : "people"}
+          </p>
+          <p className="text-[12px] text-gray-600">
+            Unique devices that closed the current message. Resets when you change the message.
+          </p>
         </div>
       </div>
 

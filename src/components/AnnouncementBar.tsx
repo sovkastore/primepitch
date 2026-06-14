@@ -10,7 +10,12 @@ type Announcement = {
   linkUrl: string;
   linkLabel: string;
   variant: Variant;
+  reshowHours: number; // 0 = stay dismissed until the message changes
 };
+
+const DISMISS_KEY = "pp_announce_dismissed_v2"; // stores { sig, ts }
+const TRACK_DISMISS_URL =
+  "https://lcahzqvrsqxievglvkib.supabase.co/functions/v1/track-dismiss";
 
 const STYLES: Record<Variant, { bar: string; chip: string; cta: string; close: string }> = {
   info: {
@@ -33,13 +38,33 @@ const STYLES: Record<Variant, { bar: string; chip: string; cta: string; close: s
   },
 };
 
-// Stable id for the current message so a dismissal sticks until the admin
-// changes it ("say it once").
+// Stable id for the current message. A dismissal is tied to this, so changing
+// the wording/link/colour in the admin counts as a NEW message and shows again.
+// (reshowHours is deliberately NOT part of the signature — changing the timer
+// must not wipe existing dismissals.)
 function signatureOf(a: Announcement): string {
   let h = 0;
   const s = `${a.message}|${a.linkUrl}|${a.linkLabel}|${a.variant}`;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
   return String(h);
+}
+
+// A stable, anonymous per-device id so "unique dismissals" counts devices, not
+// taps. No personal data; just a random uuid kept in localStorage.
+function getDeviceId(): string {
+  try {
+    let id = localStorage.getItem("pp_device_id");
+    if (!id) {
+      id =
+        (typeof crypto !== "undefined" && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `d_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem("pp_device_id", id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
 }
 
 export default function AnnouncementBar() {
@@ -54,7 +79,22 @@ export default function AnnouncementBar() {
         if (!alive || !cfg?.enabled || !cfg.message) return;
         setA(cfg);
         try {
-          setDismissed(localStorage.getItem("pp_announce_dismissed") === signatureOf(cfg));
+          const sig = signatureOf(cfg);
+          const raw = localStorage.getItem(DISMISS_KEY);
+          let hide = false;
+          if (raw) {
+            const rec = JSON.parse(raw) as { sig?: string; ts?: number };
+            if (rec?.sig === sig) {
+              const hrs = Number(cfg.reshowHours) || 0;
+              if (hrs <= 0) {
+                hide = true; // hidden until the message itself changes
+              } else {
+                const elapsed = Date.now() - (rec.ts ?? 0);
+                hide = elapsed < hrs * 3600_000; // still inside the cooldown
+              }
+            }
+          }
+          setDismissed(hide);
         } catch {
           setDismissed(false);
         }
@@ -70,10 +110,26 @@ export default function AnnouncementBar() {
   const s = STYLES[a.variant] ?? STYLES.info;
 
   const close = () => {
+    const sig = signatureOf(a);
     try {
-      localStorage.setItem("pp_announce_dismissed", signatureOf(a));
+      localStorage.setItem(DISMISS_KEY, JSON.stringify({ sig, ts: Date.now() }));
     } catch {
       /* ignore */
+    }
+    // Record the dismissal straight to Supabase (device -> Supabase, no
+    // Cloudflare hit). Simple request (text/plain) so there's no CORS preflight.
+    try {
+      const id = getDeviceId();
+      if (id) {
+        fetch(TRACK_DISMISS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ device_id: id, signature: sig }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch {
+      /* tracking is best-effort */
     }
     setDismissed(true);
   };
