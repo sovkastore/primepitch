@@ -30,6 +30,8 @@ const SIDE_SEP = /\s+(?:vs\.?|v\.?|-|–|—)\s+/i;
 
 function normSide(s: string): string {
   let n = (s || "").toLowerCase();
+  n = n.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // fold accents (é→e, ô→o)
+  n = n.replace(/\([^)]*\)/g, " ");        // drop "(Dutch & Spainish)"-type language suffixes
   n = n.replace(/[^a-z0-9]+/g, " ").trim(); // strip punctuation/emoji, keep word gaps
   n = n.replace(/^ppv\s+/, "");             // admin ppv listings are the same match
   n = n.replace(/\b20\d\d\b/g, " ");        // stray years ("2026 PFL Africa 2")
@@ -38,7 +40,9 @@ function normSide(s: string): string {
 }
 
 export function normTitle(t: string): string {
-  const raw = (t || "").trim();
+  // Drop parenthetical suffixes before splitting so "A vs B (Dutch & Spanish)"
+  // and "A vs B" share a key.
+  const raw = (t || "").replace(/\([^)]*\)/g, " ").trim();
   const parts = raw.split(SIDE_SEP);
   if (parts.length === 2 && parts[0] && parts[1]) {
     // Two-team title: normalize each side, sort so order never matters.
@@ -64,8 +68,11 @@ const dayDiff = (a: string, b: string) =>
   Math.abs((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / dayMs);
 
 // Generic clustering: rows sharing a normalized title are sorted by first-seen
-// day, then chained while consecutive rows stay within the sport's window of
-// the cluster's first day.
+// day, then chained while each row stays within the sport's day window of the
+// PREVIOUS row in the chain. Chaining off the previous row (not the cluster's
+// first day) means a stray pre-kickoff view days early can't shut out a later
+// listing of the same fixture. Same-team rematches that fast don't happen in
+// wide-window sports, so this can't merge genuinely different games.
 export function clusterRows<T>(
   rows: T[],
   get: { title: (r: T) => string; sport: (r: T) => string; day: (r: T) => string }
@@ -82,19 +89,18 @@ export function clusterRows<T>(
       .sort((a, b) => get.day(a).localeCompare(get.day(b)));
     const win = mergeWindowDays(get.sport(g[0]));
     let cluster: T[] = [];
-    let start = "";
+    let prev = "";
     for (const r of g) {
       const d = (get.day(r) || "").slice(0, 10);
       if (cluster.length === 0) {
         cluster = [r];
-        start = d;
-      } else if (dayDiff(start, d) < win) {
+      } else if (dayDiff(prev, d) < win) {
         cluster.push(r);
       } else {
         out.push(cluster);
         cluster = [r];
-        start = d;
       }
+      prev = d;
     }
     if (cluster.length) out.push(cluster);
   }
