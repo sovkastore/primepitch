@@ -7,6 +7,7 @@ type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
 type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
 type Trigger = "visit" | "interval" | "match" | "server";
 type Placement = "watch" | "home" | "both";
+type Mode = "silent" | "gate";
 type Preroll = {
   enabled: boolean;
   vastTag: string;
@@ -15,6 +16,7 @@ type Preroll = {
   cap: number; // minutes between plays (interval mode)
   skipAfter: number; // seconds (best-effort; creative skipoffset wins)
   noFillTimeout: number; // seconds to wait for an ad before revealing the stream
+  mode: Mode; // "silent" = invisible until a real ad; "gate" = black screen while checking
 };
 type AdsConfig = {
   master: boolean;
@@ -30,7 +32,7 @@ const DEFAULTS: AdsConfig = {
     inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
   },
-  preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3 },
+  preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
 };
 
 const ALLOWED_DOMAINS = new Set(["all", "workers_dev", "xellnetwork"]);
@@ -40,7 +42,7 @@ const MAX_CAP_MIN = 10080; // 7 days
 // minutes between loads; 0 = no limit. Tolerates legacy string values.
 function cleanCap(v: unknown): number {
   const legacy: Record<string, number> = { off: 0, "30m": 30, "1h": 60, "2h": 120, "24h": 1440 };
-  let n = typeof v === "string" && v in legacy ? legacy[v] : Math.floor(Number(v));
+  const n = typeof v === "string" && v in legacy ? legacy[v] : Math.floor(Number(v));
   if (!Number.isFinite(n) || n <= 0) return 0;
   return Math.min(n, MAX_CAP_MIN);
 }
@@ -49,6 +51,7 @@ const ALLOWED_FORMATS = new Set(["inpage_push", "vignette"]);
 
 const ALLOWED_TRIGGERS = new Set(["visit", "interval", "match", "server"]);
 const ALLOWED_PLACEMENTS = new Set(["watch", "home", "both"]);
+const ALLOWED_MODES = new Set(["silent", "gate"]);
 function cleanUrl(v: unknown): string {
   if (typeof v !== "string") return "";
   const s = v.trim();
@@ -73,6 +76,7 @@ function cleanPreroll(v: unknown): Preroll {
     cap: cleanCap(p.cap),
     skipAfter: clampInt(p.skipAfter, 0, 60, 5),
     noFillTimeout: clampInt(p.noFillTimeout, 1, 15, 3),
+    mode: ALLOWED_MODES.has(p.mode as string) ? (p.mode as Mode) : "silent",
   };
 }
 

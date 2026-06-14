@@ -7,6 +7,7 @@ type Unit = "off" | "minutes" | "hours";
 type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
 type Trigger = "visit" | "interval" | "match" | "server";
 type Placement = "watch" | "home" | "both";
+type Mode = "silent" | "gate";
 type Preroll = {
   enabled: boolean;
   vastTag: string;
@@ -15,6 +16,7 @@ type Preroll = {
   cap: number;
   skipAfter: number;
   noFillTimeout: number;
+  mode: Mode;
 };
 type AdsConfig = {
   master: boolean;
@@ -32,7 +34,7 @@ const DEFAULTS: AdsConfig = {
     inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
   },
-  preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3 },
+  preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
 };
 
 const TRIGGER_LABELS: Record<Trigger, string> = {
@@ -46,6 +48,11 @@ const PLACEMENT_LABELS: Record<Placement, string> = {
   watch: "Watch page only",
   home: "Home page only",
   both: "Home + Watch pages",
+};
+
+const MODE_LABELS: Record<Mode, string> = {
+  silent: "Silent — only show a screen if a real ad plays (recommended)",
+  gate: "Gate — show a black loading screen while checking for an ad",
 };
 
 // Legacy string caps -> minutes (for configs saved before numeric caps).
@@ -327,6 +334,22 @@ export default function AdminAdsPage() {
           </select>
           <p className="text-[12px] text-gray-500">
             Watch page = before a live stream. Home page = a full-screen video when a visitor lands on the homepage.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-semibold text-gray-800">How it appears</label>
+          <select
+            value={cfg.preroll.mode}
+            onChange={(e) => updatePreroll({ mode: e.target.value as Mode })}
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          >
+            {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
+              <option key={m} value={m}>{MODE_LABELS[m]}</option>
+            ))}
+          </select>
+          <p className="text-[12px] text-gray-500">
+            Silent: the page/stream loads normally and a screen only appears if an ad actually plays — no black flash on no-fill. Gate: viewers see a brief black loading screen first, then the ad (or the page if no ad).
           </p>
         </div>
 

@@ -22,6 +22,7 @@ type Preroll = {
   cap: number; // minutes between plays, for "interval"
   skipAfter: number; // seconds until the Skip button appears
   noFillTimeout: number; // seconds to wait for an ad before giving up
+  mode?: "silent" | "gate"; // "silent" = invisible until a real ad; "gate" = black screen while checking
 };
 type AdsConfig = {
   master: boolean;
@@ -381,19 +382,23 @@ export default function PreRollGate({
   const isHome = page === "home";
   const wrap = isHome ? "fixed inset-0 z-[60]" : "absolute inset-0 z-30";
 
-  // While merely attempting, the layer is transparent + non-interactive so the
-  // page behind shows through (no black flash). It turns opaque black only when
-  // a real ad is on screen.
+  // "gate" mode covers the page with black while it checks for an ad; "silent"
+  // mode (default) stays invisible until a real ad actually starts.
+  const showCover = adShowing || (!!cfg && cfg.mode === "gate");
+
+  // While merely attempting in silent mode, the layer is transparent +
+  // non-interactive so the page behind shows through (no black flash). It turns
+  // opaque black when a real ad is on screen, or immediately in gate mode.
   return (
     <div
       ref={rootRef}
       className={`${wrap} flex items-center justify-center`}
       style={{
-        background: adShowing ? "#000" : "transparent",
-        opacity: adShowing ? 1 : 0,
-        pointerEvents: adShowing ? "auto" : "none",
+        background: showCover ? "#000" : "transparent",
+        opacity: showCover ? 1 : 0,
+        pointerEvents: showCover ? "auto" : "none",
       }}
-      aria-hidden={!adShowing}
+      aria-hidden={!showCover}
     >
       <div ref={adContainerRef} className="absolute inset-0" />
       <video
