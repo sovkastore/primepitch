@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 
 // Public VAPID key — safe in the browser. Private key stays server-side.
 const VAPID_PUBLIC =
@@ -220,6 +221,16 @@ export default function SubscribePage() {
   const [countriesOpen, setCountriesOpen] = useState(false);
   const [error, setError] = useState("");
   const subRef = useRef<PushSubscription | null>(null);
+  const router = useRouter();
+
+  // Return to wherever they came from (e.g. the page the announcement banner
+  // was on). If they landed here directly — a fresh load or straight from a
+  // push notification — there's no in-app history, so go to the home page
+  // instead of bouncing them off the site.
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) router.back();
+    else router.push("/");
+  };
 
   useEffect(() => {
     let alive = true;
@@ -366,6 +377,17 @@ export default function SubscribePage() {
 
   return (
     <div className="max-w-md mx-auto px-4 py-8 space-y-6">
+      <button
+        type="button"
+        onClick={goBack}
+        aria-label="Go back"
+        className="inline-flex items-center gap-1.5 -ml-1 text-[13px] font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+      >
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </button>
       <header className="text-center space-y-3">
         <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 grid place-items-center shadow-lg shadow-emerald-500/25">
           <BellIcon className="w-8 h-8 text-white" />
