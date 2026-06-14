@@ -6,10 +6,12 @@ const KEY = "ads_config";
 type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
 type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
 type Trigger = "visit" | "interval" | "match" | "server";
+type Placement = "watch" | "home" | "both";
 type Preroll = {
   enabled: boolean;
   vastTag: string;
   trigger: Trigger;
+  placement: Placement;
   cap: number; // minutes between plays (interval mode)
   skipAfter: number; // seconds (best-effort; creative skipoffset wins)
   noFillTimeout: number; // seconds to wait for an ad before revealing the stream
@@ -28,7 +30,7 @@ const DEFAULTS: AdsConfig = {
     inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
   },
-  preroll: { enabled: false, vastTag: "", trigger: "interval", cap: 5, skipAfter: 5, noFillTimeout: 3 },
+  preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3 },
 };
 
 const ALLOWED_DOMAINS = new Set(["all", "workers_dev", "xellnetwork"]);
@@ -46,6 +48,7 @@ function cleanCap(v: unknown): number {
 const ALLOWED_FORMATS = new Set(["inpage_push", "vignette"]);
 
 const ALLOWED_TRIGGERS = new Set(["visit", "interval", "match", "server"]);
+const ALLOWED_PLACEMENTS = new Set(["watch", "home", "both"]);
 function cleanUrl(v: unknown): string {
   if (typeof v !== "string") return "";
   const s = v.trim();
@@ -66,6 +69,7 @@ function cleanPreroll(v: unknown): Preroll {
     enabled: !!p.enabled,
     vastTag: cleanUrl(p.vastTag),
     trigger: ALLOWED_TRIGGERS.has(p.trigger as string) ? (p.trigger as Trigger) : "interval",
+    placement: ALLOWED_PLACEMENTS.has(p.placement as string) ? (p.placement as Placement) : "watch",
     cap: cleanCap(p.cap),
     skipAfter: clampInt(p.skipAfter, 0, 60, 5),
     noFillTimeout: clampInt(p.noFillTimeout, 1, 15, 3),

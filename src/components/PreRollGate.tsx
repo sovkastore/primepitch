@@ -7,10 +7,13 @@ import { useEffect, useRef, useState } from "react";
 // or a hard timeout — so a missing/broken ad can NEVER block the match.
 
 type Trigger = "visit" | "interval" | "match" | "server";
+type Placement = "watch" | "home" | "both";
+type Page = "watch" | "home";
 type Preroll = {
   enabled: boolean;
   vastTag: string;
   trigger: Trigger;
+  placement: Placement;
   cap: number; // minutes between plays, for "interval"
   skipAfter: number; // seconds (best-effort; the creative's own skipoffset wins)
   noFillTimeout: number; // seconds to wait for an ad before giving up
@@ -41,10 +44,13 @@ function domainAllowed(setting: AdsConfig["domains"], host: string): boolean {
 }
 
 // Decide whether the ad is due right now, based on the admin-chosen trigger.
-function isDue(p: Preroll): boolean {
+function isDue(p: Preroll, page: Page): boolean {
   try {
-    if (p.trigger === "match" || p.trigger === "server") return true;
-    if (p.trigger === "visit") {
+    let trigger = p.trigger;
+    // "match"/"server" only make sense on the watch page; on home, fall back to once-per-visit.
+    if (page === "home" && (trigger === "match" || trigger === "server")) trigger = "visit";
+    if (trigger === "match" || trigger === "server") return true;
+    if (trigger === "visit") {
       if (sessionStorage.getItem("preroll_seen")) return false;
       sessionStorage.setItem("preroll_seen", "1");
       return true;
@@ -59,6 +65,11 @@ function isDue(p: Preroll): boolean {
   } catch {
     return true;
   }
+}
+
+function placementAllows(placement: Placement, page: Page): boolean {
+  if (placement === "both") return true;
+  return placement === page;
 }
 
 function loadFluid(): Promise<boolean> {
@@ -80,7 +91,13 @@ function loadFluid(): Promise<boolean> {
   });
 }
 
-export default function PreRollGate({ streamKey }: { streamKey: string }) {
+export default function PreRollGate({
+  page = "watch",
+  streamKey = "",
+}: {
+  page?: Page;
+  streamKey?: string;
+}) {
   const [cfg, setCfg] = useState<Preroll | null>(null);
   const [show, setShow] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -99,7 +116,8 @@ export default function PreRollGate({ streamKey }: { streamKey: string }) {
         if (typeof window === "undefined") return;
         if (window.location.pathname.startsWith("/admin")) return;
         if (!domainAllowed(c.domains, window.location.hostname)) return;
-        if (!isDue(p)) return;
+        if (!placementAllows(p.placement ?? "watch", page)) return;
+        if (!isDue(p, page)) return;
         if (cancelled) return;
         setCfg(p);
         setShow(true);
@@ -179,8 +197,12 @@ export default function PreRollGate({ streamKey }: { streamKey: string }) {
   }, [show, cfg]);
 
   if (!show) return null;
+  const wrap =
+    page === "home"
+      ? "fixed inset-0 z-[60] bg-black flex items-center justify-center"
+      : "absolute inset-0 z-30 bg-black flex items-center justify-center";
   return (
-    <div className="absolute inset-0 z-30 bg-black flex items-center justify-center">
+    <div className={wrap}>
       <video
         ref={videoRef}
         className="w-full h-full object-contain"

@@ -5,6 +5,7 @@ import SportsNav from "@/components/SportsNav";
 import LiveNow from "@/components/LiveNow";
 import TodayMatches from "@/components/Upcoming";
 import Logo from "@/components/Logo";
+import PreRollGate from "@/components/PreRollGate";
 import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedupeMatches, suppressPrematureLive } from "@/lib/api";
 import { classifyFight } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
@@ -187,6 +188,7 @@ export default function HomePage() {
 
   return (
     <div className="pb-20 md:pb-0">
+      <PreRollGate page="home" />
       <SportsNav activeSport={activeSport} onSelect={selectSport} />
       <LiveNow matches={liveForSport} />
       <TodayMatches matches={filtered} excludeKeys={liveKeys} />

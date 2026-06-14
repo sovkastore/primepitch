@@ -6,10 +6,12 @@ type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
 type Unit = "off" | "minutes" | "hours";
 type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
 type Trigger = "visit" | "interval" | "match" | "server";
+type Placement = "watch" | "home" | "both";
 type Preroll = {
   enabled: boolean;
   vastTag: string;
   trigger: Trigger;
+  placement: Placement;
   cap: number;
   skipAfter: number;
   noFillTimeout: number;
@@ -30,7 +32,7 @@ const DEFAULTS: AdsConfig = {
     inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
   },
-  preroll: { enabled: false, vastTag: "", trigger: "interval", cap: 5, skipAfter: 5, noFillTimeout: 3 },
+  preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3 },
 };
 
 const TRIGGER_LABELS: Record<Trigger, string> = {
@@ -38,6 +40,12 @@ const TRIGGER_LABELS: Record<Trigger, string> = {
   interval: "Every X minutes",
   match: "Every match open",
   server: "Every server switch",
+};
+
+const PLACEMENT_LABELS: Record<Placement, string> = {
+  watch: "Watch page only",
+  home: "Home page only",
+  both: "Home + Watch pages",
 };
 
 // Legacy string caps -> minutes (for configs saved before numeric caps).
@@ -304,6 +312,22 @@ export default function AdminAdsPage() {
             className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
           />
           <p className="text-[12px] text-gray-500">Paste the VAST link from your ad network. Must start with https://</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-semibold text-gray-800">Where to show it</label>
+          <select
+            value={cfg.preroll.placement}
+            onChange={(e) => updatePreroll({ placement: e.target.value as Placement })}
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          >
+            {(Object.keys(PLACEMENT_LABELS) as Placement[]).map((pl) => (
+              <option key={pl} value={pl}>{PLACEMENT_LABELS[pl]}</option>
+            ))}
+          </select>
+          <p className="text-[12px] text-gray-500">
+            Watch page = before a live stream. Home page = a full-screen video when a visitor lands on the homepage.
+          </p>
         </div>
 
         <div className="space-y-1.5">
