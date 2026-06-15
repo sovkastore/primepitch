@@ -93,16 +93,20 @@ export default function MatchAnalyticsPage() {
 
   // Natural order (no sort selected): schedule-based. LIVE first, then
   // upcoming as they kick off (next match first), then played by recency.
+  // Also used for Upcoming + "Recent": for not-yet-played matches "recent" has
+  // no view activity to sort by, so "soonest kickoff first" is what's meant.
   const rankOf = (st?: string) => (st === "live" ? 0 : st === "upcoming" ? 1 : 2);
+  const scheduleSorted = () =>
+    matches.slice().sort((a, b) => {
+      const ra = rankOf(a.status), rb = rankOf(b.status);
+      if (ra !== rb) return ra - rb;
+      if (ra === 1) return (kickoffOf(a.title) ?? Infinity) - (kickoffOf(b.title) ?? Infinity);
+      if (ra === 0) return (kickoffOf(a.title) ?? 0) - (kickoffOf(b.title) ?? 0);
+      return a.last_viewed < b.last_viewed ? 1 : -1;
+    });
   const displayMatches =
-    sort === ""
-      ? matches.slice().sort((a, b) => {
-          const ra = rankOf(a.status), rb = rankOf(b.status);
-          if (ra !== rb) return ra - rb;
-          if (ra === 1) return (kickoffOf(a.title) ?? Infinity) - (kickoffOf(b.title) ?? Infinity);
-          if (ra === 0) return (kickoffOf(a.title) ?? 0) - (kickoffOf(b.title) ?? 0);
-          return a.last_viewed < b.last_viewed ? 1 : -1;
-        })
+    sort === "" || (status === "upcoming" && sort === "recent")
+      ? scheduleSorted()
       : matches;
 
   const chartData = matches.slice(0, 15).map((m) => ({
