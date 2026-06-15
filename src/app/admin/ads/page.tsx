@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 
 type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
 type Unit = "off" | "minutes" | "hours";
-type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay; placement?: Placement };
+type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
 type Trigger = "visit" | "interval" | "match" | "server";
 type Placement = "watch" | "home" | "both";
 type Mode = "silent" | "gate";
@@ -33,7 +33,6 @@ const DEFAULTS: AdsConfig = {
   formats: {
     inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
-    onclick: { label: "OnClick (Popunder)", enabled: false, zone: "11154111", src: "https://al5sm.com/tag.min.js", cap: 1440, delay: "0", placement: "watch" },
   },
   preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
 };
@@ -255,22 +254,6 @@ export default function AdminAdsPage() {
               </select>
               <p className="text-[12px] text-gray-500">
                 How long a visitor must be on the site before this ad first appears.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-gray-800">Show on which pages</label>
-              <select
-                value={f.placement ?? "both"}
-                onChange={(e) => updateFormat(id, { placement: e.target.value as Placement })}
-                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              >
-                <option value="both">Home + Watch pages (whole site)</option>
-                <option value="watch">Watch page only (live match)</option>
-                <option value="home">Home page only</option>
-              </select>
-              <p className="text-[12px] text-gray-500">
-                Where this ad is allowed to load. Popunder is best left on the watch page only.
               </p>
             </div>
 

@@ -1,20 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
 
 type Cap = number | string; // minutes (number); legacy string keys still tolerated
-type Placement = "watch" | "home" | "both";
-type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string; placement?: Placement };
-
-// Which pages a format may load on. Missing/"both" = everywhere (the default for
-// the site-wide formats). "watch" = only the live-match pages (/watch/...).
-function placementAllows(placement: Placement | undefined, path: string): boolean {
-  const p = placement || "both";
-  if (p === "watch") return path.startsWith("/watch");
-  if (p === "home") return path === "/";
-  return true;
-}
+type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string };
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -67,7 +56,6 @@ function injectMonetag(id: string, zone: string, src: string) {  if (!zone || !s
 }
 
 export default function AdsLoader() {
-  const pathname = usePathname();
   useEffect(() => {
     let done = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -77,13 +65,10 @@ export default function AdsLoader() {
         if (!res.ok) return;
         const cfg = (await res.json()) as AdsConfig;
         if (done || !cfg?.master) return; // master kill-switch
-        const path = pathname || window.location.pathname;
-        if (path.startsWith("/admin")) return; // never on admin
+        if (window.location.pathname.startsWith("/admin")) return; // never on admin
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
         for (const [id, f] of Object.entries(cfg.formats || {})) {
           if (!f?.enabled) continue;
-          if (!placementAllows(f.placement, path)) continue; // page-restricted formats
-          if (document.querySelector(`script[data-ad-format="${id}"]`)) continue; // already loaded this session
           const t = setTimeout(() => {
             if (done) return;
             if (!capAllows(id, f.cap)) return; // cap checked only when we actually show
@@ -99,6 +84,6 @@ export default function AdsLoader() {
       done = true;
       timers.forEach(clearTimeout);
     };
-  }, [pathname]);
+  }, []);
   return null;
 }
