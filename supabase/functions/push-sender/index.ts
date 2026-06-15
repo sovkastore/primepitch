@@ -31,7 +31,7 @@ type Fixture = {
   away_score: number | null;
   minute: number | null;
 };
-type State = { total: number; live: boolean; finished: boolean; startsoon_sent: boolean; almost_sent: boolean; halftime_sent: boolean; secondhalf_sent: boolean };
+type State = { total: number; live: boolean; finished: boolean; startsoon_sent: boolean; almost_sent: boolean; halftime_sent: boolean; secondhalf_sent: boolean; stream_live_sent: boolean };
 
 const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const TEAM_ALIASES: Record<string, string> = {
@@ -48,6 +48,32 @@ const keyOf = (f: Fixture) => `wc:${norm(f.home.name)}|${norm(f.away.name)}`;
 const fold = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const canonFold = (x: string) => { const n = fold(x); return TEAM_ALIASES[n] || n; };
 const teamKeyOf = (f: Fixture) => [canonFold(f.home.name), canonFold(f.away.name)].sort().join("|");
+
+// streamed.pk's OWN live list — the only source allowed to trigger early-live.
+// An entry here means streamed.pk is already serving a real source for it.
+// Returns order-independent team keys ("japan|netherlands") matching teamKeyOf.
+type StreamedEntry = { title?: string; teams?: { home?: { name?: string }; away?: { name?: string } } };
+async function fetchStreamedLiveTeamKeys(): Promise<Set<string>> {
+  const keys = new Set<string>();
+  try {
+    const res = await fetch("https://streamed.pk/api/matches/live", { headers: { "User-Agent": "primepitch-watcher" } });
+    if (!res.ok) return keys;
+    const data = await res.json();
+    const list: StreamedEntry[] = Array.isArray(data) ? data : [];
+    for (const m of list) {
+      let home = m.teams?.home?.name || "";
+      let away = m.teams?.away?.name || "";
+      if ((!home || !away) && m.title) {
+        const parts = m.title.split(/\s+(?:vs|v|-)\s+/i);
+        if (parts.length === 2) { home = home || parts[0]; away = away || parts[1]; }
+      }
+      if (home && away) keys.add([canonFold(home), canonFold(away)].sort().join("|"));
+    }
+  } catch (e) {
+    console.error("streamed live fetch failed", (e as Error)?.message);
+  }
+  return keys;
+}
 
 const isFinished = (status?: string) =>
   /finish|ended|fulltime|aftertime|aet|penalt|final|\bft\b/.test((status || "").toLowerCase());
@@ -100,7 +126,7 @@ function parsePrefs(sub: Sub): { wcAll: boolean; countries: string[]; alerts: Re
 
 type Ev = { kind: AlertKey; title: string; body: string; tag: string; countries: string[]; teamKey: string };
 
-function buildEvents(f: Fixture, prev: State | undefined, coldStart: boolean, now: number): { events: Ev[]; startsoon: boolean; almost: boolean; halftime: boolean; secondhalf: boolean } {
+function buildEvents(f: Fixture, prev: State | undefined, coldStart: boolean, now: number, streamLive: boolean): { events: Ev[]; startsoon: boolean; almost: boolean; halftime: boolean; secondhalf: boolean; streamSent: boolean } {
   const c = classify(f);
   const key = keyOf(f);
   const tk = teamKeyOf(f);
@@ -116,9 +142,18 @@ function buildEvents(f: Fixture, prev: State | undefined, coldStart: boolean, no
   let almost = prev?.almost_sent ?? false;
   let halftime = prev?.halftime_sent ?? false;
   let secondhalf = prev?.secondhalf_sent ?? false;
+  let streamSent = prev?.stream_live_sent ?? false;
   const score = `${f.home_score ?? 0}–${f.away_score ?? 0}`;
 
   if (!coldStart) {
+    // streamed.pk is already serving a real source within 5 min of kickoff →
+    // announce "Live now" once, and suppress the imminent 1-min + kick-off
+    // alerts so subscribers aren't pinged three times for the same start.
+    if (notStarted && streamLive && !streamSent) {
+      events.push({ kind: "kickoff", title: "🔴 Live now", body: `${home} vs ${away} is live — watch now`, tag: `pp-livenow-${key}`, countries: cs, teamKey: tk });
+      streamSent = true;
+      almost = true; // blocks the "kicks off in 1 min" alert below
+    }
     if (notStarted && soonWindow && !startsoon) {
       const m = Math.max(1, Math.round(mins));
       events.push({ kind: "startingSoon", title: "Starting soon", body: `${home} vs ${away} kicks off in ${m} min`, tag: `pp-soon-${key}`, countries: cs, teamKey: tk });
@@ -148,9 +183,10 @@ function buildEvents(f: Fixture, prev: State | undefined, coldStart: boolean, no
   } else {
     if (notStarted && soonWindow) startsoon = true;
     if (notStarted && almostWindow) almost = true;
+    if (notStarted && streamLive) streamSent = true;
     if (halftimeNow) halftime = true;
   }
-  return { events, startsoon, almost, halftime, secondhalf };
+  return { events, startsoon, almost, halftime, secondhalf, streamSent };
 }
 
 Deno.serve(async (req: Request) => {
@@ -203,11 +239,14 @@ Deno.serve(async (req: Request) => {
 
   const { data: stateRows } = await supabase
     .from("push_match_state")
-    .select("match_key, total, live, finished, startsoon_sent, almost_sent, halftime_sent, secondhalf_sent");
+    .select("match_key, total, live, finished, startsoon_sent, almost_sent, halftime_sent, secondhalf_sent, stream_live_sent");
   const state = new Map<string, State>();
   for (const r of stateRows ?? [])
-    state.set(r.match_key, { total: r.total, live: r.live, finished: r.finished, startsoon_sent: r.startsoon_sent, almost_sent: r.almost_sent, halftime_sent: r.halftime_sent, secondhalf_sent: r.secondhalf_sent });
+    state.set(r.match_key, { total: r.total, live: r.live, finished: r.finished, startsoon_sent: r.startsoon_sent, almost_sent: r.almost_sent, halftime_sent: r.halftime_sent, secondhalf_sent: r.secondhalf_sent, stream_live_sent: r.stream_live_sent });
   const coldStart = state.size === 0;
+
+  // streamed.pk's own live list — the only trigger allowed for early-live.
+  const streamedLiveKeys = await fetchStreamedLiveTeamKeys();
 
   const allEvents: Ev[] = [];
   const upserts: Array<Record<string, unknown>> = [];
@@ -223,19 +262,24 @@ Deno.serve(async (req: Request) => {
     const relevant = c.live || c.finished || (notStarted && soonWindow);
     if (!relevant) continue;
 
-    const { events, startsoon, almost, halftime, secondhalf } = buildEvents(f, prev, coldStart, now);
+    // Within 5 min of kickoff AND streamed.pk already serving → early-live.
+    const within5 = Number.isFinite(mins) && mins <= 5 && mins > 0;
+    const streamLive = within5 && streamedLiveKeys.has(teamKeyOf(f));
+
+    const { events, startsoon, almost, halftime, secondhalf, streamSent } = buildEvents(f, prev, coldStart, now, streamLive);
     for (const ev of events) allEvents.push(ev);
     seen.push({ key, status: f.status, score: `${f.home_score ?? "-"}-${f.away_score ?? "-"}`, kinds: events.map((e) => e.kind) });
 
     upserts.push({
       match_key: key,
       total: c.total,
-      live: c.live,
+      live: c.live || streamSent, // early-live keeps state "live" → suppresses kick-off next run
       finished: c.finished || (prev?.finished ?? false),
       startsoon_sent: startsoon,
       almost_sent: almost,
       halftime_sent: halftime,
       secondhalf_sent: secondhalf,
+      stream_live_sent: streamSent,
       home_team: f.home.name,
       away_team: f.away.name,
       updated_at: new Date().toISOString(),
