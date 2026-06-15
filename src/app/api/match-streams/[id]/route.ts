@@ -33,9 +33,14 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const title = searchParams.get("title") || "";
     const sport = searchParams.get("sport") || "football";
+    // Before kickoff, only streamed.pk (echo) / admin overrides may serve — auto
+    // fallback stays gated so a pre-match junk feed can't play early.
+    const kickoffRaw = searchParams.get("kickoff");
+    const kickoff = kickoffRaw ? Number(kickoffRaw) : NaN;
+    const gateAuto = Number.isFinite(kickoff) && kickoff > 0 && Date.now() < kickoff;
 
     const disableAuto = await isAutoDisabled(rawId);
-    const result = await resolveStreams({ source, id, title, sport, disableAuto });
+    const result = await resolveStreams({ source, id, title, sport, disableAuto, gateAuto });
     return NextResponse.json(result);
   } catch {
     return NextResponse.json({ streams: [], replace_original: false, serving: "none" });

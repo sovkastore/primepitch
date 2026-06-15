@@ -87,6 +87,7 @@ export default function WatchPage() {
   const [showHint, setShowHint] = useState(true);
   const [gaveUp, setGaveUp] = useState(false);
   const [forceLive, setForceLive] = useState(false);
+  const [autoLive, setAutoLive] = useState(false);
   const [hotKeys, setHotKeys] = useState<Set<string>>(new Set());
 
   // One-time read of HOT flags so an upcoming/custom hot match's page is also
@@ -109,7 +110,7 @@ export default function WatchPage() {
   // A match that can't be found in any current list and has no streams has
   // ENDED (feeds drop matches once played) — never show it as "upcoming".
   const matchStatus = currentMatch ? getMatchStatus(currentMatch) : (loading ? "upcoming" : "ended");
-  const isLive = matchStatus === "live" || forceLive;
+  const isLive = matchStatus === "live" || forceLive || autoLive;
   const isEnded = !isLive && matchStatus === "ended" && streams.length === 0;
 
   // Tell the global heartbeat when this match is over (covers both the FULL
@@ -189,9 +190,10 @@ export default function WatchPage() {
         if (status === "live" || inLiveSet) {
           const title = current?.title || fallbackName;
           const sport = current?.category || "football";
+          const kickoff = current?.date || 0;
           try {
             const res = await fetch(
-              `/api/match-streams/${encodeURIComponent(rawId)}?title=${encodeURIComponent(title)}&sport=${encodeURIComponent(sport)}`
+              `/api/match-streams/${encodeURIComponent(rawId)}?title=${encodeURIComponent(title)}&sport=${encodeURIComponent(sport)}&kickoff=${kickoff}`
             );
             const data = await res.json();
             setStreams(Array.isArray(data.streams) ? data.streams : []);
@@ -261,6 +263,62 @@ export default function WatchPage() {
     }, 4500);
     return () => clearInterval(interval);
   }, [loading, isLive, streams.length, gaveUp]);
+
+  // Auto-switch the countdown to the live player without a manual refresh.
+  // Cost-aware: NO polling until the final 5 minutes. Before then we just sleep
+  // on timers (zero requests). Inside the last 5 min we check streamed.pk for a
+  // real source every 20s (paused in background tabs); at kickoff we flip
+  // regardless. Once live, this effect bails (isLive guard).
+  useEffect(() => {
+    if (loading || !currentMatch || isLive || isEnded) return;
+    const kickoff = currentMatch.date;
+    if (!kickoff) return;
+    const EARLY_MS = 5 * 60 * 1000;
+    let stopped = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let clearPoll: (() => void) | undefined;
+
+    const goLive = () => {
+      if (stopped) return;
+      stopped = true;
+      clearPoll?.();
+      setAutoLive(true);
+      retryStreams(); // fetch immediately instead of waiting for the retry tick
+    };
+
+    // Only within the last 5 min: has streamed.pk published a real source yet?
+    const startEarlyPoll = () => {
+      if (stopped) return;
+      const check = async () => {
+        try {
+          const live = await getLiveMatches();
+          const hit = live.some((m) => {
+            const s = m.sources?.[0];
+            return s ? `${s.source}--${s.id}` === rawId : false;
+          });
+          if (hit) goLive();
+        } catch {}
+      };
+      check();
+      clearPoll = visibleInterval(check, 20_000);
+    };
+
+    const msToKickoff = kickoff - Date.now();
+    if (msToKickoff <= 0) {
+      goLive(); // already past kickoff — open the player now
+    } else {
+      timers.push(setTimeout(goLive, msToKickoff)); // flip exactly at kickoff
+      const untilWindow = Math.max(0, msToKickoff - EARLY_MS);
+      if (untilWindow === 0) startEarlyPoll();
+      else timers.push(setTimeout(startEarlyPoll, untilWindow));
+    }
+
+    return () => {
+      stopped = true;
+      timers.forEach(clearTimeout);
+      clearPoll?.();
+    };
+  }, [loading, currentMatch, isLive, isEnded, rawId]);
 
   // Track match view + heartbeat
   useEffect(() => {
@@ -365,8 +423,9 @@ export default function WatchPage() {
     try {
       const title = currentMatch?.title || fallbackName;
       const sport = currentMatch?.category || "football";
+      const kickoff = currentMatch?.date || 0;
       const res = await fetch(
-        `/api/match-streams/${encodeURIComponent(rawId)}?title=${encodeURIComponent(title)}&sport=${encodeURIComponent(sport)}`
+        `/api/match-streams/${encodeURIComponent(rawId)}?title=${encodeURIComponent(title)}&sport=${encodeURIComponent(sport)}&kickoff=${kickoff}`
       );
       const data = await res.json();
       if (Array.isArray(data.streams) && data.streams.length > 0) {
