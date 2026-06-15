@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 const KEY = "ads_config";
 
 type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
-type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
+type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay; placement?: Placement };
 type Trigger = "visit" | "interval" | "match" | "server";
 type Placement = "watch" | "home" | "both";
 type Mode = "silent" | "gate";
@@ -31,6 +31,7 @@ const DEFAULTS: AdsConfig = {
   formats: {
     inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
+    onclick: { label: "OnClick (Popunder)", enabled: false, zone: "11154111", src: "https://al5sm.com/tag.min.js", cap: 1440, delay: "0", placement: "watch" },
   },
   preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
 };
@@ -47,7 +48,7 @@ function cleanCap(v: unknown): number {
   return Math.min(n, MAX_CAP_MIN);
 }
 // Only known formats can be saved (prevents arbitrary script injection).
-const ALLOWED_FORMATS = new Set(["inpage_push", "vignette"]);
+const ALLOWED_FORMATS = new Set(["inpage_push", "vignette", "onclick"]);
 
 const ALLOWED_TRIGGERS = new Set(["visit", "interval", "match", "server"]);
 const ALLOWED_PLACEMENTS = new Set(["watch", "home", "both"]);
@@ -114,6 +115,9 @@ export async function POST(request: NextRequest) {
         src: typeof f.src === "string" && /^https:\/\/[a-z0-9.\-/_]+$/i.test(f.src.trim()) ? f.src.trim() : "",
         cap: cleanCap(f.cap),
         delay: ALLOWED_DELAYS.has(f.delay as string) ? (f.delay as Delay) : "0",
+        placement: ALLOWED_PLACEMENTS.has(f.placement as string)
+          ? (f.placement as Placement)
+          : (def?.placement ?? "both"),
       };
     }
     // Make sure every known format exists (so toggles always render).
