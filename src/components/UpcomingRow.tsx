@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Match, getWatchHref, getBadgeUrl, SPORT_LABELS, showVersus } from "@/lib/api";
 import { getCountryFlagUrl } from "@/lib/country-flags";
+import NotifyMeButton from "@/components/NotifyMeButton";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -121,17 +122,23 @@ export default function UpcomingRow({
   const hasTeams = showVersus(match);
   const label = SPORT_LABELS[match.category] || match.category;
   const hot = !!match.hot;
+  // Bell only where the alert engine can actually deliver: football fixtures
+  // with two named teams (World Cup matches during the tournament).
+  const showBell = hasTeams && match.category === "football";
 
   return (
-    <Link href={href} className="group block">
-      <div
-        className={
-          "flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4 rounded-2xl transition-colors border " +
-          (hot
-            ? "bg-red-50 border-red-300 ring-1 ring-red-200 hover:bg-red-100 animate-hot-glow"
-            : "bg-gray-50 hover:bg-gray-100 border-gray-100")
-        }
-      >
+    <div
+      className={
+        "group relative rounded-2xl transition-colors border " +
+        (hot
+          ? "bg-red-50 border-red-300 ring-1 ring-red-200 hover:bg-red-100 animate-hot-glow"
+          : "bg-gray-50 hover:bg-gray-100 border-gray-100")
+      }
+    >
+      {/* Stretched link: the whole card opens the stream, but the bell sits above
+          it and handles its own taps. */}
+      <Link href={href} aria-label={`Watch ${hasTeams ? `${match.teams!.home!.name} vs ${match.teams!.away!.name}` : match.title}`} className="absolute inset-0 z-0 rounded-2xl" />
+      <div className="relative z-10 pointer-events-none flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4">
         <StartCell date={match.date} timeStr={timeStr} dateStr={dateStr} />
         <div className={"w-px h-8 shrink-0 " + (hot ? "bg-red-200" : "bg-gray-200")} />
         {hasTeams ? (
@@ -151,7 +158,12 @@ export default function UpcomingRow({
         {showSport && (
           <span className="hidden sm:inline text-[9px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg shrink-0 font-bold">{label}</span>
         )}
+        {showBell && (
+          <span className="pointer-events-auto shrink-0 ml-auto sm:ml-1">
+            <NotifyMeButton home={match.teams!.home!.name} away={match.teams!.away!.name} />
+          </span>
+        )}
       </div>
-    </Link>
+    </div>
   );
 }
