@@ -99,6 +99,21 @@ export default async function SubscribersPage() {
   const rows = (data ?? []) as Row[];
   const now = currentMs();
 
+  // Per-match "Notify me" follows, aggregated per fixture (≥1 follower shows).
+  const { data: followData } = await sb
+    .from("match_follows")
+    .select("team_key, title, created_at");
+  const followAgg = new Map<string, { title: string; count: number; latest: number }>();
+  for (const f of (followData ?? []) as Array<{ team_key: string; title: string | null; created_at: string }>) {
+    const cur = followAgg.get(f.team_key) ?? { title: f.title || f.team_key, count: 0, latest: 0 };
+    cur.count++;
+    if (f.title) cur.title = f.title;
+    cur.latest = Math.max(cur.latest, Date.parse(f.created_at) || 0);
+    followAgg.set(f.team_key, cur);
+  }
+  const followList = [...followAgg.values()].sort((a, b) => b.count - a.count || b.latest - a.latest);
+  const followDevices = (followData ?? []).length;
+
   const total = rows.length;
   const active7 = rows.filter((r) => daysAgo(r.last_seen_at, now) <= 7).length;
   const new7 = rows.filter((r) => daysAgo(r.created_at, now) <= 7).length;
@@ -151,6 +166,29 @@ export default async function SubscribersPage() {
         <Stat label="New (7d)" value={new7.toLocaleString()} sub="subscribed this week" />
         <Stat label="Open rate" value={`${openRate}%`} sub={`${openers} of ${total} have opened one`} />
       </div>
+
+      {followList.length > 0 && (
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-[14px] font-bold text-gray-900">&ldquo;Notify me&rdquo; matches</h2>
+            <span className="text-[12px] text-gray-500">{followList.length} fixtures · {followDevices} follows</span>
+          </div>
+          <p className="text-[12px] text-gray-500">
+            Fixtures people asked to be alerted about individually. Each follower gets that match&rsquo;s
+            start / kick-off / goals / half-time / full-time alerts.
+          </p>
+          <div className="space-y-2">
+            {followList.map((f) => (
+              <div key={f.title} className="flex items-center justify-between gap-3 py-1.5 border-b border-gray-100 last:border-0">
+                <span className="text-[13px] font-semibold text-gray-800 truncate">{f.title}</span>
+                <span className="shrink-0 text-[12px] font-bold text-emerald-600">
+                  {f.count} {f.count === 1 ? "person" : "people"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-3">

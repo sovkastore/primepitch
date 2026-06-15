@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SportsNav from "@/components/SportsNav";
+import NotifyMeButton from "@/components/NotifyMeButton";
 import { Match, getLiveMatches, getWatchHref } from "@/lib/api";
 import { getCountryFlagUrl } from "@/lib/country-flags";
 import { visibleInterval } from "@/lib/poll";
@@ -359,6 +360,8 @@ export default function WorldCupPage() {
                           </span>
                         ) : liveNow ? (
                           <span className="text-[8px] font-bold text-red-400 whitespace-nowrap animate-pulse">finding stream…</span>
+                        ) : !done ? (
+                          <NotifyMeButton home={f.home.name} away={f.away.name} />
                         ) : null}
                       </div>
                     </Row>

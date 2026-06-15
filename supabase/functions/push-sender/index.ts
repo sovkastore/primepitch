@@ -15,6 +15,9 @@ type AlertKey = "startingSoon" | "almostKickoff" | "kickoff" | "goal" | "halftim
 const DEFAULT_ALERTS: Record<AlertKey, boolean> = {
   startingSoon: true, almostKickoff: true, kickoff: true, goal: true, halftime: true, secondHalf: true, fulltime: true,
 };
+// A per-match "Notify me" follow always delivers this standard set, regardless
+// of the device's global alert toggles.
+const PER_MATCH_ALERTS = new Set<AlertKey>(["startingSoon", "almostKickoff", "kickoff", "goal", "halftime", "fulltime"]);
 
 type Prefs = { wcAll?: boolean; countries?: string[]; alerts?: Partial<Record<AlertKey, boolean>> };
 type Sub = { endpoint: string; p256dh: string; auth: string; topics: string[]; prefs: Prefs };
@@ -34,10 +37,17 @@ const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const TEAM_ALIASES: Record<string, string> = {
   southkorea: "korearepublic", korea: "korearepublic",
   usa: "unitedstates", us: "unitedstates", unitedstatesofamerica: "unitedstates",
-  ivorycoast: "cotedivoire", czechrepublic: "czechia", holland: "netherlands",
+  ivorycoast: "cotedivoire", czechrepublic: "czechia", holland: "netherlands", turkey: "turkiye",
 };
 const canon = (x: string) => { const n = norm(x); return TEAM_ALIASES[n] || n; };
 const keyOf = (f: Fixture) => `wc:${norm(f.home.name)}|${norm(f.away.name)}`;
+
+// Accent-folded, order-independent team pair ("japan|netherlands"). Must match
+// the client's normTeamKey so per-match "Notify me" follows line up no matter how
+// the feed orders or spells the teams.
+const fold = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const canonFold = (x: string) => { const n = fold(x); return TEAM_ALIASES[n] || n; };
+const teamKeyOf = (f: Fixture) => [canonFold(f.home.name), canonFold(f.away.name)].sort().join("|");
 
 const isFinished = (status?: string) =>
   /finish|ended|fulltime|aftertime|aet|penalt|final|\bft\b/.test((status || "").toLowerCase());
@@ -88,11 +98,12 @@ function parsePrefs(sub: Sub): { wcAll: boolean; countries: string[]; alerts: Re
   };
 }
 
-type Ev = { kind: AlertKey; title: string; body: string; tag: string; countries: string[] };
+type Ev = { kind: AlertKey; title: string; body: string; tag: string; countries: string[]; teamKey: string };
 
 function buildEvents(f: Fixture, prev: State | undefined, coldStart: boolean, now: number): { events: Ev[]; startsoon: boolean; almost: boolean; halftime: boolean; secondhalf: boolean } {
   const c = classify(f);
   const key = keyOf(f);
+  const tk = teamKeyOf(f);
   const home = f.home.name, away = f.away.name;
   const cs = [canon(f.home.country || home), canon(f.away.country || away)];
   const mins = f.date ? (f.date - now) / 60000 : NaN;
@@ -105,44 +116,36 @@ function buildEvents(f: Fixture, prev: State | undefined, coldStart: boolean, no
   let almost = prev?.almost_sent ?? false;
   let halftime = prev?.halftime_sent ?? false;
   let secondhalf = prev?.secondhalf_sent ?? false;
-  const score = `${f.home_score ?? 0}\u2013${f.away_score ?? 0}`;
+  const score = `${f.home_score ?? 0}–${f.away_score ?? 0}`;
 
   if (!coldStart) {
-    // STARTING SOON (~15 min)
     if (notStarted && soonWindow && !startsoon) {
       const m = Math.max(1, Math.round(mins));
-      events.push({ kind: "startingSoon", title: "Starting soon", body: `${home} vs ${away} kicks off in ${m} min`, tag: `pp-soon-${key}`, countries: cs });
+      events.push({ kind: "startingSoon", title: "Starting soon", body: `${home} vs ${away} kicks off in ${m} min`, tag: `pp-soon-${key}`, countries: cs, teamKey: tk });
       startsoon = true;
     }
-    // ABOUT TO START (~1 min)
     if (notStarted && almostWindow && !almost) {
-      events.push({ kind: "almostKickoff", title: "About to start", body: `${home} vs ${away} kicks off in 1 min`, tag: `pp-almost-${key}`, countries: cs });
+      events.push({ kind: "almostKickoff", title: "About to start", body: `${home} vs ${away} kicks off in 1 min`, tag: `pp-almost-${key}`, countries: cs, teamKey: tk });
       almost = true;
     }
-    // KICKOFF (transition into live)
     if (c.live && (!prev || !prev.live)) {
-      events.push({ kind: "kickoff", title: "Kick-off", body: `${home} vs ${away} is under way`, tag: `pp-kickoff-${key}`, countries: cs });
+      events.push({ kind: "kickoff", title: "Kick-off", body: `${home} vs ${away} is under way`, tag: `pp-kickoff-${key}`, countries: cs, teamKey: tk });
     } else if (c.live && prev && prev.live && c.total > prev.total) {
-      // GOAL
       const min = f.minute ? ` (${f.minute}')` : "";
-      events.push({ kind: "goal", title: "Goal", body: `${home} ${score} ${away}${min}`, tag: `pp-goal-${key}-${c.total}`, countries: cs });
+      events.push({ kind: "goal", title: "Goal", body: `${home} ${score} ${away}${min}`, tag: `pp-goal-${key}-${c.total}`, countries: cs, teamKey: tk });
     }
-    // HALF-TIME (best-effort on feed signal)
     if (halftimeNow && !halftime) {
-      events.push({ kind: "halftime", title: "Half-time", body: `${home} ${score} ${away}`, tag: `pp-ht-${key}`, countries: cs });
+      events.push({ kind: "halftime", title: "Half-time", body: `${home} ${score} ${away}`, tag: `pp-ht-${key}`, countries: cs, teamKey: tk });
       halftime = true;
     }
-    // SECOND HALF (resumed live after a half-time we saw)
     if (c.live && !halftimeNow && halftime && !secondhalf) {
-      events.push({ kind: "secondHalf", title: "Second half", body: `Second half under way: ${home} ${score} ${away}`, tag: `pp-2h-${key}`, countries: cs });
+      events.push({ kind: "secondHalf", title: "Second half", body: `Second half under way: ${home} ${score} ${away}`, tag: `pp-2h-${key}`, countries: cs, teamKey: tk });
       secondhalf = true;
     }
-    // FULL-TIME (only for matches we actually saw live)
     if (c.finished && prev && prev.live) {
-      events.push({ kind: "fulltime", title: "Full-time", body: `${home} ${score} ${away}`, tag: `pp-ft-${key}`, countries: cs });
+      events.push({ kind: "fulltime", title: "Full-time", body: `${home} ${score} ${away}`, tag: `pp-ft-${key}`, countries: cs, teamKey: tk });
     }
   } else {
-    // Cold start: seed flags so we don't fire for matches already past these points.
     if (notStarted && soonWindow) startsoon = true;
     if (notStarted && almostWindow) almost = true;
     if (halftimeNow) halftime = true;
@@ -165,9 +168,18 @@ Deno.serve(async (req: Request) => {
   const { data: subRows } = await supabase.from("push_subscriptions").select("endpoint, p256dh, auth, topics, prefs");
   const subs = (subRows ?? []) as Sub[];
 
+  // Per-match "Notify me" follows: endpoint -> set of team keys.
+  const { data: followRows } = await supabase.from("match_follows").select("team_key, endpoint");
+  const followsByEp = new Map<string, Set<string>>();
+  for (const r of (followRows ?? []) as Array<{ team_key: string; endpoint: string }>) {
+    const set = followsByEp.get(r.endpoint) ?? new Set<string>();
+    set.add(r.team_key);
+    followsByEp.set(r.endpoint, set);
+  }
+
   if (mode === "test") {
     const payload = JSON.stringify({
-      title: "PrimePitch", body: "Test alert \u2014 delivery works.",
+      title: "PrimePitch", body: "Test alert — delivery works.",
       url: "/", icon: "/icon-192.png", badge: "/icon-192.png",
       actions: [{ action: "open", title: "Open PrimePitch" }], tag: "pp-test",
     });
@@ -176,7 +188,6 @@ Deno.serve(async (req: Request) => {
     return json({ mode, subscribers: subs.length, sent: ok });
   }
 
-  // Cost guard: nobody subscribed at all → don't even poll for scores.
   if (mode === "run" && subs.length === 0) {
     return json({ mode, skipped: "no subscribers", polled: false });
   }
@@ -232,7 +243,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (mode === "inspect") {
-    return json({ mode, coldStart, subscribers: subs.length, tracked: upserts.length, events: allEvents, seen });
+    return json({ mode, coldStart, subscribers: subs.length, follows: followsByEp.size, tracked: upserts.length, events: allEvents, seen });
   }
 
   if (upserts.length > 0) await supabase.from("push_match_state").upsert(upserts, { onConflict: "match_key" });
@@ -248,9 +259,13 @@ Deno.serve(async (req: Request) => {
       });
       const okEps: string[] = [];
       for (const { s, p } of parsed) {
-        if (!p.alerts[ev.kind]) continue;
-        const inScope = p.wcAll || ev.countries.some((c) => new Set(p.countries.map(canon)).has(c));
-        if (!inScope) continue;
+        const follows = followsByEp.get(s.endpoint);
+        const followsThis = follows ? follows.has(ev.teamKey) : false;
+        const broad = p.wcAll || ev.countries.some((c) => new Set(p.countries.map(canon)).has(c));
+        // per-match follow forces the standard set; broad scope respects toggles.
+        const allowByFollow = followsThis && PER_MATCH_ALERTS.has(ev.kind);
+        const allowByBroad = broad && p.alerts[ev.kind];
+        if (!allowByFollow && !allowByBroad) continue;
         if (await sendTo(s, payload)) { sent++; okEps.push(s.endpoint); }
       }
       if (okEps.length > 0) {
