@@ -69,6 +69,11 @@ export default function AdminAdsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  // Which ad rows are expanded. Multiple can be open at once.
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+
+  const toggleOpen = (key: string) =>
+    setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
 
   useEffect(() => {
     fetch("/api/admin/ads-config", { cache: "no-store" })
@@ -139,6 +144,73 @@ export default function AdminAdsPage() {
     }
   }
 
+  // A tappable row header: title + status pill + isolated toggle + chevron.
+  // Tapping the row expands/collapses; the toggle (stopPropagation) flips
+  // on/off WITHOUT expanding. Used for every ad so the page stays compact.
+  const headerRow = (
+    keyId: string,
+    title: string,
+    subtitle: string,
+    enabled: boolean,
+    onToggle: () => void
+  ) => (
+    <button
+      type="button"
+      onClick={() => toggleOpen(keyId)}
+      className="w-full flex items-center gap-3 p-4 text-left"
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-gray-900 truncate">{title}</span>
+          <span
+            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+              enabled ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            {enabled ? "On" : "Off"}
+          </span>
+        </div>
+        <p className="text-[12px] text-gray-500 mt-0.5 truncate">{subtitle}</p>
+      </div>
+      <span
+        role="switch"
+        aria-checked={enabled}
+        aria-label={`Toggle ${title}`}
+        tabIndex={0}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggle();
+          }
+        }}
+        className={`relative w-10 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${
+          enabled ? "bg-emerald-500" : "bg-gray-300"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
+            enabled ? "left-[18px]" : "left-0.5"
+          }`}
+        />
+      </span>
+      <svg
+        className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${
+          open[keyId] ? "rotate-180" : ""
+        }`}
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+  );
+
   if (loading) {
     return <div className="p-6 text-sm text-gray-500">Loading…</div>;
   }
@@ -193,30 +265,26 @@ export default function AdminAdsPage() {
         </select>
       </div>
 
-      {/* Per-format cards */}
+      {/* Per-format cards (accordion rows) */}
       {formatIds.map((id) => {
         const f = cfg.formats[id];
+        const sub = (f.src || "").includes("vignette")
+          ? "Full-screen banner shown between page views."
+          : "Dismissible push-style ad.";
         return (
-          <div key={id} className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-bold text-gray-900">{f.label}</span>
-                <p className="text-[13px] text-gray-600 mt-0.5">
-                  Dismissible banner-style ad with a close button.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => updateFormat(id, { enabled: !f.enabled })}
-                className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${f.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
-                aria-label={`Toggle ${f.label}`}
-              >
-                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${f.enabled ? "left-[18px]" : "left-0.5"}`} />
-              </button>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-gray-800">Zone ID</label>
+          <div
+            key={id}
+            className={`rounded-2xl border overflow-hidden ${
+              f.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"
+            }`}
+          >
+            {headerRow(id, f.label, sub, f.enabled, () =>
+              updateFormat(id, { enabled: !f.enabled })
+            )}
+            {open[id] && (
+              <div className="px-5 pb-5 pt-1 space-y-4 border-t border-gray-100">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-gray-800">Zone ID</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -287,28 +355,23 @@ export default function AdminAdsPage() {
                 {" "}Saved in the browser, so it is a best-effort cap, not exact.
               </p>
             </div>
+              </div>
+            )}
           </div>
         );
       })}
 
       {/* ── Pre-roll Video (VAST) ───────────────────────── */}
-      <div className={`rounded-2xl border p-5 space-y-4 ${cfg.preroll.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-[15px] font-bold text-gray-900">Pre-roll Video</h3>
-            <p className="text-[12px] text-gray-500 mt-0.5">
-              Plays a short video ad before the stream on the watch page. If no ad is available, the stream shows immediately.
-            </p>
-          </div>
-          <button
-            onClick={() => updatePreroll({ enabled: !cfg.preroll.enabled })}
-            className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${cfg.preroll.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
-            aria-label="Toggle pre-roll"
-          >
-            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${cfg.preroll.enabled ? "left-[18px]" : "left-0.5"}`} />
-          </button>
-        </div>
-
+      <div className={`rounded-2xl border overflow-hidden ${cfg.preroll.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
+        {headerRow(
+          "preroll",
+          "Pre-roll Video",
+          "Short video ad before the stream (VAST).",
+          cfg.preroll.enabled,
+          () => updatePreroll({ enabled: !cfg.preroll.enabled })
+        )}
+        {open["preroll"] && (
+          <div className="px-5 pb-5 pt-1 space-y-4 border-t border-gray-100">
         <div className="space-y-1.5">
           <label className="text-[13px] font-semibold text-gray-800">VAST tag URL</label>
           <input
@@ -414,6 +477,8 @@ export default function AdminAdsPage() {
         <p className="text-[12px] text-gray-500">
           “Skip after” is best-effort — the ad’s own skip timer can override it. “No-ad wait” is how long to wait for an ad before giving up and showing the stream.
         </p>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
