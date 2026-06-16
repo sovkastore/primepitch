@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 const KEY = "ads_config";
 
-type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
+type Delay = "0" | "15s" | "30s" | "1m" | "2m" | "3m" | "4m" | "5m" | "10m";
 type FmtPlacement = "all" | "watch" | "home";
 type Format = {
   label: string;
@@ -44,12 +44,13 @@ const DEFAULTS: AdsConfig = {
     vignette: { label: "Vignette Banner", enabled: false, network: "Monetag", group: "interstitial", placement: "all", zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
     social_bar: { label: "Social Bar", enabled: false, network: "Adsterra", group: "notification", placement: "all", zone: "", src: "", cap: 60, delay: "0" },
     popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "watch", zone: "", src: "", cap: 0, delay: "0" },
+    monetag_popunder: { label: "Popunder", enabled: false, network: "Monetag", group: "popunder", placement: "home", zone: "11157914", src: "https://al5sm.com/tag.min.js", cap: 0, delay: "0" },
   },
   preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
 };
 
 const ALLOWED_DOMAINS = new Set(["all", "workers_dev", "xellnetwork"]);
-const ALLOWED_DELAYS = new Set(["0", "1m", "2m", "3m", "5m", "10m"]);
+const ALLOWED_DELAYS = new Set(["0", "15s", "30s", "1m", "2m", "3m", "4m", "5m", "10m"]);
 const MAX_CAP_MIN = 10080; // 7 days
 
 // minutes between loads; 0 = no limit. Tolerates legacy string values.
@@ -61,7 +62,7 @@ function cleanCap(v: unknown): number {
 }
 // These two always render so the core toggles never disappear; any other
 // (admin-created or seeded) format is allowed too. Only the admin can POST here.
-const CORE_FORMATS = ["inpage_push", "vignette", "social_bar", "popunder"];
+const CORE_FORMATS = ["inpage_push", "vignette", "social_bar", "popunder", "monetag_popunder"];
 const ALLOWED_FMT_PLACEMENTS = new Set(["all", "watch", "home"]);
 const MAX_FORMATS = 24;
 

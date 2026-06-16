@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 
-type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
+type Delay = "0" | "15s" | "30s" | "1m" | "2m" | "3m" | "4m" | "5m" | "10m";
 type Unit = "off" | "minutes" | "hours";
 type FmtPlacement = "all" | "watch" | "home";
 type Format = {
@@ -46,6 +46,7 @@ const DEFAULTS: AdsConfig = {
     vignette: { label: "Vignette Banner", enabled: false, network: "Monetag", group: "interstitial", placement: "all", zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
     social_bar: { label: "Social Bar", enabled: false, network: "Adsterra", group: "notification", placement: "all", zone: "", src: "", cap: 60, delay: "0" },
     popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "watch", zone: "", src: "", cap: 0, delay: "0" },
+    monetag_popunder: { label: "Popunder", enabled: false, network: "Monetag", group: "popunder", placement: "home", zone: "11157914", src: "https://al5sm.com/tag.min.js", cap: 0, delay: "0" },
   },
   preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
 };
@@ -145,6 +146,20 @@ export default function AdminAdsPage() {
   // Toggle an ad on/off. Independent — enabling one no longer affects any other.
   function setFormatEnabled(id: string, enabled: boolean) {
     updateFormat(id, { enabled });
+  }
+
+  // Master switch for a whole network category: turns every ad in that network
+  // on or off at once.
+  function setNetworkEnabled(net: string, enabled: boolean) {
+    setCfg((prev) => {
+      const formats = { ...prev.formats };
+      for (const id of Object.keys(formats)) {
+        if ((formats[id].network?.trim() || "Other") === net) {
+          formats[id] = { ...formats[id], enabled };
+        }
+      }
+      return { ...prev, formats };
+    });
   }
 
   function addFormat() {
@@ -300,13 +315,14 @@ export default function AdminAdsPage() {
   const formatIds = Object.keys(cfg.formats);
   const grouped: Record<string, string[]> = {};
   for (const id of formatIds) {
-    const g = cfg.formats[id].group || "standalone";
-    if (!grouped[g]) grouped[g] = [];
-    grouped[g].push(id);
+    const net = cfg.formats[id].network?.trim() || "Other";
+    if (!grouped[net]) grouped[net] = [];
+    grouped[net].push(id);
   }
+  const NETWORK_ORDER = ["Monetag", "Adsterra"];
   const orderedGroups = [
-    ...GROUP_OPTIONS.filter((g) => grouped[g]?.length),
-    ...Object.keys(grouped).filter((g) => !GROUP_OPTIONS.includes(g)),
+    ...NETWORK_ORDER.filter((n) => grouped[n]?.length),
+    ...Object.keys(grouped).filter((n) => !NETWORK_ORDER.includes(n)).sort(),
   ];
 
   return (
@@ -357,15 +373,28 @@ export default function AdminAdsPage() {
         </select>
       </div>
 
-      {/* Ads grouped by category */}
-      {orderedGroups.map((catg) => (
-        <div key={catg} className="space-y-3">
-          <h2 className="px-1 text-[12px] font-bold uppercase tracking-wide text-gray-400">
-            {GROUP_LABELS[catg] ?? "Other"}
-          </h2>
-          {formatIds
-            .filter((id) => (cfg.formats[id].group || "standalone") === catg)
-            .map((id) => {
+      {/* Ads grouped by network, each with a master switch for the whole group */}
+      {orderedGroups.map((net) => {
+        const ids = formatIds.filter(
+          (id) => (cfg.formats[id].network?.trim() || "Other") === net
+        );
+        const anyOn = ids.some((id) => cfg.formats[id].enabled);
+        return (
+        <div key={net} className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-[12px] font-bold uppercase tracking-wide text-gray-400">
+              {net} <span className="normal-case text-gray-300">· {anyOn ? "on" : "off"}</span>
+            </h2>
+            <button
+              type="button"
+              onClick={() => setNetworkEnabled(net, !anyOn)}
+              aria-label={`Toggle all ${net} ads`}
+              className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${anyOn ? "bg-emerald-500" : "bg-gray-300"}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${anyOn ? "left-[18px]" : "left-0.5"}`} />
+            </button>
+          </div>
+          {ids.map((id) => {
         const f = cfg.formats[id];
         const sub = f.src ? "Tag added" : "No tag yet";
         return (
@@ -406,22 +435,6 @@ export default function AdminAdsPage() {
                       className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                     />
                   </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-gray-800">Category</label>
-                  <select
-                    value={f.group}
-                    onChange={(e) => updateFormat(id, { group: e.target.value })}
-                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                  >
-                    {GROUP_OPTIONS.map((g) => (
-                      <option key={g} value={g}>{GROUP_LABELS[g]}</option>
-                    ))}
-                  </select>
-                  <p className="text-[12px] text-gray-500">
-                    Which section this ad appears under on this page. Organizing only — it doesn’t change how ads run.
-                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -468,11 +481,13 @@ export default function AdminAdsPage() {
                 className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
               >
                 <option value="0">No delay (show right away)</option>
+                <option value="15s">After 15 seconds</option>
+                <option value="30s">After 30 seconds</option>
                 <option value="1m">After 1 minute</option>
                 <option value="2m">After 2 minutes</option>
                 <option value="3m">After 3 minutes</option>
+                <option value="4m">After 4 minutes</option>
                 <option value="5m">After 5 minutes</option>
-                <option value="10m">After 10 minutes</option>
               </select>
               <p className="text-[12px] text-gray-500">
                 How long a visitor must be on the site before this ad first appears.
@@ -527,7 +542,8 @@ export default function AdminAdsPage() {
         );
           })}
         </div>
-      ))}
+        );
+      })}
 
       <button
         type="button"

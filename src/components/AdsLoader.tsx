@@ -42,7 +42,7 @@ function capAllows(id: string, cap: Cap | undefined): boolean {
 }
 
 // How long to wait after the visitor lands before the ad first appears.
-const DELAY_SECONDS: Record<string, number> = { "1m": 60, "2m": 120, "3m": 180, "5m": 300, "10m": 600 };
+const DELAY_SECONDS: Record<string, number> = { "15s": 15, "30s": 30, "1m": 60, "2m": 120, "3m": 180, "4m": 240, "5m": 300, "10m": 600 };
 function delaySeconds(d?: string): number {
   return (d && DELAY_SECONDS[d]) || 0;
 }
