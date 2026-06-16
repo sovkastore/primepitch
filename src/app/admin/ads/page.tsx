@@ -68,15 +68,13 @@ const MODE_LABELS: Record<Mode, string> = {
   gate: "Gate — show a black loading screen while checking for an ad",
 };
 
-// Ad "family". Turning one ad in a family ON auto-turns-OFF the others in the
-// same family, so you never run two of the same format at once (e.g. Monetag
-// In-Page Push vs Adsterra Social Bar).
+// Ad categories — purely for organizing the page into sections.
 const GROUP_LABELS: Record<string, string> = {
-  notification: "Notification (in-page push / social bar)",
+  notification: "Notification ads (in-page push / social bar)",
   interstitial: "Interstitial / Vignette",
   popunder: "Popunder",
   native: "Native banner",
-  standalone: "Standalone (never auto-off)",
+  standalone: "Other",
 };
 const GROUP_OPTIONS = Object.keys(GROUP_LABELS);
 
@@ -144,22 +142,9 @@ export default function AdminAdsPage() {
     }));
   }
 
-  // Toggle an ad on/off. Turning one ON auto-turns-OFF every other ad in the
-  // same family (group) so you never run two of the same format at once.
+  // Toggle an ad on/off. Independent — enabling one no longer affects any other.
   function setFormatEnabled(id: string, enabled: boolean) {
-    setCfg((prev) => {
-      const formats = { ...prev.formats };
-      const grp = formats[id]?.group;
-      formats[id] = { ...formats[id], enabled };
-      if (enabled && grp && grp !== "standalone") {
-        for (const k of Object.keys(formats)) {
-          if (k !== id && formats[k].group === grp && formats[k].enabled) {
-            formats[k] = { ...formats[k], enabled: false };
-          }
-        }
-      }
-      return { ...prev, formats };
-    });
+    updateFormat(id, { enabled });
   }
 
   function addFormat() {
@@ -313,6 +298,16 @@ export default function AdminAdsPage() {
   }
 
   const formatIds = Object.keys(cfg.formats);
+  const grouped: Record<string, string[]> = {};
+  for (const id of formatIds) {
+    const g = cfg.formats[id].group || "standalone";
+    if (!grouped[g]) grouped[g] = [];
+    grouped[g].push(id);
+  }
+  const orderedGroups = [
+    ...GROUP_OPTIONS.filter((g) => grouped[g]?.length),
+    ...Object.keys(grouped).filter((g) => !GROUP_OPTIONS.includes(g)),
+  ];
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-5">
@@ -362,10 +357,17 @@ export default function AdminAdsPage() {
         </select>
       </div>
 
-      {/* Per-format cards (accordion rows) */}
-      {formatIds.map((id) => {
+      {/* Ads grouped by category */}
+      {orderedGroups.map((catg) => (
+        <div key={catg} className="space-y-3">
+          <h2 className="px-1 text-[12px] font-bold uppercase tracking-wide text-gray-400">
+            {GROUP_LABELS[catg] ?? "Other"}
+          </h2>
+          {formatIds
+            .filter((id) => (cfg.formats[id].group || "standalone") === catg)
+            .map((id) => {
         const f = cfg.formats[id];
-        const sub = GROUP_LABELS[f.group] ?? "Standalone ad";
+        const sub = f.src ? "Tag added" : "No tag yet";
         return (
           <div
             key={id}
@@ -407,7 +409,7 @@ export default function AdminAdsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-gray-800">Ad family (auto-off group)</label>
+                  <label className="text-[13px] font-semibold text-gray-800">Category</label>
                   <select
                     value={f.group}
                     onChange={(e) => updateFormat(id, { group: e.target.value })}
@@ -418,7 +420,7 @@ export default function AdminAdsPage() {
                     ))}
                   </select>
                   <p className="text-[12px] text-gray-500">
-                    Turning this ad on switches off any other ad in the same family, so you never run two of the same format at once.
+                    Which section this ad appears under on this page. Organizing only — it doesn’t change how ads run.
                   </p>
                 </div>
 
@@ -523,7 +525,9 @@ export default function AdminAdsPage() {
             )}
           </div>
         );
-      })}
+          })}
+        </div>
+      ))}
 
       <button
         type="button"
