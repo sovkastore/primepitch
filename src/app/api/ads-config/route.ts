@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { getMatches, getMatchStatus, type Match } from "@/lib/api";
+import { getMatches, type Match } from "@/lib/api";
 
 // Public: ad configuration the client uses to decide whether to inject any ad
 // tags. When master is false, the site injects nothing at all.
@@ -63,6 +63,11 @@ async function finishedPairs(): Promise<Set<string>> {
   }
 }
 
+// Auto popunder window: start 1 minute BEFORE kickoff (matches the 1-min
+// "starting soon" push) and run until ~3h after kickoff (or until finished).
+const AD_LEAD_MIN = 1;
+const AD_WINDOW_MIN = 180;
+
 // Short cache so we don't recompute live football on every page load.
 let liveCache: { live: Match[]; ts: number } | null = null;
 async function footballLive(): Promise<Match[]> {
@@ -71,7 +76,10 @@ async function footballLive(): Promise<Match[]> {
     const [matches, finished] = await Promise.all([getMatches("football"), finishedPairs()]);
     const live = matches.filter((m) => {
       if (m.ended) return false;
-      if (getMatchStatus(m) !== "live") return false;
+      // Go live 1 minute BEFORE kickoff so people who tap the "starting soon"
+      // alert and load the page land inside the ad window.
+      const diffMin = (m.date - Date.now()) / 60_000;
+      if (!(diffMin <= AD_LEAD_MIN && diffMin > -AD_WINDOW_MIN)) return false;
       // Drop anything the finish-notification system already ended.
       const k = pairKey(m.teams?.home?.name, m.teams?.away?.name);
       if (k && finished.has(k)) return false;
