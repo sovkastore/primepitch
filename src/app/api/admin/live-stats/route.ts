@@ -53,7 +53,7 @@ export async function GET() {
 
     const activePages = Object.entries(pageViewers)
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
+      .slice(0, 50)
       .map(([path, viewers]) => ({ path, viewers }));
 
     // Recent activity (last 20 page views)

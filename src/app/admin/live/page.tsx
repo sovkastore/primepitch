@@ -1,14 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-} from "recharts";
 import ChartWrapper from "@/components/admin/ChartWrapper";
 import StreamOverrideModal from "@/components/admin/StreamOverrideModal";
 import { getAllMatches, getMatchStatus } from "@/lib/api";
 import { normTitle } from "@/lib/match-merge";
-import { useIsMobile } from "@/lib/use-is-mobile";
 import { visibleInterval } from "@/lib/poll";
 
 // PULSE — real-time only. What is happening on the site this minute. Historical
@@ -34,7 +30,6 @@ export default function PulsePage() {
   const [feedStatus, setFeedStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
   const [titleStatus, setTitleStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
   const [overrideModal, setOverrideModal] = useState<{ matchId: string; append: boolean; title: string } | null>(null);
-  const isMobile = useIsMobile();
 
   useEffect(() => {
     let on = true;
@@ -103,6 +98,15 @@ export default function PulsePage() {
     return rec?.match_title || getMatchTitle(matchId);
   }
 
+  // Friendly label for a page path in "Live active page": Home for "/", the real
+  // match title for /watch/<id> pages, otherwise the prettified path.
+  function pageLabel(path: string): string {
+    if (!path || path === "/") return "Home";
+    if (path.startsWith("/watch/")) return titleFor(decodeURIComponent(path.slice(7)));
+    const s = path.replace(/^\//, "");
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
   async function renameMatch(matchId: string) {
     const name = window.prompt("New match name (shown to visitors on live lists and used in analytics):", titleFor(matchId));
     if (!name || !name.trim() || name.trim() === titleFor(matchId)) return;
@@ -141,10 +145,9 @@ export default function PulsePage() {
     ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "upcoming").reduce((sum, m) => sum + m.viewers, 0)
     : 0;
 
-  // Split active match pages: live matches get their own container; everything
-  // else (pre-kickoff / ended) stays under "On match pages now".
+  // Live matches get their own container; the "Live active page" list below
+  // covers everyone else (including everyone on non-match pages).
   const liveActive = data.activeMatches.filter((m) => rowStatus(m.match_id) === "live");
-  const nonLiveActive = data.activeMatches.filter((m) => rowStatus(m.match_id) !== "live");
 
   // Shared row used by both containers.
   const renderActiveRow = (m: { match_id: string; viewers: number; peak?: number; unique?: number | null }) => (
@@ -211,7 +214,7 @@ export default function PulsePage() {
       </div>
 
       {/* Real-time headline */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 text-center">
           <p className="text-3xl sm:text-5xl font-black text-emerald-600 tabular-nums">{data.onlineNow ?? data.totalActive}</p>
           <p className="text-[11px] sm:text-sm text-gray-500 mt-2 font-medium">Online Now</p>
@@ -220,12 +223,17 @@ export default function PulsePage() {
         <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 text-center">
           <p className="text-3xl sm:text-5xl font-black text-emerald-600 tabular-nums">{trueLiveViewers}</p>
           <p className="text-[11px] sm:text-sm text-gray-500 mt-2 font-medium">Watching Live</p>
-          <p className="text-[10px] text-gray-400">{endedViewers > 0 ? `+${endedViewers} on ended` : "on a stream now"}</p>
+          <p className="text-[10px] text-gray-400">on a stream now</p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 text-center">
           <p className="text-3xl sm:text-5xl font-black text-emerald-600 tabular-nums">{waitingViewers}</p>
           <p className="text-[11px] sm:text-sm text-gray-500 mt-2 font-medium">Waiting</p>
           <p className="text-[10px] text-gray-400">pre-kickoff</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 text-center">
+          <p className="text-3xl sm:text-5xl font-black text-emerald-600 tabular-nums">{endedViewers}</p>
+          <p className="text-[11px] sm:text-sm text-gray-500 mt-2 font-medium">Match Ended</p>
+          <p className="text-[10px] text-gray-400">on an ended page</p>
         </div>
       </div>
 
@@ -238,30 +246,23 @@ export default function PulsePage() {
         )}
       </ChartWrapper>
 
-      <div className="grid lg:grid-cols-2 gap-4">
-        <ChartWrapper title="On match pages now">
-          {nonLiveActive.length > 0 ? (
-            <div className="space-y-2">{nonLiveActive.map(renderActiveRow)}</div>
-          ) : (
-            <p className="text-sm text-gray-400 text-center py-8">No one waiting on a match page right now</p>
-          )}
-        </ChartWrapper>
-
-        <ChartWrapper title="Active by page">
-          {data.activePages.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={data.activePages.slice(0, 8)} layout="vertical" margin={{ left: isMobile ? 8 : 80 }}>
-                <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
-                <YAxis type="category" dataKey="path" tick={{ fontSize: 10 }} width={isMobile ? 64 : 80} tickFormatter={(v) => { const s = v === "/" ? "Home" : v.replace(/^\//, ""); return s.length > (isMobile ? 9 : 15) ? s.slice(0, isMobile ? 9 : 15) + "…" : s; }} />
-                <Tooltip />
-                <Bar dataKey="viewers" fill="#059669" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-sm text-gray-400 text-center py-8">No active viewers</p>
-          )}
-        </ChartWrapper>
-      </div>
+      <ChartWrapper title="Live active page">
+        {data.activePages.length > 0 ? (
+          <div className="space-y-2">
+            {data.activePages.map((p) => (
+              <div key={p.path} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50">
+                <span className="text-[13px] text-gray-700 truncate min-w-0">{pageLabel(p.path)}</span>
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="text-[13px] font-bold text-emerald-600 tabular-nums">{p.viewers}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 text-center py-8">No one online right now</p>
+        )}
+      </ChartWrapper>
 
       <ChartWrapper title="Recent Activity">
         {data.recentActivity.length > 0 ? (
