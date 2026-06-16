@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 
 type Cap = number | string; // minutes (number); legacy string keys still tolerated
 type FmtPlacement = "all" | "watch" | "home";
@@ -69,20 +70,29 @@ function injectScript(id: string, src: string, zone: string) {
 }
 
 export default function AdsLoader() {
+  const pathname = usePathname();
+  const cfgRef = useRef<AdsConfig | null>(null);
+
   useEffect(() => {
     let done = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
     (async () => {
       try {
-        const res = await fetch("/api/ads-config", { cache: "no-store" });
-        if (!res.ok) return;
-        const cfg = (await res.json()) as AdsConfig;
+        // Fetch the config once, then reuse it on later navigations.
+        let cfg = cfgRef.current;
+        if (!cfg) {
+          const res = await fetch("/api/ads-config", { cache: "no-store" });
+          if (!res.ok) return;
+          cfg = (await res.json()) as AdsConfig;
+          cfgRef.current = cfg;
+        }
         if (done || !cfg?.master) return; // master kill-switch
-        if (window.location.pathname.startsWith("/admin")) return; // never on admin
+        const path = pathname || window.location.pathname;
+        if (path.startsWith("/admin")) return; // never on admin
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
         for (const [id, f] of Object.entries(cfg.formats || {})) {
           if (!f?.enabled) continue;
-          if (!placementAllows(f.placement, window.location.pathname)) continue;
+          if (!placementAllows(f.placement, path)) continue; // re-checked per page
           const t = setTimeout(() => {
             if (done) return;
             if (!capAllows(id, f.cap)) return; // cap checked only when we actually show
@@ -98,6 +108,6 @@ export default function AdsLoader() {
       done = true;
       timers.forEach(clearTimeout);
     };
-  }, []);
+  }, [pathname]);
   return null;
 }
