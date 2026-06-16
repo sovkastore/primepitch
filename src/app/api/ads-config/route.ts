@@ -19,13 +19,64 @@ function keyOf(m: Match): string {
   return s ? `${s.source}--${s.id}` : m.id;
 }
 
+// Fold a team name for order-independent matching against push_match_state.
+const TEAM_ALIASES: Record<string, string> = {
+  southkorea: "korearepublic", korea: "korearepublic",
+  usa: "unitedstates", us: "unitedstates", unitedstatesofamerica: "unitedstates",
+  ivorycoast: "cotedivoire", czechrepublic: "czechia", holland: "netherlands",
+};
+function foldTeam(s: string): string {
+  const n = (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+  return TEAM_ALIASES[n] || n;
+}
+function pairKey(a?: string, b?: string): string | null {
+  const x = foldTeam(a || "");
+  const y = foldTeam(b || "");
+  if (!x || !y) return null;
+  return [x, y].sort().join("|");
+}
+
+// Matches our finish-notification system has already marked FINISHED. This is
+// the accurate, immediate signal (same data that fires the "match ended" push),
+// so a just-finished match stops counting as live right away — not after the
+// kickoff window expires.
+async function finishedPairs(): Promise<Set<string>> {
+  try {
+    const since = new Date(Date.now() - 12 * 3_600_000).toISOString();
+    const { data } = await getSupabaseAdmin()
+      .from("push_match_state")
+      .select("home_team, away_team")
+      .eq("finished", true)
+      .gte("updated_at", since);
+    const set = new Set<string>();
+    for (const r of (data ?? []) as Array<{ home_team: string | null; away_team: string | null }>) {
+      const k = pairKey(r.home_team || "", r.away_team || "");
+      if (k) set.add(k);
+    }
+    return set;
+  } catch {
+    return new Set();
+  }
+}
+
 // Short cache so we don't recompute live football on every page load.
 let liveCache: { live: Match[]; ts: number } | null = null;
 async function footballLive(): Promise<Match[]> {
   if (liveCache && Date.now() - liveCache.ts < 15_000) return liveCache.live;
   try {
-    const matches = await getMatches("football");
-    const live = matches.filter((m) => !m.ended && getMatchStatus(m) === "live");
+    const [matches, finished] = await Promise.all([getMatches("football"), finishedPairs()]);
+    const live = matches.filter((m) => {
+      if (m.ended) return false;
+      if (getMatchStatus(m) !== "live") return false;
+      // Drop anything the finish-notification system already ended.
+      const k = pairKey(m.teams?.home?.name, m.teams?.away?.name);
+      if (k && finished.has(k)) return false;
+      return true;
+    });
     liveCache = { live, ts: Date.now() };
     return live;
   } catch {
