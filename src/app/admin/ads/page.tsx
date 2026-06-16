@@ -85,6 +85,22 @@ const FMT_PLACEMENT_LABELS: Record<FmtPlacement, string> = {
   home: "Home page only",
 };
 
+// Quick-pick frequencies (minutes). 0 = no limit.
+const CAP_PRESETS: { label: string; m: number }[] = [
+  { label: "No limit", m: 0 },
+  { label: "1m", m: 1 },
+  { label: "2m", m: 2 },
+  { label: "5m", m: 5 },
+  { label: "10m", m: 10 },
+  { label: "15m", m: 15 },
+  { label: "30m", m: 30 },
+  { label: "1h", m: 60 },
+  { label: "2h", m: 120 },
+  { label: "6h", m: 360 },
+  { label: "12h", m: 720 },
+  { label: "24h", m: 1440 },
+];
+
 // Legacy string caps -> minutes (for configs saved before numeric caps).
 function toMinutes(v: unknown): number {
   const legacy: Record<string, number> = { off: 0, "30m": 30, "1h": 60, "2h": 120, "24h": 1440 };
@@ -213,6 +229,16 @@ export default function AdminAdsPage() {
     if (!Number.isFinite(n) || n < 1) n = 1;
     const mins = Math.min(unit === "hours" ? n * 60 : n, MAX_CAP_MIN);
     updateFormat(id, { cap: mins });
+  }
+
+  // Set the cap directly in minutes (used by the quick-pick presets).
+  function setCap(id: string, mins: number) {
+    const m = Math.min(Math.max(0, Math.floor(mins)), MAX_CAP_MIN);
+    setUnits((prev) => ({
+      ...prev,
+      [id]: m === 0 ? "off" : m % 60 === 0 ? "hours" : "minutes",
+    }));
+    updateFormat(id, { cap: m });
   }
 
   async function save() {
@@ -496,6 +522,25 @@ export default function AdminAdsPage() {
 
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-gray-800">How often per visitor</label>
+              <div className="flex flex-wrap gap-1.5">
+                {CAP_PRESETS.map((p) => {
+                  const active = (f.cap || 0) === p.m;
+                  return (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setCap(id, p.m)}
+                      className={`px-2.5 py-1 rounded-full text-[12px] font-semibold border transition-colors ${
+                        active
+                          ? "bg-emerald-500 border-emerald-500 text-white"
+                          : "bg-white border-gray-200 text-gray-600 hover:border-emerald-400"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
               <div className="flex gap-2">
                 {(units[id] ?? "off") !== "off" && (
                   <input
