@@ -15,6 +15,9 @@ type Format = {
   src: string;
   cap: number;
   delay: Delay;
+  mode?: "off" | "on" | "auto";
+  autoScope?: "all" | "selected";
+  autoMatches?: string[];
 };
 type Trigger = "visit" | "interval" | "match" | "server";
 type Placement = "watch" | "home" | "both";
@@ -151,6 +154,16 @@ export async function POST(request: NextRequest) {
         src,
         cap: cleanCap(f.cap),
         delay: ALLOWED_DELAYS.has(f.delay as string) ? (f.delay as Delay) : "0",
+        ...(["off", "on", "auto"].includes(f.mode as string)
+          ? { mode: f.mode as "off" | "on" | "auto" }
+          : {}),
+        autoScope: f.autoScope === "selected" ? "selected" : "all",
+        autoMatches: Array.isArray(f.autoMatches)
+          ? f.autoMatches
+              .filter((x): x is string => typeof x === "string")
+              .slice(0, 60)
+              .map((x) => x.slice(0, 100))
+          : [],
       };
     }
     // Make sure the core formats exist (so toggles always render).

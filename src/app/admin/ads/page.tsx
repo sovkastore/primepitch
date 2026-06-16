@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 type Delay = "0" | "15s" | "30s" | "1m" | "2m" | "3m" | "4m" | "5m" | "10m";
 type Unit = "off" | "minutes" | "hours";
@@ -15,7 +15,11 @@ type Format = {
   src: string;
   cap: number;
   delay: Delay;
+  mode?: "off" | "on" | "auto";
+  autoScope?: "all" | "selected";
+  autoMatches?: string[];
 };
+type PopMode = "off" | "on" | "auto";
 type Trigger = "visit" | "interval" | "match" | "server";
 type Placement = "watch" | "home" | "both";
 type Mode = "silent" | "gate";
@@ -117,6 +121,28 @@ export default function AdminAdsPage() {
   const [msg, setMsg] = useState("");
   // Which ad rows are expanded. Multiple can be open at once.
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  // Upcoming football fixtures for the "selected matches" picker.
+  const [fixtures, setFixtures] = useState<
+    { key: string; title: string; date: number; status: string }[]
+  >([]);
+  const [fixturesLoaded, setFixturesLoaded] = useState(false);
+  const [fixturesLoading, setFixturesLoading] = useState(false);
+
+  const loadFixtures = useCallback(async () => {
+    if (fixturesLoaded || fixturesLoading) return;
+    setFixturesLoading(true);
+    try {
+      const res = await fetch("/api/admin/fixtures", { cache: "no-store" });
+      if (res.ok) {
+        const d = await res.json();
+        setFixtures(Array.isArray(d.fixtures) ? d.fixtures : []);
+      }
+    } catch {
+      /* ignore */
+    }
+    setFixturesLoaded(true);
+    setFixturesLoading(false);
+  }, [fixturesLoaded, fixturesLoading]);
 
   const toggleOpen = (key: string) =>
     setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -141,6 +167,11 @@ export default function AdminAdsPage() {
               src: f.src ?? seed?.src ?? "",
               cap: m,
               delay: (f.delay ?? seed?.delay ?? "0") as Delay,
+              mode: (f.mode ?? seed?.mode) as PopMode | undefined,
+              autoScope: (f.autoScope ?? seed?.autoScope ?? "all") as
+                | "all"
+                | "selected",
+              autoMatches: Array.isArray(f.autoMatches) ? f.autoMatches : [],
             };
             u[id] = m === 0 ? "off" : m % 60 === 0 ? "hours" : "minutes";
           }
@@ -163,6 +194,36 @@ export default function AdminAdsPage() {
   function setFormatEnabled(id: string, enabled: boolean) {
     updateFormat(id, { enabled });
   }
+
+  // Popunder run-mode: Off / On / Auto. `enabled` is the manual fallback; in
+  // Auto the server recomputes it from live football on every page load.
+  function setPopMode(id: string, mode: PopMode) {
+    updateFormat(id, { mode, enabled: mode === "on" });
+  }
+  function setAutoScope(id: string, scope: "all" | "selected") {
+    updateFormat(id, { autoScope: scope });
+    if (scope === "selected") loadFixtures();
+  }
+  function toggleAutoMatch(id: string, key: string) {
+    setCfg((prev) => {
+      const f = prev.formats[id];
+      const cur = Array.isArray(f.autoMatches) ? f.autoMatches : [];
+      const next = cur.includes(key)
+        ? cur.filter((k) => k !== key)
+        : [...cur, key];
+      return {
+        ...prev,
+        formats: { ...prev.formats, [id]: { ...f, autoMatches: next } },
+      };
+    });
+  }
+
+  useEffect(() => {
+    const anySelected = Object.values(cfg.formats).some(
+      (f) => f.mode === "auto" && f.autoScope === "selected"
+    );
+    if (anySelected) loadFixtures();
+  }, [cfg.formats, loadFixtures]);
 
   // Master switch for a whole network category: turns every ad in that network
   // on or off at once.
@@ -270,7 +331,8 @@ export default function AdminAdsPage() {
     subtitle: string,
     enabled: boolean,
     onToggle: () => void,
-    network?: string
+    network?: string,
+    statusLabel?: string
   ) => (
     <button
       type="button"
@@ -290,7 +352,7 @@ export default function AdminAdsPage() {
               enabled ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
             }`}
           >
-            {enabled ? "On" : "Off"}
+            {statusLabel ?? (enabled ? "On" : "Off")}
           </span>
         </div>
         <p className="text-[12px] text-gray-500 mt-0.5 truncate">{subtitle}</p>
@@ -425,6 +487,9 @@ export default function AdminAdsPage() {
         const sub = f.src ? "Tag added" : "No tag yet";
         const isPopunder =
           id.toLowerCase().includes("popunder") || f.group === "popunder";
+        const pmode: PopMode = (f.mode ?? (f.enabled ? "on" : "off")) as PopMode;
+        const popLabel =
+          pmode === "auto" ? "Auto" : pmode === "on" ? "On" : "Off";
         return (
           <div
             key={id}
@@ -436,9 +501,12 @@ export default function AdminAdsPage() {
               id,
               f.label,
               sub,
-              f.enabled,
-              () => setFormatEnabled(id, !f.enabled),
-              f.network
+              isPopunder ? pmode !== "off" : f.enabled,
+              isPopunder
+                ? () => setPopMode(id, pmode === "off" ? "on" : "off")
+                : () => setFormatEnabled(id, !f.enabled),
+              f.network,
+              isPopunder ? popLabel : undefined
             )}
             {open[id] && (
               <div className="px-5 pb-5 pt-1 space-y-4 border-t border-gray-100">
@@ -502,10 +570,122 @@ export default function AdminAdsPage() {
             </div>
 
             {isPopunder && (
-              <p className="text-[12px] text-gray-500">
-                Delay and frequency settings do not apply to popunders — the ad
-                network decides when and how often it pops.
-              </p>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-gray-800">When to run</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["off", "on", "auto"] as PopMode[]).map((mo) => (
+                      <button
+                        key={mo}
+                        type="button"
+                        onClick={() => setPopMode(id, mo)}
+                        className={`px-2 py-2 rounded-xl text-[13px] font-semibold border transition-colors ${
+                          pmode === mo
+                            ? "bg-emerald-500 border-emerald-500 text-white"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-emerald-400"
+                        }`}
+                      >
+                        {mo === "off" ? "Off" : mo === "on" ? "On" : "Auto"}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[12px] text-gray-500">
+                    {pmode === "auto"
+                      ? "Runs automatically during live football and switches off when none are live."
+                      : pmode === "on"
+                      ? "Always on (subject to the master switch and placement)."
+                      : "Always off."}
+                    {" "}Delay and frequency don’t apply to popunders — the network controls how often it pops.
+                  </p>
+                </div>
+
+                {pmode === "auto" && (
+                  <div className="space-y-2">
+                    <label className="text-[13px] font-semibold text-gray-800">Auto applies to</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(
+                        [
+                          ["all", "All live football"],
+                          ["selected", "Selected matches"],
+                        ] as ["all" | "selected", string][]
+                      ).map(([sc, lbl]) => (
+                        <button
+                          key={sc}
+                          type="button"
+                          onClick={() => setAutoScope(id, sc)}
+                          className={`px-2 py-2 rounded-xl text-[12px] font-semibold border transition-colors ${
+                            (f.autoScope ?? "all") === sc
+                              ? "bg-gray-900 border-gray-900 text-white"
+                              : "bg-white border-gray-200 text-gray-600 hover:border-gray-400"
+                          }`}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+
+                    {(f.autoScope ?? "all") === "selected" && (
+                      <div className="rounded-xl border border-gray-200 p-2">
+                        <div className="flex items-center justify-between px-1 pb-1">
+                          <span className="text-[12px] font-semibold text-gray-700">
+                            Pick fixtures ({(f.autoMatches ?? []).length} selected)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFixturesLoaded(false);
+                              setFixtures([]);
+                              loadFixtures();
+                            }}
+                            className="text-[12px] text-emerald-600 hover:text-emerald-700"
+                          >
+                            refresh
+                          </button>
+                        </div>
+                        <div className="max-h-60 overflow-auto space-y-1">
+                          {fixturesLoading && (
+                            <p className="text-[12px] text-gray-400 px-1 py-2">Loading fixtures…</p>
+                          )}
+                          {!fixturesLoading && fixtures.length === 0 && (
+                            <p className="text-[12px] text-gray-400 px-1 py-2">
+                              No upcoming football fixtures found right now.
+                            </p>
+                          )}
+                          {fixtures.map((fx) => {
+                            const picked = (f.autoMatches ?? []).includes(fx.key);
+                            return (
+                              <button
+                                key={fx.key}
+                                type="button"
+                                onClick={() => toggleAutoMatch(id, fx.key)}
+                                className={`w-full flex items-center gap-2 text-left px-2 py-2 rounded-lg border text-[12px] transition-colors ${
+                                  picked
+                                    ? "border-emerald-300 bg-emerald-50"
+                                    : "border-gray-100 hover:bg-gray-50"
+                                }`}
+                              >
+                                <span
+                                  className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                                    picked ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"
+                                  }`}
+                                >
+                                  {picked ? "✓" : ""}
+                                </span>
+                                <span className="flex-1 min-w-0">
+                                  <span className="block truncate text-gray-800 font-medium">{fx.title}</span>
+                                  <span className="block text-gray-400">
+                                    {fx.status === "live" ? "🔴 Live now" : new Date(fx.date).toLocaleString()}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             {!isPopunder && (
