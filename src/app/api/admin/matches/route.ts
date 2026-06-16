@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { clusterRows } from "@/lib/match-merge";
+import { clusterRows, normTitle } from "@/lib/match-merge";
+import { getMatches, getAllMatches, getMatchStatus, isFinishedStatus, type Match } from "@/lib/api";
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,16 +14,6 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = 20;
     const offset = (page - 1) * limit;
-
-    let query = getSupabaseAdmin().from("match_views").select("*", { count: "exact" });
-
-    if (sport) query = query.eq("sport", sport);
-    if (from) query = query.gte("created_at", from);
-    if (to) query = query.lte("created_at", to);
-
-    const { data, count } = await query
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
 
     // Attribute each match to the day it STARTED (its first view), not the day
     // each individual view happened. Otherwise a match running past midnight is
@@ -187,38 +178,107 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Classify: live = live viewers within the last 3h; played = had live
-    // viewers earlier; upcoming = only preview visits so far.
+    // Fallback classifier — ONLY for view-logged matches that have no matching
+    // fixture (orphan telemetry). live = live viewers within the last 3h;
+    // played = had live viewers earlier; upcoming = preview visits only.
     const LIVE_WINDOW = 3 * 60 * 60 * 1000;
     const nowMs = Date.now();
-    const classify = (g: { lastLiveView: string | null }) => {
+    type Status = "played" | "live" | "upcoming";
+    const classify = (g: { lastLiveView: string | null }): Status => {
       if (!g.lastLiveView) return "upcoming";
       return nowMs - Date.parse(g.lastLiveView) <= LIVE_WINDOW ? "live" : "played";
     };
 
-    // Attribute each match to the day it KICKED OFF, approximated by its first
-    // *live* view. Pre-kickoff preview visits (is_live = false) can land on the
-    // day before kickoff, so using them would mis-bucket a match (e.g. a 2am
-    // match previewed the previous afternoon). Fall back to first view only for
-    // matches that have no live views yet (pure upcoming). The full view counts —
-    // including any post-midnight tail pulled in via the buffer — are attributed
-    // to that day, so a match appears once, on the day it kicked off.
-    const startDayOf = (g: { firstLiveView: string | null; firstViewed: string }) =>
-      g.firstLiveView ?? g.firstViewed;
+    // ── Fixtures decide a match's DAY and STATUS ────────────────────────────
+    // A match belongs to the day it actually KICKS OFF, and Played/Live/Upcoming
+    // is decided by real kickoff time — never by when a visitor clicked a card.
+    // Build a kickoff index from (in precedence order) the public schedule feed,
+    // the finished-results table, and admin stream overrides. View telemetry is
+    // used ONLY for the metrics (counts, unique, duration, peak).
+    type Fixture = { kickoffMs: number; status: Status; sport: string; title: string };
+    const statusByTime = (kMs: number): Status => {
+      const diffMin = (kMs - nowMs) / 60000;
+      if (diffMin > 0) return "upcoming";
+      if (diffMin > -180) return "live";
+      return "played";
+    };
+    const fixtureIndex = new Map<string, Fixture>();
+
+    // (1) Public schedule feed (live + upcoming + recently finished).
+    try {
+      const feed: Match[] = sport ? await getMatches(sport) : await getAllMatches();
+      for (const m of feed) {
+        if (!m.date) continue;
+        const fs = getMatchStatus(m); // "live" | "upcoming" | "ended"
+        const st: Status = m.ended || fs === "ended" ? "played" : fs;
+        fixtureIndex.set(normTitle(m.title), { kickoffMs: m.date, status: st, sport: m.category || "", title: m.title });
+      }
+    } catch { /* feed unavailable — fall back to results / overrides / telemetry */ }
+
+    // (2) Finished-results table (authoritative kickoff + "played").
+    {
+      let wcQuery = getSupabaseAdmin()
+        .from("wc_results")
+        .select("home_team, away_team, event_date, status");
+      if (fromFetch) wcQuery = wcQuery.gte("event_date", fromFetch);
+      if (toFetch) wcQuery = wcQuery.lte("event_date", toFetch);
+      const { data: wc } = await wcQuery;
+      for (const r of (wc ?? []) as Array<{ home_team: string; away_team: string; event_date: string; status: string | null }>) {
+        if (!r.event_date) continue;
+        const kickoffMs = Date.parse(r.event_date);
+        const title = `${r.home_team} vs ${r.away_team}`;
+        const st: Status = isFinishedStatus(r.status) ? "played" : statusByTime(kickoffMs);
+        fixtureIndex.set(normTitle(title), { kickoffMs, status: st, sport: "football", title });
+      }
+    }
+
+    // (3) Admin stream overrides (custom / PPV matches not in the feed).
+    {
+      const { data: ov } = await getSupabaseAdmin()
+        .from("stream_overrides")
+        .select("match_title, match_data, enabled");
+      for (const r of (ov ?? []) as Array<{ match_title: string | null; match_data: { date?: number | string; title?: string; category?: string } | null; enabled: boolean }>) {
+        if (!r.enabled) continue;
+        const md = r.match_data || {};
+        const kickoffMs = typeof md.date === "number" ? md.date : (md.date ? Date.parse(md.date) : NaN);
+        const title = r.match_title || md.title;
+        if (!title || !Number.isFinite(kickoffMs)) continue;
+        const key = normTitle(title);
+        if (fixtureIndex.has(key)) continue; // feed / results win
+        fixtureIndex.set(key, { kickoffMs, status: statusByTime(kickoffMs), sport: md.category || "football", title });
+      }
+    }
+
+    const resolveFixture = (title: string): Fixture | null => fixtureIndex.get(normTitle(title)) ?? null;
+
     const fromMs = from ? Date.parse(from) : null;
     const toMs = to ? Date.parse(to) : null;
-    const inStartWindow = (startDay: string) => {
+    const inWindow = (kMs: number) => {
       if (fromMs === null && toMs === null) return true;
-      const t = Date.parse(startDay);
-      return (fromMs === null || t >= fromMs) && (toMs === null || t <= toMs);
+      return (fromMs === null || kMs >= fromMs) && (toMs === null || kMs <= toMs);
     };
 
-    const matches = Object.values(merged)
-      .filter((g) => inStartWindow(startDayOf(g)))
-      .map((g) => ({
+    type Row = {
+      match_id: string; title: string; sport: string;
+      views: number; live_views: number; pre_views: number;
+      unique_viewers: number; unique_live: number; unique_pre: number;
+      peak_viewers: number; avg_duration: number; last_viewed: string;
+      kickoff: number | null; start_day: string; status: Status;
+    };
+    const rows: Row[] = [];
+    const seen = new Set<string>();
+
+    // Matches with view telemetry: metrics from views; day + status from the
+    // resolved fixture (falling back to first-live-view for unmatched orphans).
+    for (const g of Object.values(merged)) {
+      const fx = resolveFixture(g.title);
+      const kickoffMs = fx ? fx.kickoffMs : Date.parse(g.firstLiveView ?? g.firstViewed);
+      if (!inWindow(kickoffMs)) continue; // belongs to another day
+      seen.add(normTitle(g.title));
+      rows.push({
         match_id: g.match_id,
-        title: g.title,
-        sport: g.sport,
+        title: fx?.title ?? g.title,
+        sport: g.sport || fx?.sport || "",
         views: g.views,
         live_views: g.liveViews,
         pre_views: g.preViews,
@@ -228,23 +288,47 @@ export async function GET(request: NextRequest) {
         peak_viewers: Math.max(0, ...g.matchIds.map((id) => peakById[id] ?? 0)),
         avg_duration: g.views > 0 ? Math.round(g.totalDuration / g.views) : 0,
         last_viewed: g.lastViewed,
-        start_day: startDayOf(g),
-        status: classify(g),
-      }))
-      .filter((m) => status === "all" || m.status === status)
-      .sort((a, b) =>
-        sort === "recent"
-          ? (a.last_viewed < b.last_viewed ? 1 : -1)
-          : b.views - a.views
-      )
-      .slice(offset, offset + limit);
+        kickoff: kickoffMs,
+        start_day: new Date(kickoffMs).toISOString(),
+        status: fx ? fx.status : classify(g),
+      });
+    }
+
+    // Scheduled matches with ZERO views (only when a specific day is selected),
+    // so Upcoming/Played fixtures appear even before anyone has watched them.
+    if (fromMs !== null && toMs !== null) {
+      for (const [key, fx] of fixtureIndex) {
+        if (seen.has(key)) continue;
+        if (!inWindow(fx.kickoffMs)) continue;
+        if (sport && fx.sport && fx.sport !== sport) continue;
+        rows.push({
+          match_id: `fixture:${key}`,
+          title: fx.title,
+          sport: fx.sport,
+          views: 0, live_views: 0, pre_views: 0,
+          unique_viewers: 0, unique_live: 0, unique_pre: 0,
+          peak_viewers: 0, avg_duration: 0,
+          last_viewed: new Date(fx.kickoffMs).toISOString(),
+          kickoff: fx.kickoffMs,
+          start_day: new Date(fx.kickoffMs).toISOString(),
+          status: fx.status,
+        });
+      }
+    }
+
+    const filtered = rows.filter((m) => status === "all" || m.status === status);
+    // Top Views → most-watched first. Recent → by kickoff time (most recent
+    // first); the page re-sorts Upcoming to soonest-first client-side.
+    filtered.sort((a, b) =>
+      sort === "recent"
+        ? (b.kickoff ?? 0) - (a.kickoff ?? 0)
+        : b.views - a.views
+    );
 
     return NextResponse.json({
-      matches,
-      total: Object.values(merged).filter((g) => (status === "all" || classify(g) === status) && inStartWindow(startDayOf(g))).length,
+      matches: filtered.slice(offset, offset + limit),
+      total: filtered.length,
       page,
-      raw: data,
-      rawTotal: count,
     });
   } catch (e) {
     console.error("Matches API error:", e);

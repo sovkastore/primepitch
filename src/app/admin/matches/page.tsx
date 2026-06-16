@@ -39,6 +39,12 @@ function formatDuration(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
+// Local calendar date as YYYY-MM-DD, so "Today"/"Yesterday" follow the admin's
+// own timezone rather than UTC.
+function localYmd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export default function MatchAnalyticsPage() {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +52,7 @@ export default function MatchAnalyticsPage() {
   const [sport, setSport] = useState("");
   const [sort, setSort] = useState<"views" | "recent" | "">(""); // "" = natural order
   const [status, setStatus] = useState<"played" | "live" | "upcoming" | "all">("played");
-  const [day, setDay] = useState<string>(""); // "" = all time, else YYYY-MM-DD (UTC day)
+  const [day, setDay] = useState<string>(""); // "" = all time, else YYYY-MM-DD (local day)
   const [page, setPage] = useState(1);
   // normalized title -> kickoff ms, from the public feed (fetched by the
   // browser, no Worker requests). Used to sort Upcoming by schedule.
@@ -76,8 +82,10 @@ export default function MatchAnalyticsPage() {
     params.set("sort", sort || "recent");
     params.set("status", status);
     if (day) {
-      params.set("from", `${day}T00:00:00.000Z`);
-      params.set("to", `${day}T23:59:59.999Z`);
+      // Local-day window converted to UTC instants, so the selected day matches
+      // the admin's wall clock instead of UTC.
+      params.set("from", new Date(`${day}T00:00:00`).toISOString());
+      params.set("to", new Date(`${day}T23:59:59.999`).toISOString());
     }
     params.set("page", String(page));
 
@@ -109,7 +117,11 @@ export default function MatchAnalyticsPage() {
       ? scheduleSorted()
       : matches;
 
-  const chartData = matches.slice(0, 15).map((m) => ({
+  const chartData = matches
+    .slice()
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 15)
+    .map((m) => ({
     name: m.title.length > 25 ? m.title.slice(0, 25) + "..." : m.title,
     views: m.views,
   }));
@@ -122,8 +134,8 @@ export default function MatchAnalyticsPage() {
           <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max">
             {([
               { label: "All time", value: "" },
-              { label: "Today", value: new Date().toISOString().slice(0, 10) },
-              { label: "Yesterday", value: new Date(Date.now() - 864e5).toISOString().slice(0, 10) },
+              { label: "Today", value: localYmd(new Date()) },
+              { label: "Yesterday", value: localYmd(new Date(Date.now() - 864e5)) },
             ] as const).map((t) => (
               <button
                 key={t.label}
