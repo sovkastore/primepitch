@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 
 type Cap = number | string; // minutes (number); legacy string keys still tolerated
-type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string };
+type FmtPlacement = "all" | "watch" | "home";
+type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string; placement?: FmtPlacement };
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -46,10 +47,22 @@ function delaySeconds(d?: string): number {
   return (d && DELAY_SECONDS[d]) || 0;
 }
 
-function injectMonetag(id: string, zone: string, src: string) {  if (!zone || !src) return;
+// Per-format placement gate. Popunder is scoped to the watch page so it fires
+// on the play tap, not on casual home-page browsing.
+function placementAllows(placement: FmtPlacement | undefined, path: string): boolean {
+  if (!placement || placement === "all") return true;
+  if (placement === "watch") return path.startsWith("/watch");
+  if (placement === "home") return path === "/";
+  return true;
+}
+
+// Inject an ad script. Monetag tags need a data-zone; Adsterra tags (popunder,
+// social bar) are a plain script with no zone — both are supported here.
+function injectScript(id: string, src: string, zone: string) {
+  if (!src) return;
   if (document.querySelector(`script[data-ad-format="${id}"]`)) return; // once per load
   const s = document.createElement("script");
-  s.dataset.zone = zone;
+  if (zone) s.dataset.zone = zone;
   s.dataset.adFormat = id;
   s.src = src;
   document.body.appendChild(s);
@@ -69,10 +82,11 @@ export default function AdsLoader() {
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
         for (const [id, f] of Object.entries(cfg.formats || {})) {
           if (!f?.enabled) continue;
+          if (!placementAllows(f.placement, window.location.pathname)) continue;
           const t = setTimeout(() => {
             if (done) return;
             if (!capAllows(id, f.cap)) return; // cap checked only when we actually show
-            injectMonetag(id, f.zone, f.src);
+            injectScript(id, f.src, f.zone);
           }, delaySeconds(f.delay) * 1000);
           timers.push(t);
         }

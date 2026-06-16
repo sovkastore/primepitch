@@ -4,7 +4,18 @@ import { useState, useEffect } from "react";
 
 type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
 type Unit = "off" | "minutes" | "hours";
-type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
+type FmtPlacement = "all" | "watch" | "home";
+type Format = {
+  label: string;
+  enabled: boolean;
+  network: string;
+  group: string;
+  placement: FmtPlacement;
+  zone: string;
+  src: string;
+  cap: number;
+  delay: Delay;
+};
 type Trigger = "visit" | "interval" | "match" | "server";
 type Placement = "watch" | "home" | "both";
 type Mode = "silent" | "gate";
@@ -31,8 +42,10 @@ const DEFAULTS: AdsConfig = {
   master: false,
   domains: "all",
   formats: {
-    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
-    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
+    inpage_push: { label: "In-Page Push", enabled: false, network: "Monetag", group: "notification", placement: "all", zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
+    vignette: { label: "Vignette Banner", enabled: false, network: "Monetag", group: "interstitial", placement: "all", zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
+    social_bar: { label: "Social Bar", enabled: false, network: "Adsterra", group: "notification", placement: "all", zone: "", src: "", cap: 60, delay: "0" },
+    popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "watch", zone: "", src: "", cap: 0, delay: "0" },
   },
   preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
 };
@@ -53,6 +66,24 @@ const PLACEMENT_LABELS: Record<Placement, string> = {
 const MODE_LABELS: Record<Mode, string> = {
   silent: "Silent — only show a screen if a real ad plays (recommended)",
   gate: "Gate — show a black loading screen while checking for an ad",
+};
+
+// Ad "family". Turning one ad in a family ON auto-turns-OFF the others in the
+// same family, so you never run two of the same format at once (e.g. Monetag
+// In-Page Push vs Adsterra Social Bar).
+const GROUP_LABELS: Record<string, string> = {
+  notification: "Notification (in-page push / social bar)",
+  interstitial: "Interstitial / Vignette",
+  popunder: "Popunder",
+  native: "Native banner",
+  standalone: "Standalone (never auto-off)",
+};
+const GROUP_OPTIONS = Object.keys(GROUP_LABELS);
+
+const FMT_PLACEMENT_LABELS: Record<FmtPlacement, string> = {
+  all: "All pages",
+  watch: "Watch page only (fires on the play tap)",
+  home: "Home page only",
 };
 
 // Legacy string caps -> minutes (for configs saved before numeric caps).
@@ -83,8 +114,19 @@ export default function AdminAdsPage() {
           const formats: Record<string, Format> = { ...DEFAULTS.formats, ...d.formats };
           const u: Record<string, Unit> = {};
           for (const [id, f] of Object.entries(formats)) {
+            const seed = DEFAULTS.formats[id];
             const m = toMinutes(f.cap);
-            formats[id] = { ...f, cap: m };
+            formats[id] = {
+              label: f.label ?? seed?.label ?? id,
+              enabled: !!f.enabled,
+              network: f.network ?? seed?.network ?? "",
+              group: f.group ?? seed?.group ?? "standalone",
+              placement: (f.placement ?? seed?.placement ?? "all") as FmtPlacement,
+              zone: f.zone ?? seed?.zone ?? "",
+              src: f.src ?? seed?.src ?? "",
+              cap: m,
+              delay: (f.delay ?? seed?.delay ?? "0") as Delay,
+            };
             u[id] = m === 0 ? "off" : m % 60 === 0 ? "hours" : "minutes";
           }
           setCfg({ ...d, formats, preroll: { ...DEFAULTS.preroll, ...(d.preroll ?? {}) } });
@@ -100,6 +142,55 @@ export default function AdminAdsPage() {
       ...prev,
       formats: { ...prev.formats, [id]: { ...prev.formats[id], ...patch } },
     }));
+  }
+
+  // Toggle an ad on/off. Turning one ON auto-turns-OFF every other ad in the
+  // same family (group) so you never run two of the same format at once.
+  function setFormatEnabled(id: string, enabled: boolean) {
+    setCfg((prev) => {
+      const formats = { ...prev.formats };
+      const grp = formats[id]?.group;
+      formats[id] = { ...formats[id], enabled };
+      if (enabled && grp && grp !== "standalone") {
+        for (const k of Object.keys(formats)) {
+          if (k !== id && formats[k].group === grp && formats[k].enabled) {
+            formats[k] = { ...formats[k], enabled: false };
+          }
+        }
+      }
+      return { ...prev, formats };
+    });
+  }
+
+  function addFormat() {
+    const id = `ad_${Date.now().toString(36)}`;
+    setCfg((prev) => ({
+      ...prev,
+      formats: {
+        ...prev.formats,
+        [id]: {
+          label: "New ad",
+          enabled: false,
+          network: "",
+          group: "standalone",
+          placement: "all",
+          zone: "",
+          src: "",
+          cap: 0,
+          delay: "0",
+        },
+      },
+    }));
+    setUnits((prev) => ({ ...prev, [id]: "off" }));
+    setOpen((prev) => ({ ...prev, [id]: true }));
+  }
+
+  function deleteFormat(id: string) {
+    setCfg((prev) => {
+      const formats = { ...prev.formats };
+      delete formats[id];
+      return { ...prev, formats };
+    });
   }
 
   function updatePreroll(patch: Partial<Preroll>) {
@@ -152,7 +243,8 @@ export default function AdminAdsPage() {
     title: string,
     subtitle: string,
     enabled: boolean,
-    onToggle: () => void
+    onToggle: () => void,
+    network?: string
   ) => (
     <button
       type="button"
@@ -160,8 +252,13 @@ export default function AdminAdsPage() {
       className="w-full flex items-center gap-3 p-4 text-left"
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-bold text-gray-900 truncate">{title}</span>
+          {network ? (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+              {network}
+            </span>
+          ) : null}
           <span
             className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
               enabled ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
@@ -268,9 +365,7 @@ export default function AdminAdsPage() {
       {/* Per-format cards (accordion rows) */}
       {formatIds.map((id) => {
         const f = cfg.formats[id];
-        const sub = (f.src || "").includes("vignette")
-          ? "Full-screen banner shown between page views."
-          : "Dismissible push-style ad.";
+        const sub = GROUP_LABELS[f.group] ?? "Standalone ad";
         return (
           <div
             key={id}
@@ -278,13 +373,70 @@ export default function AdminAdsPage() {
               f.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"
             }`}
           >
-            {headerRow(id, f.label, sub, f.enabled, () =>
-              updateFormat(id, { enabled: !f.enabled })
+            {headerRow(
+              id,
+              f.label,
+              sub,
+              f.enabled,
+              () => setFormatEnabled(id, !f.enabled),
+              f.network
             )}
             {open[id] && (
               <div className="px-5 pb-5 pt-1 space-y-4 border-t border-gray-100">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-gray-800">Ad name</label>
+                    <input
+                      type="text"
+                      value={f.label}
+                      onChange={(e) => updateFormat(id, { label: e.target.value })}
+                      placeholder="e.g. Popunder"
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-gray-800">Network</label>
+                    <input
+                      type="text"
+                      value={f.network}
+                      onChange={(e) => updateFormat(id, { network: e.target.value })}
+                      placeholder="Monetag / Adsterra"
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-gray-800">Zone ID</label>
+                  <label className="text-[13px] font-semibold text-gray-800">Ad family (auto-off group)</label>
+                  <select
+                    value={f.group}
+                    onChange={(e) => updateFormat(id, { group: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  >
+                    {GROUP_OPTIONS.map((g) => (
+                      <option key={g} value={g}>{GROUP_LABELS[g]}</option>
+                    ))}
+                  </select>
+                  <p className="text-[12px] text-gray-500">
+                    Turning this ad on switches off any other ad in the same family, so you never run two of the same format at once.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-gray-800">Show on</label>
+                  <select
+                    value={f.placement}
+                    onChange={(e) => updateFormat(id, { placement: e.target.value as FmtPlacement })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  >
+                    {(Object.keys(FMT_PLACEMENT_LABELS) as FmtPlacement[]).map((p) => (
+                      <option key={p} value={p}>{FMT_PLACEMENT_LABELS[p]}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-gray-800">Zone ID <span className="font-normal text-gray-400">(Monetag only — leave blank for Adsterra)</span></label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -355,11 +507,31 @@ export default function AdminAdsPage() {
                 {" "}Saved in the browser, so it is a best-effort cap, not exact.
               </p>
             </div>
+
+                {!["inpage_push", "vignette", "social_bar", "popunder"].includes(id) && (
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => deleteFormat(id)}
+                      className="text-[13px] font-semibold text-red-600 hover:text-red-700"
+                    >
+                      Delete this ad
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         );
       })}
+
+      <button
+        type="button"
+        onClick={addFormat}
+        className="w-full rounded-2xl border-2 border-dashed border-gray-300 py-3 text-sm font-semibold text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors"
+      >
+        ＋ Add ad
+      </button>
 
       {/* ── Pre-roll Video (VAST) ───────────────────────── */}
       <div className={`rounded-2xl border overflow-hidden ${cfg.preroll.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>

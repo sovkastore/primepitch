@@ -4,7 +4,18 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 const KEY = "ads_config";
 
 type Delay = "0" | "1m" | "2m" | "3m" | "5m" | "10m";
-type Format = { label: string; enabled: boolean; zone: string; src: string; cap: number; delay: Delay };
+type FmtPlacement = "all" | "watch" | "home";
+type Format = {
+  label: string;
+  enabled: boolean;
+  network: string;
+  group: string;
+  placement: FmtPlacement;
+  zone: string;
+  src: string;
+  cap: number;
+  delay: Delay;
+};
 type Trigger = "visit" | "interval" | "match" | "server";
 type Placement = "watch" | "home" | "both";
 type Mode = "silent" | "gate";
@@ -29,8 +40,10 @@ const DEFAULTS: AdsConfig = {
   master: false,
   domains: "all",
   formats: {
-    inpage_push: { label: "In-Page Push", enabled: false, zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
-    vignette: { label: "Vignette Banner", enabled: false, zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
+    inpage_push: { label: "In-Page Push", enabled: false, network: "Monetag", group: "notification", placement: "all", zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
+    vignette: { label: "Vignette Banner", enabled: false, network: "Monetag", group: "interstitial", placement: "all", zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
+    social_bar: { label: "Social Bar", enabled: false, network: "Adsterra", group: "notification", placement: "all", zone: "", src: "", cap: 60, delay: "0" },
+    popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "watch", zone: "", src: "", cap: 0, delay: "0" },
   },
   preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
 };
@@ -46,8 +59,18 @@ function cleanCap(v: unknown): number {
   if (!Number.isFinite(n) || n <= 0) return 0;
   return Math.min(n, MAX_CAP_MIN);
 }
-// Only known formats can be saved (prevents arbitrary script injection).
-const ALLOWED_FORMATS = new Set(["inpage_push", "vignette"]);
+// These two always render so the core toggles never disappear; any other
+// (admin-created or seeded) format is allowed too. Only the admin can POST here.
+const CORE_FORMATS = ["inpage_push", "vignette", "social_bar", "popunder"];
+const ALLOWED_FMT_PLACEMENTS = new Set(["all", "watch", "home"]);
+const MAX_FORMATS = 24;
+
+function cleanStr(v: unknown, max: number): string {
+  return typeof v === "string" ? v.trim().slice(0, max) : "";
+}
+function cleanKey(v: string): boolean {
+  return /^[a-z0-9_]{1,40}$/i.test(v);
+}
 
 const ALLOWED_TRIGGERS = new Set(["visit", "interval", "match", "server"]);
 const ALLOWED_PLACEMENTS = new Set(["watch", "home", "both"]);
@@ -102,23 +125,36 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Partial<AdsConfig>;
 
-    // Sanitize: coerce types, keep only known formats/values.
+    // Sanitize: coerce types. Admin-only route, so named/custom ads are allowed.
     const formats: Record<string, Format> = {};
+    let count = 0;
     for (const [id, f] of Object.entries(body.formats ?? {})) {
-      if (!ALLOWED_FORMATS.has(id) || !f) continue;
+      if (!cleanKey(id) || !f || count >= MAX_FORMATS) continue;
+      count++;
       const def = DEFAULTS.formats[id];
+      const label = cleanStr(f.label, 60) || def?.label || id;
+      const network = cleanStr(f.network, 24) || def?.network || "";
+      const group = cleanKey(cleanStr(f.group, 40)) ? cleanStr(f.group, 40) : def?.group || "standalone";
+      const placement = ALLOWED_FMT_PLACEMENTS.has(f.placement as string)
+        ? (f.placement as FmtPlacement)
+        : def?.placement || "all";
+      const rawSrc = typeof f.src === "string" ? f.src.trim() : "";
+      const src = cleanUrl(rawSrc.startsWith("//") ? `https:${rawSrc}` : rawSrc);
       formats[id] = {
-        label: def?.label ?? id,
+        label,
         enabled: !!f.enabled,
+        network,
+        group,
+        placement,
         zone: typeof f.zone === "string" ? f.zone.trim().replace(/[^0-9]/g, "") : "",
-        src: typeof f.src === "string" && /^https:\/\/[a-z0-9.\-/_]+$/i.test(f.src.trim()) ? f.src.trim() : "",
+        src,
         cap: cleanCap(f.cap),
         delay: ALLOWED_DELAYS.has(f.delay as string) ? (f.delay as Delay) : "0",
       };
     }
-    // Make sure every known format exists (so toggles always render).
-    for (const id of ALLOWED_FORMATS) {
-      if (!formats[id]) formats[id] = { ...DEFAULTS.formats[id] };
+    // Make sure the core formats exist (so toggles always render).
+    for (const id of CORE_FORMATS) {
+      if (!formats[id] && DEFAULTS.formats[id]) formats[id] = { ...DEFAULTS.formats[id] };
     }
 
     const clean: AdsConfig = {
