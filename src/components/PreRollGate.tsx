@@ -165,6 +165,26 @@ function loadIma(): Promise<boolean> {
   return imaLoader;
 }
 
+// Pull a human-readable reason out of an IMA error event (debug only).
+function adErrText(e: unknown): string {
+  try {
+    const ev = e as { getError?: () => unknown };
+    const err = ev.getError?.() as
+      | {
+          getErrorCode?: () => number;
+          getVastErrorCode?: () => number;
+          getMessage?: () => string;
+        }
+      | undefined;
+    const code = err?.getErrorCode?.();
+    const vast = err?.getVastErrorCode?.();
+    const msg = err?.getMessage?.();
+    return `code=${code ?? "?"} vast=${vast ?? "?"} ${msg ?? ""}`.trim();
+  } catch {
+    return "(error unreadable)";
+  }
+}
+
 export default function PreRollGate({
   page = "watch",
   streamKey = "",
@@ -177,6 +197,21 @@ export default function PreRollGate({
   // adShowing flips true ONLY when a real ad has started playing.
   const [adShowing, setAdShowing] = useState(false);
   const [showSkip, setShowSkip] = useState(false);
+
+  // Debug mode: append ?addebug=1 to the URL to bypass timing/placement gates
+  // and SEE the real reason an ad doesn't play, on screen.
+  const debugOn =
+    typeof window !== "undefined" &&
+    window.location.search.includes("addebug=1");
+  const debugRef = useRef(debugOn);
+  debugRef.current = debugOn;
+  const [log, setLog] = useState<string[]>([]);
+  const note = useCallback((m: string) => {
+    if (!debugRef.current) return;
+    // eslint-disable-next-line no-console
+    console.log("[preroll]", m);
+    setLog((l) => [...l, m]);
+  }, []);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const adContainerRef = useRef<HTMLDivElement>(null);
@@ -207,7 +242,7 @@ export default function PreRollGate({
     adsLoaderRef.current = null;
     setShowSkip(false);
     setAdShowing(false);
-    setCfg(null); // unmount the gate entirely
+    if (!debugRef.current) setCfg(null); // keep gate visible in debug mode
   }, []);
 
   const skip = useCallback(() => {
@@ -232,9 +267,12 @@ export default function PreRollGate({
         if (typeof window === "undefined") return;
         if (window.location.pathname.startsWith("/admin")) return;
         if (!domainAllowed(c.domains, window.location.hostname)) return;
-        if (!placementAllows(p.placement ?? "watch", page)) return;
-        if (!isDue(p, page)) return;
+        if (!debugRef.current) {
+          if (!placementAllows(p.placement ?? "watch", page)) return;
+          if (!isDue(p, page)) return;
+        }
         if (cancelled) return;
+        note(`config OK — placement=${p.placement} trigger=${p.trigger}; requesting VAST`);
         setCfg(p);
       } catch {
         /* no config -> no ad */
@@ -244,7 +282,7 @@ export default function PreRollGate({
       cancelled = true;
     };
     // streamKey in deps so "server"/"match" modes re-evaluate on stream change
-  }, [streamKey, page]);
+  }, [streamKey, page, note]);
 
   // Phase 2 — request + run the ad in the background; reveal only on real start.
   useEffect(() => {
@@ -256,6 +294,7 @@ export default function PreRollGate({
     (async () => {
       const ok = await loadIma();
       if (cancelled || doneRef.current) return;
+      note(ok ? "IMA SDK loaded" : "IMA SDK FAILED to load");
       const ima = window.google?.ima;
       const root = rootRef.current;
       const adContainer = adContainerRef.current;
@@ -277,7 +316,14 @@ export default function PreRollGate({
       adsLoaderRef.current = loader;
 
       // Any load-time error (incl. no-fill 1009) -> reveal nothing.
-      loader.addEventListener(ima.AdErrorEvent.Type.AD_ERROR, () => finish(), false);
+      loader.addEventListener(
+        ima.AdErrorEvent.Type.AD_ERROR,
+        (e) => {
+          note("loader AD_ERROR " + adErrText(e));
+          finish();
+        },
+        false
+      );
 
       loader.addEventListener(
         ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED,
@@ -290,10 +336,15 @@ export default function PreRollGate({
           rs.restoreCustomPlaybackStateOnAdBreakComplete = false;
           const mgr = e.getAdsManager(content, rs);
           adsManagerRef.current = mgr;
+          note("ADS_MANAGER_LOADED — network returned a response");
 
-          mgr.addEventListener(ima.AdErrorEvent.Type.AD_ERROR, () => finish());
+          mgr.addEventListener(ima.AdErrorEvent.Type.AD_ERROR, (ev) => {
+            note("manager AD_ERROR " + adErrText(ev));
+            finish();
+          });
           mgr.addEventListener(ima.AdEvent.Type.STARTED, () => {
             if (doneRef.current) return;
+            note("ad STARTED ✓ (a real video ad is playing)");
             startedRef.current = true; // a REAL ad is playing
             setAdShowing(true); // -> reveal the overlay
             const skipAfter = Math.max(0, Number(cfg.skipAfter ?? 5));
@@ -335,15 +386,20 @@ export default function PreRollGate({
       const waitMs = Math.max(2, Number(cfg.noFillTimeout ?? 3)) * 1000;
       timersRef.current.push(
         setTimeout(() => {
-          if (!startedRef.current) finish();
+          if (!startedRef.current) {
+            note(`no ad started within ${waitMs / 1000}s — giving up (no-fill)`);
+            finish();
+          }
         }, waitMs)
       );
       // Absolute safety net so a stuck ad can never hang the page.
       timersRef.current.push(setTimeout(() => finish(), 90_000));
 
       try {
+        note("requesting ads from VAST tag…");
         loader.requestAds(req);
       } catch {
+        note("requestAds threw immediately");
         finish();
       }
     })();
@@ -352,7 +408,7 @@ export default function PreRollGate({
       cancelled = true;
       finish();
     };
-  }, [cfg, finish]);
+  }, [cfg, finish, note]);
 
   // Keep a running ad sized to its container.
   useEffect(() => {
@@ -384,7 +440,7 @@ export default function PreRollGate({
 
   // "gate" mode covers the page with black while it checks for an ad; "silent"
   // mode (default) stays invisible until a real ad actually starts.
-  const showCover = adShowing || (!!cfg && cfg.mode === "gate");
+  const showCover = adShowing || (!!cfg && cfg.mode === "gate") || debugOn;
 
   // While merely attempting in silent mode, the layer is transparent +
   // non-interactive so the page behind shows through (no black flash). It turns
@@ -415,6 +471,28 @@ export default function PreRollGate({
         >
           Skip Ad ▶
         </button>
+      )}
+      {debugOn && (
+        <div className="absolute inset-x-2 top-2 z-20 max-h-[70%] overflow-auto rounded-lg bg-black/85 p-3 font-mono text-[11px] leading-snug text-emerald-300">
+          <div className="mb-1 font-bold text-white">Pre-roll debug</div>
+          {log.length === 0 ? (
+            <div>starting…</div>
+          ) : (
+            log.map((l, i) => <div key={i}>• {l}</div>)
+          )}
+          <button
+            onClick={() => {
+              try {
+                window.location.href = window.location.pathname;
+              } catch {
+                /* ignore */
+              }
+            }}
+            className="mt-2 rounded bg-white/20 px-2 py-1 text-white"
+          >
+            close
+          </button>
+        </div>
       )}
     </div>
   );
