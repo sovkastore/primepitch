@@ -423,6 +423,8 @@ export default function AdminAdsPage() {
           {ids.map((id) => {
         const f = cfg.formats[id];
         const sub = f.src ? "Tag added" : "No tag yet";
+        const isPopunder =
+          id.toLowerCase().includes("popunder") || f.group === "popunder";
         return (
           <div
             key={id}
@@ -499,6 +501,14 @@ export default function AdminAdsPage() {
               />
             </div>
 
+            {isPopunder && (
+              <p className="text-[12px] text-gray-500">
+                Delay and frequency settings do not apply to popunders — the ad
+                network decides when and how often it pops.
+              </p>
+            )}
+
+            {!isPopunder && (
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-gray-800">Delay before first show</label>
               <select
@@ -519,7 +529,9 @@ export default function AdminAdsPage() {
                 How long a visitor must be on the site before this ad first appears.
               </p>
             </div>
+            )}
 
+            {!isPopunder && (
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-gray-800">How often per visitor</label>
               <div className="flex flex-wrap gap-1.5">
@@ -569,6 +581,7 @@ export default function AdminAdsPage() {
                 {" "}Saved in the browser, so it is a best-effort cap, not exact.
               </p>
             </div>
+            )}
 
                 {!["inpage_push", "vignette", "social_bar", "popunder"].includes(id) && (
                   <div className="pt-1">
