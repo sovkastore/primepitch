@@ -47,7 +47,12 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
   useEffect(() => { load(); }, [load]);
 
   const withStatus = useMemo(
-    () => applyCompare(matches, compare).map((m) => ({ ...m, st: rowStatus(m.match_id, m.title) || m.status || "played" })),
+    () => applyCompare(matches, compare).map((m) => {
+      const fs = rowStatus(m.match_id, m.title);
+      // Mirror the admin matches API: a finished feed match is "played".
+      const st = fs === "ended" ? "played" : (fs || m.status || "played");
+      return { ...m, st };
+    }),
     [matches, compare, rowStatus],
   );
   const sportOptions = useMemo(() => {
@@ -120,9 +125,15 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
                     <span className="text-gray-400 ml-1.5">/ {m.uniqueYours}</span>
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
-                    <span className="font-bold text-gray-900">{m.peakTotal}</span>
-                    <span className="text-blue-600 font-semibold ml-2">{m.peakHis}</span>
-                    <span className="text-gray-400 ml-1.5">/ {m.peakYours}</span>
+                    {m.st === "upcoming" ? (
+                      <span className="font-bold text-gray-300">—</span>
+                    ) : (
+                      <>
+                        <span className="font-bold text-gray-900">{m.peakTotal}</span>
+                        <span className="text-blue-600 font-semibold ml-2">{m.peakHis}</span>
+                        <span className="text-gray-400 ml-1.5">/ {m.peakYours}</span>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
