@@ -49,11 +49,11 @@ export default function AdminSidebar({
       )}
 
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 z-50 transform transition-transform lg:translate-x-0 lg:static lg:z-auto ${
+        className={`fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 z-50 flex flex-col transform transition-transform lg:translate-x-0 lg:static lg:z-auto ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="h-14 flex items-center px-5 border-b border-gray-100">
+        <div className="h-14 flex items-center px-5 border-b border-gray-100 shrink-0">
           <Link href="/admin" className="flex items-center" onClick={onClose}>
             <Logo size="md" />
           </Link>
@@ -62,7 +62,7 @@ export default function AdminSidebar({
           </span>
         </div>
 
-        <nav className="p-3 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.href}
@@ -88,7 +88,7 @@ export default function AdminSidebar({
           ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-100">
+        <div className="shrink-0 p-3 border-t border-gray-100">
           <Link
             href="/"
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
