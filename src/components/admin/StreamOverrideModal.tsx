@@ -9,6 +9,15 @@ interface FallbackStream {
   server: string;
 }
 
+// Accept either a bare URL or a full <iframe ...> embed snippet: pull the src
+// out of a tag, otherwise use the trimmed input as-is. So the admin can't break
+// the override by pasting the whole embed code instead of just the URL.
+function extractEmbedUrl(raw: string): string {
+  const trimmed = raw.trim();
+  const m = trimmed.match(/src\s*=\s*["']([^"']+)["']/i);
+  return (m ? m[1] : trimmed).trim();
+}
+
 // Shared modal: auto-searches the fallback providers for a match, lets the admin pick
 // streams or paste a URL, and persists them as overrides (with match_data so the match
 // can surface on the site even when streamed.pk omits it). Used by the Live Monitor and
@@ -82,8 +91,9 @@ export default function StreamOverrideModal({
   }
 
   async function applyManual() {
-    if (!manualUrl) return;
-    await post({ embed_url: manualUrl, source: "manual", server_label: "Manual" });
+    const url = extractEmbedUrl(manualUrl);
+    if (!url) return;
+    await post({ embed_url: url, source: "manual", server_label: "Manual" });
   }
 
   return (
@@ -119,13 +129,13 @@ export default function StreamOverrideModal({
 
           {/* Manual URL */}
           <div>
-            <label className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">Paste Embed URL</label>
+            <label className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">Paste Embed URL or &lt;iframe&gt; code</label>
             <div className="flex gap-2 mt-1.5">
               <input
-                type="url"
+                type="text"
                 value={manualUrl}
                 onChange={(e) => setManualUrl(e.target.value)}
-                placeholder="https://..."
+                placeholder="https://...  or  <iframe src=...>"
                 className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
               />
               <button
