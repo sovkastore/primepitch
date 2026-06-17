@@ -21,6 +21,63 @@ interface Stream {
   source: string;
 }
 
+// --- Stream selector grouping (presentation only) -------------------------
+// Streams arrive as one flat list; we group them by their origin source for
+// display. Edit SOURCE_META to set each group's display name, descriptive
+// note, and order. Unknown sources fall back to a title-cased name so nothing
+// ever renders blank. This does not change how streams are resolved or played.
+const SOURCE_META: Record<string, { name: string; note: string; rank: number }> = {
+  admin: { name: "Admin", note: "Admin added streams", rank: 0 },
+  echo: { name: "Echo", note: "Great quality overall", rank: 10 },
+  // Add your fallback providers here, e.g.:
+  // streamed: { name: "Streamed", note: "Third party (more ads), but very stable", rank: 1 },
+  // streami: { name: "Streami", note: "Backup source", rank: 2 },
+};
+
+function streamGroupMeta(key: string): { name: string; note: string; rank: number } {
+  return (
+    SOURCE_META[key] || {
+      name: key ? key.charAt(0).toUpperCase() + key.slice(1) : "Other",
+      note: "Backup source",
+      rank: 5,
+    }
+  );
+}
+
+function streamGroupKey(s: Stream): string {
+  if (s.id?.startsWith("override")) return "admin";
+  if (s.source?.startsWith("auto-")) return s.source.slice(5).toLowerCase();
+  return "echo"; // native streamed.pk streams
+}
+
+interface StreamGroupItem {
+  s: Stream;
+  idx: number; // original index in the flat streams array (for selection)
+  n: number; // 1-based number within its group
+}
+interface StreamGroup {
+  key: string;
+  name: string;
+  note: string;
+  rank: number;
+  items: StreamGroupItem[];
+}
+
+function groupStreams(streams: Stream[]): StreamGroup[] {
+  const map = new Map<string, StreamGroup>();
+  streams.forEach((s, idx) => {
+    const key = streamGroupKey(s);
+    let g = map.get(key);
+    if (!g) {
+      const m = streamGroupMeta(key);
+      g = { key, name: m.name, note: m.note, rank: m.rank, items: [] };
+      map.set(key, g);
+    }
+    g.items.push({ s, idx, n: g.items.length + 1 });
+  });
+  return [...map.values()].sort((a, b) => a.rank - b.rank);
+}
+
 const ALL_SPORTS = [
   "football", "basketball", "american-football", "hockey", "baseball",
   "motor-sports", "fight", "tennis", "rugby", "golf", "billiards",
@@ -699,41 +756,44 @@ export default function WatchPage() {
         </div>
       )}
 
-      {/* Choose Stream — only for live matches */}
+      {/* Choose Stream — only for live matches. Streams are grouped by their
+          source (Admin / Echo / fallback providers) with HD/SD subsections.
+          Presentation only — selection still indexes the flat streams list. */}
       {isLive && (
         <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
           <h3 className="text-[12px] font-bold text-gray-500 tracking-widest mb-3">CHOOSE STREAM</h3>
-          <div className="space-y-2">
-            {streams.length > 0 ? streams.map((s, i) => (
+          {streams.length > 0 ? (() => {
+            const groups = groupStreams(streams);
+            const renderRow = (it: StreamGroupItem) => (
               <button
-                key={`${s.id || s.source}-${i}`}
-                onClick={() => setActiveStream(i)}
+                key={`${it.s.id || it.s.source}-${it.idx}`}
+                onClick={() => setActiveStream(it.idx)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
-                  i === activeStream
+                  it.idx === activeStream
                     ? "bg-emerald-500/10 border-emerald-500/30"
                     : "bg-gray-50 border-gray-200 hover:border-gray-300"
                 }`}
               >
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                  i === activeStream ? "bg-emerald-500" : "bg-gray-200"
+                  it.idx === activeStream ? "bg-emerald-500" : "bg-gray-200"
                 }`}>
-                  <svg className={`w-3.5 h-3.5 ${i === activeStream ? "text-black" : "text-gray-600"}`} fill="currentColor" viewBox="0 0 20 20">
+                  <svg className={`w-3.5 h-3.5 ${it.idx === activeStream ? "text-black" : "text-gray-600"}`} fill="currentColor" viewBox="0 0 20 20">
                     <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                   </svg>
                 </div>
                 <div className="flex-1 text-left">
                   <div className="flex items-center gap-2">
                     <span className="text-[13px] font-bold text-gray-900">
-                      {s.id?.startsWith("override") ? `Stream ${i + 1}` : `Server ${s.streamNo}`}
+                      {`Stream ${it.n}`}
                     </span>
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                      s.hd ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-500/20 text-gray-400"
+                      it.s.hd ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-500/20 text-gray-400"
                     }`}>
-                      {s.hd ? "HD" : "SD"}
+                      {it.s.hd ? "HD" : "SD"}
                     </span>
                   </div>
                   <p className="text-[11px] text-gray-500 mt-0.5">
-                    {s.language || "English"}
+                    {it.s.language || "English"}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -745,10 +805,50 @@ export default function WatchPage() {
                   </div>
                 </div>
               </button>
-            )) : !loading && (
-              <p className="text-[12px] text-gray-600 py-4 text-center">No servers available</p>
-            )}
-          </div>
+            );
+            return (
+              <div className="space-y-4">
+                <p className="text-[11px] text-gray-400 font-medium">
+                  Showing top quality sources • {groups.length} of {groups.length} sources
+                </p>
+                {groups.map((g) => {
+                  const hd = g.items.filter((it) => it.s.hd);
+                  const sd = g.items.filter((it) => !it.s.hd);
+                  return (
+                    <div key={g.key} className="rounded-2xl border border-gray-200 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100 flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-[15px] font-extrabold text-gray-900">{g.name}</h4>
+                          <p className="text-[11px] font-semibold text-amber-500 mt-0.5 flex items-center gap-1">
+                            <span aria-hidden>✨</span> {g.note}
+                          </p>
+                        </div>
+                        <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full whitespace-nowrap shrink-0">
+                          {g.items.length} stream{g.items.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      <div className="p-3 space-y-3">
+                        {hd.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">HD Streams</p>
+                            {hd.map(renderRow)}
+                          </div>
+                        )}
+                        {sd.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">SD Streams</p>
+                            {sd.map(renderRow)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })() : !loading && (
+            <p className="text-[12px] text-gray-600 py-4 text-center">No servers available</p>
+          )}
         </div>
       )}
 
