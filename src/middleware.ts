@@ -54,6 +54,19 @@ function singleSegment(pathname: string): string | null {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // 0) Canonical domain. Send the default workers.dev address to the main domain
+  // so the whole site — and each visitor's identity — lives on ONE origin.
+  // Exact host match only, so versioned preview deploys still work for testing.
+  // Temporary (307) so it stays easily reversible.
+  const host = request.headers.get("host") || "";
+  if (host === "primepitch.daxonicstudios.workers.dev") {
+    const url = request.nextUrl.clone();
+    url.protocol = "https:";
+    url.hostname = "xellnetwork.xyz";
+    url.port = "";
+    return NextResponse.redirect(url, 307);
+  }
+
   // 1) Referral capture (never blocks the site — any error falls through).
   const seg = singleSegment(pathname);
   if (seg && !pathname.startsWith("/admin")) {
