@@ -174,10 +174,11 @@ export async function searchFallbackStreams(
   title: string,
   sport: string
 ): Promise<FallbackStream[]> {
-  // SportSRC is the only live provider — EmbedSportex's domain is dead (NXDOMAIN),
-  // so we no longer call searchEmbedSportex. Add a new provider to this array to
-  // restore a second independent fallback.
-  const providers = [searchSportSRC(title, sport)];
+  // Fallback providers are OFF for now — SportSRC removed at the owner's request.
+  // Both the public resolver and the admin search flow through here, so an empty
+  // list means no fallback anywhere on the site. To restore one later, add a
+  // provider call to this array, e.g.  const providers = [searchSomeProvider(title, sport)];
+  const providers: Array<Promise<FallbackStream[]>> = [];
   const settled = await Promise.allSettled(providers);
 
   // Dedupe by embedUrl (a provider can list the same match twice).
