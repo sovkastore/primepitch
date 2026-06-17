@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useFeedStatus } from "@/components/partner/useFeedStatus";
 import { applyCompare, type CompareMode } from "@/components/partner/compare";
 import DayPicker from "@/components/partner/DayPicker";
 
 export interface PanelMatch {
   match_id: string; title: string; sport?: string | null; status?: string;
-  views: number; uniqueTotal: number; uniqueHis: number; uniqueYours: number;
-  peakTotal: number; peakHis: number; peakYours: number; lastViewed?: string;
+  views: number; uniqueTotal: number; uniqueHis: number; uniqueYours: number; uniqueOwn?: number;
+  peakTotal: number; peakHis: number; peakYours: number; peakOwn?: number;
+  lastViewed?: string; kickoff?: number | null;
 }
 
 const STATUSES = [
@@ -22,7 +22,6 @@ const SPORTS = ["football", "basketball", "american-football", "fight", "motor-s
 // src = the matches endpoint (already includes ?stat/&code for admin). The panel
 // owns the day filter and refetches server-side, plus client-side status/sort/sport.
 export default function MatchesPanel({ src, mine, compare = "all" }: { src: string; mine?: boolean; compare?: CompareMode }) {
-  const { rowStatus } = useFeedStatus();
   const [day, setDay] = useState(""); // "" = all time
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState<"recent" | "views">("recent");
@@ -47,13 +46,8 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
   useEffect(() => { load(); }, [load]);
 
   const withStatus = useMemo(
-    () => applyCompare(matches, compare).map((m) => {
-      const fs = rowStatus(m.match_id, m.title);
-      // Mirror the admin matches API: a finished feed match is "played".
-      const st = fs === "ended" ? "played" : (fs || m.status || "played");
-      return { ...m, st };
-    }),
-    [matches, compare, rowStatus],
+    () => applyCompare(matches, compare).map((m) => ({ ...m, st: m.status || "played" })),
+    [matches, compare],
   );
   const sportOptions = useMemo(() => {
     const present = new Set(matches.map((m) => (m.sport || "").toLowerCase()).filter(Boolean));
@@ -63,7 +57,7 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
     let r = withStatus.slice();
     if (status !== "all") r = r.filter((m) => m.st === status);
     if (sport) r = r.filter((m) => (m.sport || "").toLowerCase() === sport);
-    r.sort((a, b) => (sort === "views" ? b.views - a.views : (b.lastViewed || "").localeCompare(a.lastViewed || "")));
+    r.sort((a, b) => (sort === "views" ? b.views - a.views : (b.kickoff ?? 0) - (a.kickoff ?? 0)));
     return r;
   }, [withStatus, status, sport, sort]);
 

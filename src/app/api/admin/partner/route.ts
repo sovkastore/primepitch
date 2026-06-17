@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { partnerMatches } from "@/lib/matches-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +32,8 @@ export async function GET(request: NextRequest) {
     }
     if (stat === "matches") {
       const day = searchParams.get("day");
-      const args: Record<string, unknown> = { p_ref: code };
-      if (day) args.p_day = day;
-      const { data, error } = await sb.rpc("partner_matches", args);
-      if (error) throw error;
-      return NextResponse.json({ matches: data ?? [] });
+      const matches = await partnerMatches(code, day);
+      return NextResponse.json({ matches });
     }
     if (stat === "analytics") {
       const now = new Date();
