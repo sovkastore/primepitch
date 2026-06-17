@@ -1,36 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import MatchesPanel, { type PanelMatch } from "@/components/partner/MatchesPanel";
+import MatchesPanel from "@/components/partner/MatchesPanel";
 import PulsePanel, { type PulseData } from "@/components/partner/PulsePanel";
 import OverviewPanel, { type OverviewData } from "@/components/partner/OverviewPanel";
 import AnalyticsPanel, { type AnalyticsData } from "@/components/partner/AnalyticsPanel";
 import VisitorsPanel, { type VisitorsData } from "@/components/partner/VisitorsPanel";
+import RangePicker from "@/components/partner/RangePicker";
+import DayPicker from "@/components/partner/DayPicker";
+import { rangeFor, type Preset } from "@/components/partner/rangePresets";
 
 type Stat = "overview" | "pulse" | "matches" | "analytics" | "visitors";
 interface PartnerLite { code: string; name: string | null; active: boolean }
 
-const RANGES = [
-  { key: "today", label: "Today" },
-  { key: "7d", label: "7 days" },
-  { key: "30d", label: "30 days" },
-  { key: "all", label: "All time" },
-];
-function rangeQuery(key: string): string {
-  const now = new Date();
-  const end = now.toISOString();
-  const startToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
-  if (key === "today") return `start=${startToday}&end=${end}`;
-  if (key === "7d") return `start=${new Date(now.getTime() - 7 * 864e5).toISOString()}&end=${end}`;
-  if (key === "30d") return `start=${new Date(now.getTime() - 30 * 864e5).toISOString()}&end=${end}`;
-  return `start=${new Date(0).toISOString()}&end=${end}`;
-}
-
 export default function AdminPartnerView({ stat, title }: { stat: Stat; title: string }) {
+  const today = new Date().toISOString().slice(0, 10);
   const [partners, setPartners] = useState<PartnerLite[]>([]);
   const [code, setCode] = useState("");
-  const [range, setRange] = useState("7d");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [preset, setPreset] = useState<Preset>("today");
+  const [aDate, setADate] = useState(today);
+  const [vDate, setVDate] = useState(today);
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -43,12 +32,15 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
   }, [partners, code]);
 
   const url = useMemo(() => {
-    if (!code) return null;
+    if (!code || stat === "matches") return null;
     let u = `/api/admin/partner?stat=${stat}&code=${encodeURIComponent(code)}`;
-    if (stat === "analytics") u += `&${rangeQuery(range)}`;
-    if (stat === "visitors") u += `&date=${date}`;
+    if (stat === "analytics") {
+      const { start, end } = rangeFor(preset, aDate);
+      u += `&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+    }
+    if (stat === "visitors") u += `&date=${vDate || today}`;
     return u;
-  }, [stat, code, range, date]);
+  }, [stat, code, preset, aDate, vDate, today]);
 
   const load = useCallback(async () => {
     if (!url) return;
@@ -58,6 +50,7 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
   }, [url]);
 
   useEffect(() => {
+    if (stat === "matches") return;
     load();
     if (stat === "pulse" || stat === "overview") {
       const id = setInterval(load, stat === "pulse" ? 20000 : 30000);
@@ -81,21 +74,14 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
       </p>
 
       {stat === "analytics" && (
-        <div className="flex gap-1.5 mb-5 flex-wrap">
-          {RANGES.map((r) => (
-            <button key={r.key} onClick={() => setRange(r.key)}
-              className={`px-3 py-1.5 rounded-lg text-[12px] font-bold ${range === r.key ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600"}`}>
-              {r.label}
-            </button>
-          ))}
-        </div>
+        <RangePicker preset={preset} dateStr={aDate} onPreset={setPreset}
+          onDate={(d) => { setADate(d); setPreset("date"); }} />
       )}
-      {stat === "visitors" && (
-        <input type="date" value={date} max={new Date().toISOString().slice(0, 10)}
-          onChange={(e) => setDate(e.target.value)} className="px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] mb-5" />
-      )}
+      {stat === "visitors" && <DayPicker date={vDate} onChange={(d) => setVDate(d || today)} />}
 
-      {loading && !data ? (
+      {stat === "matches" ? (
+        code ? <MatchesPanel src={`/api/admin/partner?stat=matches&code=${encodeURIComponent(code)}`} /> : <p className="text-sm text-gray-400">Loading…</p>
+      ) : loading && !data ? (
         <p className="text-sm text-gray-400">Loading…</p>
       ) : stat === "overview" ? (
         <OverviewPanel data={data as unknown as OverviewData} />
@@ -103,10 +89,8 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
         <AnalyticsPanel data={data as unknown as AnalyticsData} />
       ) : stat === "visitors" ? (
         <VisitorsPanel data={data as unknown as VisitorsData} />
-      ) : stat === "pulse" ? (
-        <PulsePanel data={data as unknown as PulseData} />
       ) : (
-        <MatchesPanel matches={((data as { matches?: PanelMatch[] })?.matches) || []} />
+        <PulsePanel data={data as unknown as PulseData} />
       )}
     </div>
   );

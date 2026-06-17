@@ -3,26 +3,16 @@
 import { useMemo, useState } from "react";
 import { usePartnerData } from "@/components/partner/usePartnerData";
 import AnalyticsPanel, { type AnalyticsData } from "@/components/partner/AnalyticsPanel";
-
-const RANGES = [
-  { key: "today", label: "Today" },
-  { key: "7d", label: "7 days" },
-  { key: "30d", label: "30 days" },
-  { key: "all", label: "All time" },
-];
-function rangeToQuery(key: string): string {
-  const now = new Date();
-  const end = now.toISOString();
-  const startToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
-  if (key === "today") return `start=${startToday}&end=${end}`;
-  if (key === "7d") return `start=${new Date(now.getTime() - 7 * 864e5).toISOString()}&end=${end}`;
-  if (key === "30d") return `start=${new Date(now.getTime() - 30 * 864e5).toISOString()}&end=${end}`;
-  return `start=${new Date(0).toISOString()}&end=${end}`;
-}
+import RangePicker from "@/components/partner/RangePicker";
+import { rangeFor, type Preset } from "@/components/partner/rangePresets";
 
 export default function PartnerAnalytics() {
-  const [range, setRange] = useState("7d");
-  const url = useMemo(() => `/api/partner/analytics?${rangeToQuery(range)}`, [range]);
+  const [preset, setPreset] = useState<Preset>("today");
+  const [dateStr, setDateStr] = useState(new Date().toISOString().slice(0, 10));
+  const url = useMemo(() => {
+    const { start, end } = rangeFor(preset, dateStr);
+    return `/api/partner/analytics?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+  }, [preset, dateStr]);
   const { data, loading, error } = usePartnerData<AnalyticsData>(url);
   return (
     <div className="max-w-5xl mx-auto">
@@ -30,15 +20,8 @@ export default function PartnerAnalytics() {
       <p className="text-[13px] text-gray-400 font-medium mt-0.5 mb-4">
         Totals for a time window. <span className="text-blue-600 font-bold">Blue = me</span>. Windows are UTC days.
       </p>
-      <div className="flex gap-1.5 mb-5 flex-wrap">
-        {RANGES.map((r) => (
-          <button key={r.key} onClick={() => setRange(r.key)}
-            className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${
-              range === r.key ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-            {r.label}
-          </button>
-        ))}
-      </div>
+      <RangePicker preset={preset} dateStr={dateStr} onPreset={setPreset}
+        onDate={(d) => { setDateStr(d); setPreset("date"); }} />
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
       {loading && !data ? <p className="text-sm text-gray-400">Loading…</p> : <AnalyticsPanel data={data} mine />}
     </div>

@@ -30,7 +30,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(data);
     }
     if (stat === "matches") {
-      const { data, error } = await sb.rpc("partner_matches", { p_ref: code });
+      const day = searchParams.get("day");
+      const args: Record<string, unknown> = { p_ref: code };
+      if (day) args.p_day = day;
+      const { data, error } = await sb.rpc("partner_matches", args);
       if (error) throw error;
       return NextResponse.json({ matches: data ?? [] });
     }

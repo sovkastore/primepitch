@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFeedStatus } from "@/components/partner/useFeedStatus";
+import DayPicker from "@/components/partner/DayPicker";
 
 export interface PanelMatch {
   match_id: string; title: string; sport?: string | null; status?: string;
@@ -15,32 +16,48 @@ const STATUSES = [
   { k: "played", l: "Played" },
   { k: "upcoming", l: "Upcoming" },
 ];
-
 const SPORTS = ["football", "basketball", "american-football", "fight", "motor-sports", "tennis", "hockey", "baseball", "cricket", "rugby", "golf", "other"];
 
-export default function MatchesPanel({ matches, mine }: { matches: PanelMatch[]; mine?: boolean }) {
+// src = the matches endpoint (already includes ?stat/&code for admin). The panel
+// owns the day filter and refetches server-side, plus client-side status/sort/sport.
+export default function MatchesPanel({ src, mine }: { src: string; mine?: boolean }) {
   const { rowStatus } = useFeedStatus();
+  const [day, setDay] = useState(""); // "" = all time
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState<"recent" | "views">("recent");
   const [sport, setSport] = useState("");
+  const [matches, setMatches] = useState<PanelMatch[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Real status from the live feed (same as Pulse/Overview); RPC heuristic is the fallback.
+  const url = useMemo(() => src + (src.includes("?") ? "&" : "?") + (day ? `day=${day}` : ""), [src, day]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      const j = await r.json();
+      setMatches(j.matches ?? []);
+    } catch {
+      setMatches([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [url]);
+  useEffect(() => { load(); }, [load]);
+
   const withStatus = useMemo(
     () => matches.map((m) => ({ ...m, st: rowStatus(m.match_id, m.title) || m.status || "played" })),
     [matches, rowStatus],
   );
-
   const sportOptions = useMemo(() => {
     const present = new Set(matches.map((m) => (m.sport || "").toLowerCase()).filter(Boolean));
     return SPORTS.filter((s) => present.has(s));
   }, [matches]);
-
   const rows = useMemo(() => {
     let r = withStatus.slice();
     if (status !== "all") r = r.filter((m) => m.st === status);
     if (sport) r = r.filter((m) => (m.sport || "").toLowerCase() === sport);
-    r.sort((a, b) =>
-      sort === "views" ? b.views - a.views : (b.lastViewed || "").localeCompare(a.lastViewed || ""));
+    r.sort((a, b) => (sort === "views" ? b.views - a.views : (b.lastViewed || "").localeCompare(a.lastViewed || "")));
     return r;
   }, [withStatus, status, sport, sort]);
 
@@ -51,6 +68,7 @@ export default function MatchesPanel({ matches, mine }: { matches: PanelMatch[];
 
   return (
     <>
+      <DayPicker date={day} onChange={setDay} allowAll />
       <div className="flex flex-wrap items-center gap-1.5 mb-4">
         {STATUSES.map((s) => (
           <button key={s.k} onClick={() => setStatus(s.k)} className={tab(status === s.k)}>{s.l}</button>
@@ -67,7 +85,9 @@ export default function MatchesPanel({ matches, mine }: { matches: PanelMatch[];
         )}
       </div>
 
-      {rows.length === 0 ? (
+      {loading ? (
+        <p className="text-sm text-gray-400">Loading…</p>
+      ) : rows.length === 0 ? (
         <p className="text-sm text-gray-400">No matches for this filter.</p>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
