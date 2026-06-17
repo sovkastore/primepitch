@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useFeedStatus } from "@/components/partner/useFeedStatus";
 
 export interface PanelMatch {
   match_id: string; title: string; sport?: string | null; status?: string;
@@ -18,9 +19,16 @@ const STATUSES = [
 const SPORTS = ["football", "basketball", "american-football", "fight", "motor-sports", "tennis", "hockey", "baseball", "cricket", "rugby", "golf", "other"];
 
 export default function MatchesPanel({ matches, mine }: { matches: PanelMatch[]; mine?: boolean }) {
+  const { rowStatus } = useFeedStatus();
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState<"recent" | "views">("recent");
   const [sport, setSport] = useState("");
+
+  // Real status from the live feed (same as Pulse/Overview); RPC heuristic is the fallback.
+  const withStatus = useMemo(
+    () => matches.map((m) => ({ ...m, st: rowStatus(m.match_id, m.title) || m.status || "played" })),
+    [matches, rowStatus],
+  );
 
   const sportOptions = useMemo(() => {
     const present = new Set(matches.map((m) => (m.sport || "").toLowerCase()).filter(Boolean));
@@ -28,13 +36,13 @@ export default function MatchesPanel({ matches, mine }: { matches: PanelMatch[];
   }, [matches]);
 
   const rows = useMemo(() => {
-    let r = matches.slice();
-    if (status !== "all") r = r.filter((m) => m.status === status);
+    let r = withStatus.slice();
+    if (status !== "all") r = r.filter((m) => m.st === status);
     if (sport) r = r.filter((m) => (m.sport || "").toLowerCase() === sport);
     r.sort((a, b) =>
       sort === "views" ? b.views - a.views : (b.lastViewed || "").localeCompare(a.lastViewed || ""));
     return r;
-  }, [matches, status, sport, sort]);
+  }, [withStatus, status, sport, sort]);
 
   const blue = mine ? "me" : "his";
   const grey = mine ? "others" : "yours";
@@ -51,11 +59,8 @@ export default function MatchesPanel({ matches, mine }: { matches: PanelMatch[];
         <button onClick={() => setSort("views")} className={tab(sort === "views")}>Most watched</button>
         <button onClick={() => setSort("recent")} className={tab(sort === "recent")}>Recent</button>
         {sportOptions.length > 0 && (
-          <select
-            value={sport}
-            onChange={(e) => setSport(e.target.value)}
-            className="ml-auto px-3 py-1.5 rounded-lg border border-gray-200 text-[12px] font-semibold"
-          >
+          <select value={sport} onChange={(e) => setSport(e.target.value)}
+            className="ml-auto px-3 py-1.5 rounded-lg border border-gray-200 text-[12px] font-semibold">
             <option value="">All sports</option>
             {sportOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -84,9 +89,9 @@ export default function MatchesPanel({ matches, mine }: { matches: PanelMatch[];
                   </td>
                   <td className="px-3 py-2.5">
                     <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                      m.status === "live" ? "bg-red-50 text-red-600"
-                      : m.status === "upcoming" ? "bg-amber-50 text-amber-600"
-                      : "bg-gray-100 text-gray-500"}`}>{m.status}</span>
+                      m.st === "live" ? "bg-red-50 text-red-600"
+                      : m.st === "upcoming" ? "bg-amber-50 text-amber-600"
+                      : "bg-gray-100 text-gray-500"}`}>{m.st}</span>
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     <span className="font-bold text-gray-900">{m.uniqueTotal}</span>

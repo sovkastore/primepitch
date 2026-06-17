@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { getAllMatches, getMatchStatus } from "@/lib/api";
-import { normTitle } from "@/lib/match-merge";
+import { useMemo } from "react";
 import { SplitStat } from "@/components/partner/SplitStat";
+import { useFeedStatus, matchTitleFromId } from "@/components/partner/useFeedStatus";
 
 interface PulseMatch {
   match_id: string; title: string; total: number; his: number; yours: number;
@@ -13,75 +12,28 @@ interface PulsePage { path: string; total: number; his: number; yours: number }
 interface Split { total: number; his: number; yours: number }
 export interface PulseData { onlineNow?: Split; liveNow?: Split; matches?: PulseMatch[]; pages?: PulsePage[] }
 
-type Status = "live" | "upcoming" | "ended";
-
-function getMatchTitle(matchId: string): string {
-  return matchId.split("--").pop()?.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || matchId;
-}
-
 export default function PulsePanel({ data, mine }: { data: PulseData | null; mine?: boolean }) {
-  // Live fixture feed → real status per match (identical to the main admin Pulse).
-  const [feedStatus, setFeedStatus] = useState<Record<string, Status> | null>(null);
-  const [titleStatus, setTitleStatus] = useState<Record<string, Status> | null>(null);
-
-  useEffect(() => {
-    let on = true;
-    const load = () =>
-      getAllMatches()
-        .then((ms) => {
-          if (!on) return;
-          const map: Record<string, Status> = {};
-          const tmap: Record<string, Status> = {};
-          const RANK = { live: 0, upcoming: 1, ended: 2 } as const;
-          for (const m of ms) {
-            const st = getMatchStatus(m);
-            map[String(m.id)] = st;
-            const tk = normTitle(m.title);
-            if (!tmap[tk] || RANK[st] < RANK[tmap[tk]]) tmap[tk] = st;
-          }
-          setFeedStatus(map);
-          setTitleStatus(tmap);
-        })
-        .catch(() => {});
-    load();
-    const t = setInterval(load, 5 * 60_000);
-    return () => { on = false; clearInterval(t); };
-  }, []);
-
+  const { rowStatus } = useFeedStatus();
   const matches = useMemo(() => data?.matches ?? [], [data]);
   const pages = useMemo(() => data?.pages ?? [], [data]);
 
   const titleFor = (matchId: string): string =>
-    matches.find((m) => m.match_id === matchId)?.title || getMatchTitle(matchId);
+    matches.find((m) => m.match_id === matchId)?.title || matchTitleFromId(matchId);
 
-  // Resolve an active match_id to live/upcoming/ended exactly as the admin Pulse does.
-  const rowStatus = (matchId: string): Status | null => {
-    if (!feedStatus) return null;
-    const parts = matchId.split("--");
-    const feedId = parts.length > 1 ? parts.slice(1).join("--") : matchId;
-    if (feedStatus[feedId]) return feedStatus[feedId];
-    const baseTitle = normTitle(titleFor(matchId).replace(/\([^)]*\)/g, " "));
-    if (titleStatus?.[baseTitle]) return titleStatus[baseTitle];
-    const byTitle = titleStatus?.[normTitle(getMatchTitle(matchId))];
-    if (byTitle) return byTitle;
-    const isCustom = parts[0] === "admin" || /^(live-)?event/i.test(parts[0]) || parts.length === 1;
-    return isCustom ? null : "ended";
-  };
+  const sumBy = (want: string, key: "total" | "his"): number =>
+    matches.filter((m) => rowStatus(m.match_id, m.title) === want).reduce((acc, m) => acc + (m[key] || 0), 0);
 
-  const sumBy = (want: Status, key: "total" | "his"): number =>
-    matches.filter((m) => rowStatus(m.match_id) === want).reduce((acc, m) => acc + (m[key] || 0), 0);
-
-  // Same arithmetic as the admin headline: true-live = on-a-match minus
-  // (upcoming + ended); custom/unknown matches stay counted as live.
   const onMatchTotal = data?.liveNow?.total ?? 0;
   const onMatchHis = data?.liveNow?.his ?? 0;
   const upTotal = sumBy("upcoming", "total"), upHis = sumBy("upcoming", "his");
   const endTotal = sumBy("ended", "total"), endHis = sumBy("ended", "his");
   const liveTotal = Math.max(0, onMatchTotal - upTotal - endTotal);
   const liveHis = Math.max(0, onMatchHis - upHis - endHis);
-  const liveMatches = matches.filter((m) => rowStatus(m.match_id) === "live");
+  const liveMatches = matches.filter((m) => rowStatus(m.match_id, m.title) === "live");
 
   const split = (total: number, his: number): Split => ({ total, his, yours: Math.max(0, total - his) });
+  const blue = mine ? "me" : "his";
+  const grey = mine ? "others" : "yours";
 
   function pageLabel(path: string): string {
     if (!path || path === "/") return "Home";
@@ -89,9 +41,6 @@ export default function PulsePanel({ data, mine }: { data: PulseData | null; min
     const s = path.replace(/^\//, "");
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
-
-  const blue = mine ? "me" : "his";
-  const grey = mine ? "others" : "yours";
 
   return (
     <>
