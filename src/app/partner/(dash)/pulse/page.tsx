@@ -1,7 +1,7 @@
 "use client";
 
 import { usePartnerData } from "@/components/partner/usePartnerData";
-import { SplitStat, type Split } from "@/components/partner/SplitStat";
+import { MeStat as SplitStat, type Split } from "@/components/partner/SplitStat";
 
 interface PulseMatch {
   match_id: string; title: string; total: number; his: number; yours: number;
@@ -39,8 +39,8 @@ export default function PartnerPulse() {
                 <thead className="bg-gray-50 text-gray-400 text-[10px] uppercase tracking-wider">
                   <tr>
                     <th className="text-left font-bold px-3 py-2">Match</th>
-                    <th className="text-right font-bold px-3 py-2">Watching now (total / his / yours)</th>
-                    <th className="text-right font-bold px-3 py-2">Peak (total / his / yours)</th>
+                    <th className="text-right font-bold px-3 py-2">Watching now (total / me / others)</th>
+                    <th className="text-right font-bold px-3 py-2">Peak (total / me / others)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -73,7 +73,7 @@ export default function PartnerPulse() {
                 <thead className="bg-gray-50 text-gray-400 text-[10px] uppercase tracking-wider">
                   <tr>
                     <th className="text-left font-bold px-3 py-2">Page</th>
-                    <th className="text-right font-bold px-3 py-2">Total / his / yours</th>
+                    <th className="text-right font-bold px-3 py-2">Total / me / others</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">

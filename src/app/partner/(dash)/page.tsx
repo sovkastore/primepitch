@@ -1,7 +1,7 @@
 "use client";
 
 import { usePartnerData } from "@/components/partner/usePartnerData";
-import { SplitStat, type Split } from "@/components/partner/SplitStat";
+import { MeStat as SplitStat, type Split } from "@/components/partner/SplitStat";
 
 interface OverviewData {
   totalVisitors: Split; newToday: Split; returnsToday: Split;

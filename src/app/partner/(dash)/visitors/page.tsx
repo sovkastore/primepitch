@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePartnerData } from "@/components/partner/usePartnerData";
-import { SplitStat, type Split } from "@/components/partner/SplitStat";
+import { MeStat as SplitStat, type Split } from "@/components/partner/SplitStat";
 
 interface RosterRow {
   visitor_id: string; first_seen: string; last_seen: string;

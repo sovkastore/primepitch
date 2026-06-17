@@ -88,7 +88,7 @@ export default function AdsLoader() {
         }
         if (done || !cfg?.master) return; // master kill-switch
         const path = pathname || window.location.pathname;
-        if (path.startsWith("/admin")) return; // never on admin
+        if (path.startsWith("/admin") || path.startsWith("/partner")) return; // never on admin or partner portal
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
         for (const [id, f] of Object.entries(cfg.formats || {})) {
           if (!f?.enabled) continue;

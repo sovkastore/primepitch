@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SplitStat, type Split } from "@/components/partner/SplitStat";
+import MatchesPanel, { type PanelMatch } from "@/components/partner/MatchesPanel";
 
 type Stat = "overview" | "pulse" | "matches" | "analytics" | "visitors";
 
@@ -179,7 +180,7 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
           <PageTable rows={(cells.pages as unknown as PageRow[]) || []} />
         </>
       ) : (
-        <MatchTable rows={((data as { matches?: MatchRow[] })?.matches) || []} />
+        <MatchesPanel matches={((data as { matches?: PanelMatch[] })?.matches) || []} />
       )}
     </div>
   );

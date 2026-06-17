@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePartnerData } from "@/components/partner/usePartnerData";
-import { SplitStat, type Split } from "@/components/partner/SplitStat";
+import { MeStat as SplitStat, type Split } from "@/components/partner/SplitStat";
 
 const RANGES = [
   { key: "today", label: "Today" },
