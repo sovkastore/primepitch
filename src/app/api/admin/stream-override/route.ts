@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
-// Insert rows; if the optional match_data column doesn't exist yet, retry without it
-// so override creation never breaks before the schema migration is applied.
+// Insert rows; if an optional column doesn't exist yet (match_data before
+// migration 002, position before migration 011), drop it and retry so override
+// creation never hard-fails on a not-yet-applied migration.
 async function insertWithFallback(rows: Record<string, unknown>[]) {
   const sb = getSupabaseAdmin();
-  let { error } = await sb.from("stream_overrides").insert(rows);
-  if (error && /match_data/.test(error.message || "")) {
-    const stripped = rows.map((r) => {
-      const c = { ...r };
-      delete c.match_data;
-      return c;
-    });
-    ({ error } = await sb.from("stream_overrides").insert(stripped));
+  const OPTIONAL = ["match_data", "position"];
+  let attempt = rows;
+  for (let i = 0; i <= OPTIONAL.length; i++) {
+    const { error } = await sb.from("stream_overrides").insert(attempt);
+    if (!error) return null;
+    const msg = error.message || "";
+    const missing = OPTIONAL.find((col) => msg.includes(col) && attempt.some((r) => col in r));
+    if (!missing) return error;
+    attempt = attempt.map((r) => { const c = { ...r }; delete c[missing]; return c; });
   }
-  return error;
+  return null;
 }
 
 export async function GET(request: NextRequest) {
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { match_id, match_title, match_data, replace_original, streams, embed_url, source, server_label, append } =
+    const { match_id, match_title, match_data, replace_original, streams, embed_url, source, server_label, append, position } =
       await request.json();
 
     if (!match_id) {
@@ -51,9 +53,10 @@ export async function POST(request: NextRequest) {
         .eq("match_id", match_id);
     }
 
-    // Multi-stream insert
+    // Multi-stream insert. Each row's `position` (server display order) defaults
+    // to its index, so the array order = the order viewers see on the watch page.
     if (Array.isArray(streams) && streams.length > 0) {
-      const rows = streams.map((s: { embed_url: string; source: string; server_label: string }) => ({
+      const rows = streams.map((s: { embed_url: string; source: string; server_label: string; position?: number }, i: number) => ({
         match_id,
         match_title: match_title || null,
         match_data: match_data ?? null,
@@ -62,6 +65,7 @@ export async function POST(request: NextRequest) {
         server_label: s.server_label || null,
         replace_original: replaceFlag,
         enabled: true,
+        position: typeof s.position === "number" ? s.position : i,
       }));
 
       const error = await insertWithFallback(rows);
@@ -83,6 +87,7 @@ export async function POST(request: NextRequest) {
       server_label: server_label || "Manual",
       replace_original: replaceFlag,
       enabled: true,
+      ...(typeof position === "number" ? { position } : {}),
     }]);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -94,13 +99,14 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { id, enabled, replace_original, server_label, match_id } = await request.json();
+    const { id, enabled, replace_original, server_label, match_id, position } = await request.json();
 
     if (id) {
       const update: Record<string, unknown> = {};
       if (typeof enabled === "boolean") update.enabled = enabled;
       if (typeof replace_original === "boolean") update.replace_original = replace_original;
       if (typeof server_label === "string") update.server_label = server_label;
+      if (typeof position === "number") update.position = position;
 
       await getSupabaseAdmin().from("stream_overrides").update(update).eq("id", id);
       return NextResponse.json({ ok: true });
