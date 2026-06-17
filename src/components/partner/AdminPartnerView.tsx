@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SplitStat, type Split } from "@/components/partner/SplitStat";
 import MatchesPanel, { type PanelMatch } from "@/components/partner/MatchesPanel";
+import PulsePanel, { type PulseData } from "@/components/partner/PulsePanel";
 
 type Stat = "overview" | "pulse" | "matches" | "analytics" | "visitors";
 
@@ -36,23 +37,7 @@ function rangeQuery(key: string): string {
 }
 
 interface Cells { [k: string]: Split }
-interface MatchRow {
-  match_id: string; title: string; sport?: string | null; total?: number; his?: number; yours?: number;
-  uniqueTotal?: number; uniqueHis?: number; uniqueYours?: number;
-  peakTotal: number; peakHis: number; peakYours: number;
-}
-interface PageRow { path: string; total: number; his: number; yours: number }
 interface RosterRow { visitor_id: string; first_seen: string; last_seen: string; visit_count: number; device_type: string | null }
-
-function Triple({ t, h, y }: { t: number; h: number; y: number }) {
-  return (
-    <span className="tabular-nums">
-      <span className="font-bold text-gray-900">{t}</span>
-      <span className="text-blue-600 font-semibold ml-2">{h}</span>
-      <span className="text-gray-400 ml-1.5">/ {y}</span>
-    </span>
-  );
-}
 
 export default function AdminPartnerView({ stat, title }: { stat: Stat; title: string }) {
   const partners = useList();
@@ -169,68 +154,10 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
           <RosterTable rows={(cells.hisRoster as unknown as RosterRow[]) || []} />
         </>
       ) : stat === "pulse" ? (
-        <>
-          <div className="grid grid-cols-2 gap-3 max-w-md">
-            <SplitStat label="Online now" data={cells.onlineNow} />
-            <SplitStat label="Watching live now" data={cells.liveNow} />
-          </div>
-          <h2 className="text-[13px] font-black text-gray-700 uppercase tracking-wider mt-7 mb-2">Live matches now</h2>
-          <MatchTable rows={(cells.matches as unknown as MatchRow[]) || []} live />
-          <h2 className="text-[13px] font-black text-gray-700 uppercase tracking-wider mt-7 mb-2">Pages now</h2>
-          <PageTable rows={(cells.pages as unknown as PageRow[]) || []} />
-        </>
+        <PulsePanel data={data as unknown as PulseData} />
       ) : (
         <MatchesPanel matches={((data as { matches?: PanelMatch[] })?.matches) || []} />
       )}
-    </div>
-  );
-}
-
-function MatchTable({ rows, live }: { rows: MatchRow[]; live?: boolean }) {
-  if (!rows.length) return <p className="text-sm text-gray-400">No data.</p>;
-  return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
-      <table className="w-full text-[13px] min-w-[560px]">
-        <thead className="bg-gray-50 text-gray-400 text-[10px] uppercase tracking-wider">
-          <tr>
-            <th className="text-left font-bold px-3 py-2">Match</th>
-            <th className="text-right font-bold px-3 py-2">{live ? "Watching now" : "Unique watchers"} (t / his / yours)</th>
-            <th className="text-right font-bold px-3 py-2">Peak (t / his / yours)</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map((m) => (
-            <tr key={m.match_id}>
-              <td className="px-3 py-2.5 font-semibold text-gray-800">{m.title}</td>
-              <td className="px-3 py-2.5 text-right">
-                <Triple t={live ? (m.total ?? 0) : (m.uniqueTotal ?? 0)} h={live ? (m.his ?? 0) : (m.uniqueHis ?? 0)} y={live ? (m.yours ?? 0) : (m.uniqueYours ?? 0)} />
-              </td>
-              <td className="px-3 py-2.5 text-right"><Triple t={m.peakTotal} h={m.peakHis} y={m.peakYours} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function PageTable({ rows }: { rows: PageRow[] }) {
-  if (!rows.length) return <p className="text-sm text-gray-400">Nobody online.</p>;
-  return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
-      <table className="w-full text-[13px] min-w-[420px]">
-        <thead className="bg-gray-50 text-gray-400 text-[10px] uppercase tracking-wider">
-          <tr><th className="text-left font-bold px-3 py-2">Page</th><th className="text-right font-bold px-3 py-2">t / his / yours</th></tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map((p) => (
-            <tr key={p.path}>
-              <td className="px-3 py-2.5 font-mono text-[12px] text-gray-700 truncate max-w-[240px]">{p.path}</td>
-              <td className="px-3 py-2.5 text-right"><Triple t={p.total} h={p.his} y={p.yours} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
