@@ -54,15 +54,15 @@ function singleSegment(pathname: string): string | null {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 0) Canonical domain. Send the default workers.dev address to the main domain
-  // so the whole site — and each visitor's identity — lives on ONE origin.
-  // Exact host match only, so versioned preview deploys still work for testing.
-  // Temporary (307) so it stays easily reversible.
+  // 0) Canonical domain. Send xellnetwork.xyz to the workers.dev address so the
+  // whole site — and each visitor's identity — lives on ONE origin
+  // (primepitch.daxonicstudios.workers.dev). Exact host match only, so versioned
+  // preview deploys still work for testing. Temporary (307) = easily reversible.
   const host = request.headers.get("host") || "";
-  if (host === "primepitch.daxonicstudios.workers.dev") {
+  if (host === "xellnetwork.xyz" || host === "www.xellnetwork.xyz") {
     const url = request.nextUrl.clone();
     url.protocol = "https:";
-    url.hostname = "xellnetwork.xyz";
+    url.hostname = "primepitch.daxonicstudios.workers.dev";
     url.port = "";
     return NextResponse.redirect(url, 307);
   }
