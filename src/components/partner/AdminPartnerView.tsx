@@ -9,6 +9,7 @@ import VisitorsPanel, { type VisitorsData } from "@/components/partner/VisitorsP
 import RangePicker from "@/components/partner/RangePicker";
 import DayPicker from "@/components/partner/DayPicker";
 import { rangeFor, type Preset } from "@/components/partner/rangePresets";
+import { applyCompare, type CompareMode } from "@/components/partner/compare";
 
 type Stat = "overview" | "pulse" | "matches" | "analytics" | "visitors";
 interface PartnerLite { code: string; name: string | null; active: boolean }
@@ -20,6 +21,7 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
   const [preset, setPreset] = useState<Preset>("today");
   const [aDate, setADate] = useState(today);
   const [vDate, setVDate] = useState(today);
+  const [compare, setCompare] = useState<CompareMode>("all");
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,6 +60,10 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
     }
   }, [load, stat]);
 
+  const shown = useMemo(() => applyCompare(data, compare), [data, compare]);
+  const cmpTab = (active: boolean) =>
+    `px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${active ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`;
+
   return (
     <div className="max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
@@ -69,9 +75,14 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
           ))}
         </select>
       </div>
-      <p className="text-[13px] text-gray-400 font-medium mb-5">
-        Partner breakdown — <span className="text-blue-600 font-bold">blue = their people</span>, grey = the rest, big = total. Your normal pages are unchanged.
+      <p className="text-[13px] text-gray-400 font-medium mb-3">
+        Partner breakdown — <span className="text-blue-600 font-bold">blue = their people</span>, grey = {compare === "me" ? "your own traffic" : "the rest"}, big = total. Your normal pages are unchanged.
       </p>
+      <div className="flex items-center gap-1.5 mb-5">
+        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mr-1">Compare to</span>
+        <button onClick={() => setCompare("all")} className={cmpTab(compare === "all")}>Everyone else</button>
+        <button onClick={() => setCompare("me")} className={cmpTab(compare === "me")}>Just me</button>
+      </div>
 
       {stat === "analytics" && (
         <RangePicker preset={preset} dateStr={aDate} onPreset={setPreset}
@@ -80,17 +91,17 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
       {stat === "visitors" && <DayPicker date={vDate} onChange={(d) => setVDate(d || today)} />}
 
       {stat === "matches" ? (
-        code ? <MatchesPanel src={`/api/admin/partner?stat=matches&code=${encodeURIComponent(code)}`} /> : <p className="text-sm text-gray-400">Loading…</p>
+        code ? <MatchesPanel src={`/api/admin/partner?stat=matches&code=${encodeURIComponent(code)}`} compare={compare} /> : <p className="text-sm text-gray-400">Loading…</p>
       ) : loading && !data ? (
         <p className="text-sm text-gray-400">Loading…</p>
       ) : stat === "overview" ? (
-        <OverviewPanel data={data as unknown as OverviewData} />
+        <OverviewPanel data={shown as unknown as OverviewData} />
       ) : stat === "analytics" ? (
-        <AnalyticsPanel data={data as unknown as AnalyticsData} />
+        <AnalyticsPanel data={shown as unknown as AnalyticsData} />
       ) : stat === "visitors" ? (
-        <VisitorsPanel data={data as unknown as VisitorsData} />
+        <VisitorsPanel data={shown as unknown as VisitorsData} />
       ) : (
-        <PulsePanel data={data as unknown as PulseData} />
+        <PulsePanel data={shown as unknown as PulseData} />
       )}
     </div>
   );

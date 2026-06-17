@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFeedStatus } from "@/components/partner/useFeedStatus";
+import { applyCompare, type CompareMode } from "@/components/partner/compare";
 import DayPicker from "@/components/partner/DayPicker";
 
 export interface PanelMatch {
@@ -20,7 +21,7 @@ const SPORTS = ["football", "basketball", "american-football", "fight", "motor-s
 
 // src = the matches endpoint (already includes ?stat/&code for admin). The panel
 // owns the day filter and refetches server-side, plus client-side status/sort/sport.
-export default function MatchesPanel({ src, mine }: { src: string; mine?: boolean }) {
+export default function MatchesPanel({ src, mine, compare = "all" }: { src: string; mine?: boolean; compare?: CompareMode }) {
   const { rowStatus } = useFeedStatus();
   const [day, setDay] = useState(""); // "" = all time
   const [status, setStatus] = useState("all");
@@ -46,8 +47,8 @@ export default function MatchesPanel({ src, mine }: { src: string; mine?: boolea
   useEffect(() => { load(); }, [load]);
 
   const withStatus = useMemo(
-    () => matches.map((m) => ({ ...m, st: rowStatus(m.match_id, m.title) || m.status || "played" })),
-    [matches, rowStatus],
+    () => applyCompare(matches, compare).map((m) => ({ ...m, st: rowStatus(m.match_id, m.title) || m.status || "played" })),
+    [matches, compare, rowStatus],
   );
   const sportOptions = useMemo(() => {
     const present = new Set(matches.map((m) => (m.sport || "").toLowerCase()).filter(Boolean));
