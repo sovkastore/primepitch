@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { isAdminRequest } from "@/lib/admin-auth";
 
 // ---------------------------------------------------------------------------
 // Partner referral capture
@@ -44,6 +45,73 @@ async function getActiveCodes(): Promise<Set<string>> {
   return codesCache.codes;
 }
 
+// Maintenance flag, cached per worker isolate so a toggle takes effect within
+// ~15s without a DB read on every request.
+let maintCache: { at: number; on: boolean; message: string } = { at: 0, on: false, message: "" };
+const MAINT_TTL_MS = 15_000;
+
+async function getMaintenance(): Promise<{ on: boolean; message: string }> {
+  const now = Date.now();
+  if (now - maintCache.at < MAINT_TTL_MS) return maintCache;
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const res = await fetch(`${url}/rest/v1/rpc/maintenance_state`, {
+      method: "POST",
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (res.ok) {
+      const v = (await res.json()) as { on?: boolean; message?: string } | null;
+      maintCache = {
+        at: now,
+        on: !!v?.on,
+        message: typeof v?.message === "string" ? v.message : "",
+      };
+      return maintCache;
+    }
+  } catch {
+    /* keep stale cache on error — never take the site down over a read failure */
+  }
+  maintCache.at = now; // don't hammer on repeated failure
+  return maintCache;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string)
+  );
+}
+
+function maintenancePage(message: string): NextResponse {
+  const msg =
+    message.trim() ||
+    "We're doing some quick maintenance and will be back shortly. Please check back in a little while.";
+  const html =
+    `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width,initial-scale=1">` +
+    `<title>Under maintenance</title><style>` +
+    `*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;` +
+    `justify-content:center;background:#0b0f14;color:#e5e7eb;font-family:-apple-system,BlinkMacSystemFont,` +
+    `'Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding:24px}.card{max-width:460px;text-align:center}` +
+    `.badge{width:64px;height:64px;border-radius:18px;background:#1f2937;display:flex;align-items:center;` +
+    `justify-content:center;margin:0 auto 22px;font-size:30px}h1{font-size:24px;font-weight:800;margin:0 0 12px}` +
+    `p{font-size:15px;line-height:1.6;color:#9ca3af;margin:0}.status{margin-top:20px;color:#6b7280;font-size:13px}` +
+    `.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:8px;` +
+    `vertical-align:middle;animation:pulse 1.4s infinite}@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}` +
+    `</style></head><body><div class="card"><div class="badge">&#128295;</div>` +
+    `<h1>We&#39;ll be right back</h1><p>${escapeHtml(msg)}</p>` +
+    `<p class="status"><span class="dot"></span>Maintenance in progress</p></div></body></html>`;
+  return new NextResponse(html, {
+    status: 503,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "Retry-After": "3600",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 function singleSegment(pathname: string): string | null {
   if (!pathname.startsWith("/")) return null;
   const seg = pathname.slice(1);
@@ -65,6 +133,19 @@ export async function middleware(request: NextRequest) {
     url.hostname = "primepitch.daxonicstudios.workers.dev";
     url.port = "";
     return NextResponse.redirect(url, 307);
+  }
+
+  // 0.5) Maintenance mode. When ON, only /admin and signed-in admins get through;
+  // everyone else gets a lightweight "be right back" page served straight from the
+  // edge (no app load). Public visitors have no admin cookie, so they're turned away
+  // with zero DB calls — the session check only runs when an auth cookie is present.
+  if (!pathname.startsWith("/admin")) {
+    const maint = await getMaintenance();
+    if (maint.on) {
+      const hasAuthCookie = request.cookies.getAll().some((c) => c.name.startsWith("sb-"));
+      const admin = hasAuthCookie ? await isAdminRequest(request) : false;
+      if (!admin) return maintenancePage(maint.message);
+    }
   }
 
   // 1) Referral capture (never blocks the site — any error falls through).
