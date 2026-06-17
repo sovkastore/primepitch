@@ -113,8 +113,8 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
                 <th className="text-right font-bold px-3 py-2">Views ({`total / ${blue} / ${grey}`})</th>
                 <th className="text-right font-bold px-3 py-2">Unique ({`total / ${blue} / ${grey}`})</th>
                 <th className="text-right font-bold px-3 py-2">Peak ({`total / ${blue} / ${grey}`})</th>
-                <th className="text-right font-bold px-3 py-2 hidden md:table-cell">Avg watch</th>
-                <th className="text-right font-bold px-3 py-2 hidden lg:table-cell">Last viewed</th>
+                <th className="text-right font-bold px-3 py-2">Avg watch</th>
+                <th className="text-right font-bold px-3 py-2">Last viewed</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -162,8 +162,8 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
                       </>
                     )}
                   </td>
-                  <td className="px-3 py-2.5 text-right text-gray-500 tabular-nums hidden md:table-cell">{fmtDur(m.avgDuration)}</td>
-                  <td className="px-3 py-2.5 text-right text-[12px] text-gray-400 hidden lg:table-cell">{fmtDate(m.lastViewed)}</td>
+                  <td className="px-3 py-2.5 text-right text-gray-500 tabular-nums">{fmtDur(m.avgDuration)}</td>
+                  <td className="px-3 py-2.5 text-right text-[12px] text-gray-400">{fmtDate(m.lastViewed)}</td>
                 </tr>
               ))}
             </tbody>
