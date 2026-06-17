@@ -28,10 +28,11 @@ interface Stream {
 // ever renders blank. This does not change how streams are resolved or played.
 const SOURCE_META: Record<string, { name: string; note: string; rank: number }> = {
   admin: { name: "Admin", note: "Admin added streams", rank: 0 },
-  echo: { name: "Echo", note: "Great quality overall", rank: 10 },
-  // Add your fallback providers here, e.g.:
-  // streamed: { name: "Streamed", note: "Third party (more ads), but very stable", rank: 1 },
-  // streami: { name: "Streami", note: "Backup source", rank: 2 },
+  delta: { name: "Delta", note: "Okayish backup", rank: 2 },
+  golf: { name: "Golf", note: "Third party (more ads), but very stable", rank: 3 },
+  echo: { name: "Echo", note: "Great quality overall", rank: 4 },
+  // Any other source falls back to a title-cased name + generic note (rank 9).
+  // Add entries here to give a source a custom name / note / order.
 };
 
 function streamGroupMeta(key: string): { name: string; note: string; rank: number } {
@@ -39,15 +40,22 @@ function streamGroupMeta(key: string): { name: string; note: string; rank: numbe
     SOURCE_META[key] || {
       name: key ? key.charAt(0).toUpperCase() + key.slice(1) : "Other",
       note: "Backup source",
-      rank: 5,
+      rank: 9,
     }
   );
 }
 
 function streamGroupKey(s: Stream): string {
-  if (s.id?.startsWith("override")) return "admin";
-  if (s.source?.startsWith("auto-")) return s.source.slice(5).toLowerCase();
-  return "echo"; // native streamed.pk streams
+  // Group by the stream's real source. Admin-added / manual streams collapse to
+  // the "admin" group; streamed.pk sources (echo, delta, golf, alpha, …) and
+  // auto-fallback providers keep their own group. (Overrides keep their origin
+  // source, so a force-lived mix of echo+golf+delta+admin splits correctly.)
+  const src = (s.source || "").toLowerCase().trim();
+  if (src.startsWith("auto-")) return src.slice(5) || "auto";
+  if (!src || src === "manual" || src === "admin" || src === "override" || src === "fallback") {
+    return "admin";
+  }
+  return src;
 }
 
 interface StreamGroupItem {
