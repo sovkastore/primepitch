@@ -33,6 +33,7 @@ interface OverrideRow {
   enabled?: boolean;
   position?: number | null;
   created_at?: string;
+  hd?: boolean | null;
 }
 interface Entry {
   match: Match;
@@ -53,6 +54,7 @@ interface Candidate {
   source: string;
   checked: boolean; // part of the desired live set
   live: boolean; // already an enabled override
+  hd: boolean;
 }
 
 // Accept a bare URL or a full <iframe ...> snippet (pull out the src).
@@ -154,13 +156,13 @@ export default function TestStreamPage() {
       for (const o of overrides) {
         if (!o.embed_url || seen.has(o.embed_url)) continue;
         seen.add(o.embed_url);
-        list.push({ embedUrl: o.embed_url, label: o.server_label || "Server", source: o.source || "manual", checked: true, live: true });
+        list.push({ embedUrl: o.embed_url, label: o.server_label || "Server", source: o.source || "manual", checked: true, live: true, hd: o.hd ?? true });
       }
       for (const sr of streamRes) {
         for (const s of (sr.streams || []) as ResolvedStream[]) {
           if (!s.embedUrl || seen.has(s.embedUrl)) continue;
           seen.add(s.embedUrl);
-          list.push({ embedUrl: s.embedUrl, label: s.language || `Server ${s.streamNo}`, source: s.source || "echo", checked: false, live: false });
+          list.push({ embedUrl: s.embedUrl, label: s.language || `Server ${s.streamNo}`, source: s.source || "echo", checked: false, live: false, hd: s.hd });
         }
       }
 
@@ -187,7 +189,7 @@ export default function TestStreamPage() {
   function addManual() {
     const url = extractEmbedUrl(manualUrl);
     if (!url) return;
-    setCandidates((cs) => (cs.some((c) => c.embedUrl === url) ? cs : [...cs, { embedUrl: url, label: "Manual", source: "manual", checked: true, live: false }]));
+    setCandidates((cs) => (cs.some((c) => c.embedUrl === url) ? cs : [...cs, { embedUrl: url, label: "Manual", source: "manual", checked: true, live: false, hd: true }]));
     watch(url);
     setManualUrl("");
   }
@@ -237,7 +239,7 @@ export default function TestStreamPage() {
           match_data: selected.match,
           replace_original: true,
           append: false,
-          streams: ordered.map((c, i) => ({ embed_url: c.embedUrl, source: c.source, server_label: c.label, position: i })),
+          streams: ordered.map((c, i) => ({ embed_url: c.embedUrl, source: c.source, server_label: c.label, position: i, hd: c.hd })),
         }),
       });
       // Surface the match in the public live list (needs match_data).

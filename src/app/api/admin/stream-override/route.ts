@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 // creation never hard-fails on a not-yet-applied migration.
 async function insertWithFallback(rows: Record<string, unknown>[]) {
   const sb = getSupabaseAdmin();
-  const OPTIONAL = ["match_data", "position"];
+  const OPTIONAL = ["match_data", "position", "hd"];
   let attempt = rows;
   for (let i = 0; i <= OPTIONAL.length; i++) {
     const { error } = await sb.from("stream_overrides").insert(attempt);
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { match_id, match_title, match_data, replace_original, streams, embed_url, source, server_label, append, position } =
+    const { match_id, match_title, match_data, replace_original, streams, embed_url, source, server_label, append, position, hd } =
       await request.json();
 
     if (!match_id) {
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Multi-stream insert. Each row's `position` (server display order) defaults
     // to its index, so the array order = the order viewers see on the watch page.
     if (Array.isArray(streams) && streams.length > 0) {
-      const rows = streams.map((s: { embed_url: string; source: string; server_label: string; position?: number }, i: number) => ({
+      const rows = streams.map((s: { embed_url: string; source: string; server_label: string; position?: number; hd?: boolean }, i: number) => ({
         match_id,
         match_title: match_title || null,
         match_data: match_data ?? null,
@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
         replace_original: replaceFlag,
         enabled: true,
         position: typeof s.position === "number" ? s.position : i,
+        hd: typeof s.hd === "boolean" ? s.hd : true,
       }));
 
       const error = await insertWithFallback(rows);
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
       server_label: server_label || "Manual",
       replace_original: replaceFlag,
       enabled: true,
+      hd: typeof hd === "boolean" ? hd : true,
       ...(typeof position === "number" ? { position } : {}),
     }]);
 

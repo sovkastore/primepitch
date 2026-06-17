@@ -57,6 +57,7 @@ interface OverrideRow {
   replace_original: boolean | null;
   position?: number | null;
   created_at?: string;
+  hd?: boolean | null;
 }
 
 async function overrideStreams(
@@ -84,7 +85,7 @@ async function overrideStreams(
       id: `override-${i}`,
       streamNo: i + 1,
       language: o.server_label || "English",
-      hd: true,
+      hd: o.hd ?? true, // older rows (pre-hd column) default to HD
       embedUrl: o.embed_url,
       source: o.source || "fallback",
     }));
