@@ -31,6 +31,10 @@ export interface EngineRow {
   uniqueYours?: number;
   peakHis?: number;
   peakOwn?: number;
+  viewsHis?: number;
+  viewsOwn?: number;
+  liveUniqueHis?: number;
+  liveUniqueOwn?: number;
 }
 
 export interface EngineParams {
@@ -85,10 +89,24 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     if (data.length < PAGE) break;
   }
 
+  // Attribution map (visitor_id -> ref_code, non-null only). Needed during
+  // grouping to split raw view-event counts. Only when a code is requested.
+  const attrMap = new Map<string, string>();
+  if (refCode) {
+    for (let i = 0; i < 500; i++) {
+      const { data, error } = await sb.from("visitors").select("visitor_id, ref_code")
+        .not("ref_code", "is", null).order("visitor_id", { ascending: true }).range(i * PAGE, i * PAGE + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      for (const r of data as Array<{ visitor_id: string; ref_code: string }>) attrMap.set(r.visitor_id, r.ref_code);
+      if (data.length < PAGE) break;
+    }
+  }
+
   const grouped: Record<string, {
     title: string; sport: string; views: number; liveViews: number; preViews: number;
     uniqueViewers: Set<string>; liveViewers: Set<string>; totalDuration: number;
     lastViewed: string; firstViewed: string; lastLiveView: string | null; firstLiveView: string | null;
+    vHis: number; vOwn: number;
   }> = {};
 
   allData.forEach((r) => {
@@ -98,10 +116,12 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
         views: 0, liveViews: 0, preViews: 0,
         uniqueViewers: new Set(), liveViewers: new Set(), totalDuration: 0,
         lastViewed: r.created_at, firstViewed: r.created_at, lastLiveView: null, firstLiveView: null,
+        vHis: 0, vOwn: 0,
       };
     }
     const g = grouped[r.match_id];
     g.views++;
+    if (refCode) { const rc = attrMap.get(r.visitor_id); if (rc === refCode) g.vHis++; else if (rc === undefined) g.vOwn++; }
     if (r.is_live) g.liveViews++; else g.preViews++;
     g.uniqueViewers.add(r.visitor_id);
     if (r.is_live) g.liveViewers.add(r.visitor_id);
@@ -117,6 +137,7 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     views: number; liveViews: number; preViews: number;
     uniqueViewers: Set<string>; liveViewers: Set<string>; totalDuration: number;
     lastViewed: string; firstViewed: string; lastLiveView: string | null; firstLiveView: string | null;
+    vHis: number; vOwn: number;
   }> = {};
 
   const entries = Object.entries(grouped).map(([id, g]) => ({ id, ...g }));
@@ -131,6 +152,7 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
           views: 0, liveViews: 0, preViews: 0, uniqueViewers: new Set(), liveViewers: new Set(),
           totalDuration: 0, lastViewed: g.lastViewed, firstViewed: g.firstViewed,
           lastLiveView: null, firstLiveView: g.firstLiveView,
+          vHis: 0, vOwn: 0,
         };
       }
       const m = merged[key];
@@ -138,6 +160,8 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
       m.views += g.views;
       m.liveViews += g.liveViews;
       m.preViews += g.preViews;
+      m.vHis += g.vHis;
+      m.vOwn += g.vOwn;
       g.uniqueViewers.forEach((v) => m.uniqueViewers.add(v));
       g.liveViewers.forEach((v) => m.liveViewers.add(v));
       m.totalDuration += g.totalDuration;
@@ -159,17 +183,9 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     }
   }
 
-  // Partner attribution (only when a code is requested).
-  const attrMap = new Map<string, string>();        // visitor_id -> ref_code (non-null only)
+  // Per-match peak by segment (his code / organic). Only when a code is requested.
   const refPeak = new Map<string, Map<string, number>>(); // match_id -> seg -> peak
   if (refCode) {
-    for (let i = 0; i < 500; i++) {
-      const { data, error } = await sb.from("visitors").select("visitor_id, ref_code")
-        .not("ref_code", "is", null).order("visitor_id", { ascending: true }).range(i * PAGE, i * PAGE + PAGE - 1);
-      if (error || !data || data.length === 0) break;
-      for (const r of data as Array<{ visitor_id: string; ref_code: string }>) attrMap.set(r.visitor_id, r.ref_code);
-      if (data.length < PAGE) break;
-    }
     for (let i = 0; i < allMatchIds.length; i += 200) {
       const chunk = allMatchIds.slice(i, i + 200);
       if (chunk.length === 0) break;
@@ -245,17 +261,28 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     return (fromMs === null || kMs >= fromMs) && (toMs === null || kMs <= toMs);
   };
 
-  const splitOf = (m: { matchIds: string[]; uniqueViewers: Set<string>; }) => {
+  const splitOf = (m: { matchIds: string[]; uniqueViewers: Set<string>; liveViewers: Set<string>; vHis: number; vOwn: number }) => {
     if (!refCode) return {};
     let his = 0, attributed = 0;
     for (const v of m.uniqueViewers) {
       const rc = attrMap.get(v);
       if (rc !== undefined) { attributed++; if (rc === refCode) his++; }
     }
+    let liveHis = 0, liveAttr = 0;
+    for (const v of m.liveViewers) {
+      const rc = attrMap.get(v);
+      if (rc !== undefined) { liveAttr++; if (rc === refCode) liveHis++; }
+    }
     const total = m.uniqueViewers.size;
+    const liveTotal = m.liveViewers.size;
     const peakHis = Math.max(0, ...m.matchIds.map((id) => refPeak.get(id)?.get(refCode) ?? 0));
     const peakOwn = Math.max(0, ...m.matchIds.map((id) => refPeak.get(id)?.get("__organic__") ?? 0));
-    return { uniqueHis: his, uniqueOwn: total - attributed, uniqueYours: total - his, peakHis, peakOwn };
+    return {
+      uniqueHis: his, uniqueOwn: total - attributed, uniqueYours: total - his,
+      peakHis, peakOwn,
+      viewsHis: m.vHis, viewsOwn: m.vOwn,
+      liveUniqueHis: liveHis, liveUniqueOwn: liveTotal - liveAttr,
+    };
   };
 
   const rows: EngineRow[] = [];
@@ -298,7 +325,7 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
         peak_viewers: 0, avg_duration: 0,
         last_viewed: new Date(fx.kickoffMs).toISOString(),
         kickoff: fx.kickoffMs, status: fx.status,
-        ...(refCode ? { uniqueHis: 0, uniqueOwn: 0, uniqueYours: 0, peakHis: 0, peakOwn: 0 } : {}),
+        ...(refCode ? { uniqueHis: 0, uniqueOwn: 0, uniqueYours: 0, peakHis: 0, peakOwn: 0, viewsHis: 0, viewsOwn: 0, liveUniqueHis: 0, liveUniqueOwn: 0 } : {}),
       });
     }
   }
@@ -311,10 +338,13 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
 
 export interface PanelMatchRow {
   match_id: string; title: string; sport: string; status: MatchStatus;
-  views: number;
+  viewsTotal: number; viewsHis: number; viewsYours: number; viewsOwn: number;
+  liveViews: number; preViews: number; // view-event totals (the "live · pre" sub-line)
   uniqueTotal: number; uniqueHis: number; uniqueYours: number; uniqueOwn: number;
+  liveTotal: number; liveHis: number; liveYours: number; liveOwn: number; // watched live (distinct people)
+  preTotal: number; preHis: number; preYours: number; preOwn: number; // before kickoff (distinct people)
   peakTotal: number; peakHis: number; peakYours: number; peakOwn: number;
-  lastViewed: string; kickoff: number | null;
+  avgDuration: number; lastViewed: string; kickoff: number | null;
 }
 
 // Partner Matches (own dashboard + admin p/ view) — same merged/fixture-resolved
@@ -324,18 +354,20 @@ export async function partnerMatches(refCode: string, day?: string | null): Prom
   let from: string | null = null, to: string | null = null;
   if (day) { from = `${day}T00:00:00.000Z`; to = `${day}T23:59:59.999Z`; }
   const { matches } = await aggregateMatches({ refCode, from, to, status: "all", sort: "recent", page: 1, limit: 500 });
-  return matches.map((m) => ({
-    match_id: m.match_id, title: m.title, sport: m.sport, status: m.status,
-    views: m.views,
-    uniqueTotal: m.unique_viewers,
-    uniqueHis: m.uniqueHis ?? 0,
-    uniqueYours: m.uniqueYours ?? Math.max(0, m.unique_viewers - (m.uniqueHis ?? 0)),
-    uniqueOwn: m.uniqueOwn ?? 0,
-    peakTotal: m.peak_viewers,
-    peakHis: m.peakHis ?? 0,
-    peakYours: m.peakOwn ?? 0,
-    peakOwn: m.peakOwn ?? 0,
-    lastViewed: m.last_viewed,
-    kickoff: m.kickoff,
-  }));
+  return matches.map((m) => {
+    const uniqueTotal = m.unique_viewers, uniqueHis = m.uniqueHis ?? 0, uniqueOwn = m.uniqueOwn ?? 0;
+    const liveTotal = m.unique_live, liveHis = m.liveUniqueHis ?? 0, liveOwn = m.liveUniqueOwn ?? 0;
+    const preTotal = m.unique_pre, preHis = Math.max(0, uniqueHis - liveHis), preOwn = Math.max(0, uniqueOwn - liveOwn);
+    const viewsTotal = m.views, viewsHis = m.viewsHis ?? 0, viewsOwn = m.viewsOwn ?? 0;
+    return {
+      match_id: m.match_id, title: m.title, sport: m.sport, status: m.status,
+      viewsTotal, viewsHis, viewsYours: Math.max(0, viewsTotal - viewsHis), viewsOwn,
+      liveViews: m.live_views, preViews: m.pre_views,
+      uniqueTotal, uniqueHis, uniqueYours: Math.max(0, uniqueTotal - uniqueHis), uniqueOwn,
+      liveTotal, liveHis, liveYours: Math.max(0, liveTotal - liveHis), liveOwn,
+      preTotal, preHis, preYours: Math.max(0, preTotal - preHis), preOwn,
+      peakTotal: m.peak_viewers, peakHis: m.peakHis ?? 0, peakYours: m.peakOwn ?? 0, peakOwn: m.peakOwn ?? 0,
+      avgDuration: m.avg_duration, lastViewed: m.last_viewed, kickoff: m.kickoff,
+    };
+  });
 }

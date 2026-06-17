@@ -26,6 +26,13 @@ function rewrite(o: AnyObj) {
     if (isNum(o, "uniqueTotal")) o.uniqueTotal = (o.uniqueHis as number) + (o.uniqueOwn as number);
     if (isNum(o, "uniqueYours")) o.uniqueYours = o.uniqueOwn as number;
   }
+  for (const p of ["views", "live", "pre"] as const) {
+    const H = `${p}His`, O = `${p}Own`, T = `${p}Total`, Y = `${p}Yours`;
+    if (isNum(o, H) && isNum(o, O)) {
+      if (isNum(o, T)) o[T] = (o[H] as number) + (o[O] as number);
+      if (isNum(o, Y)) o[Y] = o[O] as number;
+    }
+  }
 }
 
 function walk(v: unknown) {
