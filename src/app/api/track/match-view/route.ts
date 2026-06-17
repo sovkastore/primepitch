@@ -43,6 +43,12 @@ export async function POST(request: Request) {
       p_sport: sport || null,
     });
     await getSupabaseAdmin().rpc("bump_match_peak", { p_match_id: match_id });
+    // Per-segment peak (his vs organic) — going forward; never blocks tracking.
+    try {
+      await getSupabaseAdmin().rpc("bump_ref_peaks", { p_match_id: match_id });
+    } catch {
+      /* peak table/function not present yet */
+    }
 
     return NextResponse.json({ ok: true });
   } catch {

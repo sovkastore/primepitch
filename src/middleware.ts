@@ -14,7 +14,7 @@ const REF_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 // Real top-level routes/assets — never treated as a partner code.
 const RESERVED = new Set([
   "admin", "api", "watch", "contact", "subscribe", "match-alerts",
-  "world-cup", "_next", "offline", "icons", "alerts",
+  "world-cup", "partner", "_next", "offline", "icons", "alerts",
 ]);
 
 // Active partner codes, cached per worker isolate to avoid a DB call per request.
