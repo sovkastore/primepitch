@@ -7,14 +7,14 @@ import { getBadgeUrl } from "@/lib/api";
 // Admin-only server control room for football matches.
 //
 // Flow: pick a match -> every candidate server (streamed.pk echo + PPV fallback +
-// anything you paste) is listed and PLAYS INLINE here, exactly as the live watch
-// page would show it. You watch each one; the ones that actually play, you tick.
-// "Make these live" writes the ticked set as the match's curated servers (viewers
-// see ONLY those, in this order — the top one auto-plays) and surfaces the match
-// in the public live list. While live you can swap dead servers and add new ones.
+// anything you paste) is listed, GROUPED BY SOURCE like streamed.pk's own site,
+// and PLAYS INLINE here exactly as the live watch page would. You watch each one;
+// the ones that actually play, you tick. "Make these live" writes the ticked set
+// as the match's curated servers (viewers see ONLY those) and surfaces the match
+// in the public live list. The starred (⭐) server is the one that auto-plays.
 //
-// It writes only to stream_overrides + match_flags.forced_live, through the same
-// endpoints the Streams page uses — so it's one shared system, not a parallel one.
+// Writes only to stream_overrides + match_flags.forced_live, through the same
+// endpoints the Streams page uses — one shared system, not a parallel one.
 
 interface Team { name: string; badge?: string }
 interface Match {
@@ -71,12 +71,11 @@ function kickoffLabel(ms: number): string {
   return `${when} · in ${h}h${m ? ` ${m}m` : ""}`;
 }
 
-function srcBadge(source: string): { label: string; cls: string } {
-  if (source.includes("ppv")) return { label: "PPV", cls: "bg-blue-50 text-blue-600" };
-  if (source === "manual") return { label: "Manual", cls: "bg-amber-50 text-amber-600" };
-  if (source.includes("echo") || source.includes("alpha") || source.includes("bravo") || source.includes("delta"))
-    return { label: "streamed.pk", cls: "bg-emerald-50 text-emerald-600" };
-  return { label: source || "server", cls: "bg-gray-100 text-gray-500" };
+// How a source is shown as a section heading — mirrors streamed.pk's own labels.
+function groupLabel(source: string): { name: string; tag: string; cls: string } {
+  if (source.includes("ppv")) return { name: "PPV", tag: "our fallback", cls: "bg-blue-50 text-blue-600" };
+  if (source === "manual") return { name: "Manual", tag: "you added", cls: "bg-amber-50 text-amber-600" };
+  return { name: source.charAt(0).toUpperCase() + source.slice(1), tag: "streamed.pk", cls: "bg-emerald-50 text-emerald-600" };
 }
 
 function sortOverrides(a: OverrideRow, b: OverrideRow): number {
@@ -98,6 +97,7 @@ export default function TestStreamPage() {
   const [resolving, setResolving] = useState(false);
   const [watchUrl, setWatchUrl] = useState<string | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [firstUrl, setFirstUrl] = useState<string | null>(null); // ⭐ auto-play server
   const [manualUrl, setManualUrl] = useState("");
   const [applying, setApplying] = useState<"" | "live" | "stop">("");
   const [flash, setFlash] = useState("");
@@ -127,6 +127,7 @@ export default function TestStreamPage() {
     setCandidates([]);
     setWatchUrl(null);
     setIframeLoaded(false);
+    setFirstUrl(null);
     setManualUrl("");
     setFlash("");
     setResolving(true);
@@ -165,6 +166,7 @@ export default function TestStreamPage() {
 
       setCandidates(list);
       setWatchUrl(list[0]?.embedUrl ?? null);
+      setFirstUrl(list.find((c) => c.checked)?.embedUrl ?? null);
     } finally {
       setResolving(false);
     }
@@ -174,15 +176,13 @@ export default function TestStreamPage() {
   function toggleCheck(url: string) {
     setCandidates((cs) => cs.map((c) => (c.embedUrl === url ? { ...c, checked: !c.checked } : c)));
   }
-  function move(url: string, dir: -1 | 1) {
-    setCandidates((cs) => {
-      const i = cs.findIndex((c) => c.embedUrl === url);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= cs.length) return cs;
-      const next = cs.slice();
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
+  function setFirst(url: string) {
+    setFirstUrl(url);
+    setCandidates((cs) => cs.map((c) => (c.embedUrl === url ? { ...c, checked: true } : c)));
+  }
+  function tickGroup(urls: string[], on: boolean) {
+    const set = new Set(urls);
+    setCandidates((cs) => cs.map((c) => (set.has(c.embedUrl) ? { ...c, checked: on } : c)));
   }
   function addManual() {
     const url = extractEmbedUrl(manualUrl);
@@ -192,15 +192,42 @@ export default function TestStreamPage() {
     setManualUrl("");
   }
 
+  // Group candidates by source, preserving first-appearance order (so streamed.pk
+  // feeds come first as resolved, PPV/Manual after). Mirrors streamed.pk's layout.
+  const groups = useMemo(() => {
+    const order: string[] = [];
+    const map = new Map<string, Candidate[]>();
+    for (const c of candidates) {
+      if (!map.has(c.source)) { map.set(c.source, []); order.push(c.source); }
+      map.get(c.source)!.push(c);
+    }
+    return order.map((src) => ({ source: src, items: map.get(src)! }));
+  }, [candidates]);
+
   const checkedList = candidates.filter((c) => c.checked);
   const liveCount = candidates.filter((c) => c.live).length;
+  // The server that auto-plays first: the starred one if still ticked, else the
+  // first ticked server in list order.
+  const effectiveFirst = (firstUrl && checkedList.some((c) => c.embedUrl === firstUrl))
+    ? firstUrl
+    : (checkedList[0]?.embedUrl ?? null);
+
+  function liveOrder(): Candidate[] {
+    const ordered: Candidate[] = [];
+    const f = candidates.find((c) => c.checked && c.embedUrl === effectiveFirst);
+    if (f) ordered.push(f);
+    for (const c of candidates) if (c.checked && c.embedUrl !== effectiveFirst) ordered.push(c);
+    return ordered;
+  }
 
   async function makeLive() {
-    if (!selected || checkedList.length === 0) return;
+    if (!selected) return;
+    const ordered = liveOrder();
+    if (ordered.length === 0) return;
     setApplying("live");
     try {
-      // Replace the curated set with exactly the ticked servers, in display order
-      // (position = index). replace_original ON => viewers see only these.
+      // Replace the curated set with exactly the ticked servers; position = order
+      // (⭐ first). replace_original ON => viewers see only these.
       await fetch("/api/admin/stream-override", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -210,7 +237,7 @@ export default function TestStreamPage() {
           match_data: selected.match,
           replace_original: true,
           append: false,
-          streams: checkedList.map((c, i) => ({ embed_url: c.embedUrl, source: c.source, server_label: c.label, position: i })),
+          streams: ordered.map((c, i) => ({ embed_url: c.embedUrl, source: c.source, server_label: c.label, position: i })),
         }),
       });
       // Surface the match in the public live list (needs match_data).
@@ -220,7 +247,7 @@ export default function TestStreamPage() {
         body: JSON.stringify({ match_id: selected.matchId, match_data: selected.match, forced_live: true }),
       });
       setCandidates((cs) => cs.map((c) => ({ ...c, live: c.checked })));
-      setFlash(`✓ ${checkedList.length} server${checkedList.length > 1 ? "s" : ""} live — viewers see them now`);
+      setFlash(`✓ ${ordered.length} server${ordered.length > 1 ? "s" : ""} live — viewers see them now`);
       loadMatches();
     } finally {
       setApplying("");
@@ -259,7 +286,7 @@ export default function TestStreamPage() {
           <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">ADMIN ONLY</span>
         </div>
         <p className="text-[13px] text-gray-500 mt-1">
-          Watch each server play here, tick the ones that work, then make exactly those go live.
+          Servers grouped by source (like streamed.pk). Watch each, tick the ones that work, then make exactly those go live.
         </p>
       </div>
 
@@ -361,38 +388,57 @@ export default function TestStreamPage() {
                   )}
                 </div>
 
-                {/* Candidate servers */}
+                {/* Candidate servers, grouped by source */}
                 {candidates.length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mb-1.5">
-                      {candidates.length} server{candidates.length > 1 ? "s" : ""} found · tick the ones that play
+                  <div className="space-y-3">
+                    <p className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">
+                      {candidates.length} server{candidates.length > 1 ? "s" : ""} across {groups.length} source{groups.length > 1 ? "s" : ""} · tick the ones that play
                     </p>
-                    <div className="space-y-1.5">
-                      {candidates.map((c, i) => {
-                        const b = srcBadge(c.source);
-                        const playing = watchUrl === c.embedUrl;
-                        return (
-                          <div key={c.embedUrl} className={`flex items-center gap-2 py-2 px-2.5 rounded-xl border ${c.checked ? "bg-emerald-50/60 border-emerald-200" : "bg-gray-50 border-gray-100"}`}>
-                            <button onClick={() => toggleCheck(c.embedUrl)} className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${c.checked ? "bg-emerald-500 border-emerald-500" : "border-gray-300 bg-white"}`}>
-                              {c.checked && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                    {groups.map((g) => {
+                      const gl = groupLabel(g.source);
+                      const urls = g.items.map((c) => c.embedUrl);
+                      const allOn = g.items.every((c) => c.checked);
+                      return (
+                        <div key={g.source} className="rounded-xl border border-gray-150 overflow-hidden" style={{ borderColor: "#eee" }}>
+                          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100">
+                            <span className="text-[12px] font-bold text-gray-800">{gl.name}</span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${gl.cls}`}>{gl.tag}</span>
+                            <span className="text-[11px] text-gray-400">{g.items.length}</span>
+                            <button
+                              onClick={() => tickGroup(urls, !allOn)}
+                              className="ml-auto text-[10px] font-bold text-emerald-600 hover:text-emerald-700"
+                            >
+                              {allOn ? "Untick all" : "Tick all"}
                             </button>
-                            <span className="text-[11px] font-bold text-gray-400 w-4 shrink-0">{i + 1}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[12px] font-semibold text-gray-800 truncate">{c.label}</p>
-                            </div>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${b.cls}`}>{b.label}</span>
-                            {c.live && <span className="text-[9px] font-bold text-white bg-red-500 px-1.5 py-0.5 rounded">LIVE</span>}
-                            <button onClick={() => watch(c.embedUrl)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${playing ? "bg-gray-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"}`}>
-                              {playing ? "Playing" : "Watch"}
-                            </button>
-                            <div className="flex flex-col">
-                              <button onClick={() => move(c.embedUrl, -1)} disabled={i === 0} className="text-gray-300 hover:text-gray-600 disabled:opacity-30 leading-none">▲</button>
-                              <button onClick={() => move(c.embedUrl, 1)} disabled={i === candidates.length - 1} className="text-gray-300 hover:text-gray-600 disabled:opacity-30 leading-none">▼</button>
-                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div className="divide-y divide-gray-50">
+                            {g.items.map((c) => {
+                              const playing = watchUrl === c.embedUrl;
+                              const isFirst = effectiveFirst === c.embedUrl;
+                              return (
+                                <div key={c.embedUrl} className={`flex items-center gap-2 py-2 px-2.5 ${c.checked ? "bg-emerald-50/40" : ""}`}>
+                                  <button onClick={() => toggleCheck(c.embedUrl)} className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${c.checked ? "bg-emerald-500 border-emerald-500" : "border-gray-300 bg-white"}`}>
+                                    {c.checked && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                  </button>
+                                  <p className="text-[12px] font-semibold text-gray-800 truncate flex-1">{c.label}</p>
+                                  {c.live && <span className="text-[9px] font-bold text-white bg-red-500 px-1.5 py-0.5 rounded shrink-0">LIVE</span>}
+                                  <button
+                                    onClick={() => setFirst(c.embedUrl)}
+                                    title="Play this one first (auto-loads for viewers)"
+                                    className={`text-[14px] leading-none shrink-0 ${isFirst ? "text-amber-400" : "text-gray-300 hover:text-amber-400"}`}
+                                  >
+                                    {isFirst ? "★" : "☆"}
+                                  </button>
+                                  <button onClick={() => watch(c.embedUrl)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors shrink-0 ${playing ? "bg-gray-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+                                    {playing ? "Playing" : "Watch"}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -413,7 +459,7 @@ export default function TestStreamPage() {
                 {/* Actions */}
                 <div className="pt-1 border-t border-gray-100">
                   <p className="text-[11px] text-gray-400 mt-3 mb-2">
-                    Viewers see <b>only the ticked servers</b>, in this order — the top one auto-plays. Reorder with ▲▼.
+                    Viewers see <b>only the ticked servers</b>. The <b>★ starred</b> one auto-plays first; the rest are switchable tabs.
                   </p>
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
