@@ -13,7 +13,7 @@ const RESERVED = new Set([
 export async function GET(request: NextRequest) {
   if (!(await isAdminRequest(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { data } = await getSupabaseAdmin()
-    .from("partners").select("id, code, name, email, active, created_at")
+    .from("partners").select("id, code, name, email, active, suspended, banned, created_at")
     .order("created_at", { ascending: true });
   return NextResponse.json({ partners: data ?? [] });
 }
@@ -23,6 +23,20 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const code = String(body.code || "").trim().toLowerCase();
+
+    // State changes: referral on/off (active), suspend (login), ban (both). Each independent.
+    if (String(body.action || "") === "state") {
+      if (!code) return NextResponse.json({ error: "code required" }, { status: 400 });
+      const patch: Record<string, boolean> = {};
+      if ("active" in body) patch.active = !!body.active;
+      if ("suspended" in body) patch.suspended = !!body.suspended;
+      if ("banned" in body) patch.banned = !!body.banned;
+      if (Object.keys(patch).length === 0) return NextResponse.json({ error: "nothing to change" }, { status: 400 });
+      const { error } = await getSupabaseAdmin().from("partners").update(patch).eq("code", code);
+      if (error) throw error;
+      return NextResponse.json({ ok: true });
+    }
+
     const name = String(body.name || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const password = body.password ? String(body.password) : null;

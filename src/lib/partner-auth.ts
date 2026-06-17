@@ -63,3 +63,15 @@ export async function verifySession(token: string | null | undefined): Promise<P
     return null;
   }
 }
+
+// Like verifySession, but also re-checks the partner is still allowed in right
+// now (exists, not suspended, not banned). Use for every dashboard page/request
+// so suspend/ban take effect immediately — even on an already-issued cookie.
+export async function requirePartnerSession(token: string | null | undefined): Promise<PartnerSession | null> {
+  const sess = await verifySession(token);
+  if (!sess) return null;
+  const { data } = await getSupabaseAdmin()
+    .from("partners").select("suspended, banned").eq("code", sess.code).maybeSingle();
+  if (!data || data.suspended || data.banned) return null;
+  return sess;
+}
