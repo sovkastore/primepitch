@@ -2,6 +2,20 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { countryFromRequest } from "@/lib/geo";
 
+// Read a single cookie value from the raw request (version-agnostic).
+function readCookie(request: Request, name: string): string | null {
+  const header = request.headers.get("cookie");
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const idx = part.indexOf("=");
+    if (idx === -1) continue;
+    if (part.slice(0, idx).trim() === name) {
+      return decodeURIComponent(part.slice(idx + 1).trim());
+    }
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
     const { visitor_id, path, referrer, user_agent, device_type } =
@@ -22,7 +36,8 @@ export async function POST(request: Request) {
       country,
     });
 
-    // Maintain the visitor roster (first_seen / last_seen / visit_count).
+    // Maintain the visitor roster (first_seen / last_seen / visit_count) and
+    // stamp the partner referral (from the pp_ref cookie) on first sight only.
     // Wrapped so a missing function (pre-migration) never breaks pageview tracking.
     try {
       await getSupabaseAdmin().rpc("track_visitor", {
@@ -30,6 +45,7 @@ export async function POST(request: Request) {
         p_device: device_type || null,
         p_referrer: referrer || null,
         p_path: path,
+        p_ref: readCookie(request, "pp_ref"),
       });
     } catch {
       /* visitors table/function not created yet */
