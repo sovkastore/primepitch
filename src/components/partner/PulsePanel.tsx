@@ -45,10 +45,10 @@ export default function PulsePanel({ data, mine }: { data: PulseData | null; min
   return (
     <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <SplitStat label="Online now" data={data?.onlineNow} mine={mine} hint="on the site" />
-        <SplitStat label="Watching live" data={split(liveTotal, liveHis)} mine={mine} hint="on a live stream now" />
+        <SplitStat label="Online Now" data={data?.onlineNow} mine={mine} hint="on the site" />
+        <SplitStat label="Watching Live" data={split(liveTotal, liveHis)} mine={mine} hint="on a stream now" />
         <SplitStat label="Waiting" data={split(upTotal, upHis)} mine={mine} hint="pre-kickoff" />
-        <SplitStat label="Match ended" data={split(endTotal, endHis)} mine={mine} hint="on an ended page" />
+        <SplitStat label="Match Ended" data={split(endTotal, endHis)} mine={mine} hint="on an ended page" />
       </div>
 
       <h2 className="text-[13px] font-black text-gray-700 uppercase tracking-wider mt-7 mb-2">🔴 Watching live now</h2>

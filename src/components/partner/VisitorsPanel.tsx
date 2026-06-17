@@ -26,34 +26,34 @@ export default function VisitorsPanel({ data, mine }: { data: VisitorsData | nul
     <>
       <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-3">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Lifetime — ever joined</p>
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Overall · all time</p>
           <span className="text-[11px] font-bold text-emerald-600">{rate}% came back</span>
         </div>
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <p className="text-2xl font-black text-gray-900 tabular-nums">{total.toLocaleString()}</p>
-            <p className="text-[10px] text-gray-400">total · <span className="text-blue-600 font-bold">{(data?.totalVisitors?.his || 0).toLocaleString()} {blue}</span></p>
+            <p className="text-[10px] text-gray-400">total visitors · <span className="text-blue-600 font-bold">{(data?.totalVisitors?.his || 0).toLocaleString()} {blue}</span></p>
           </div>
           <div>
             <p className="text-2xl font-black text-gray-900 tabular-nums">{cb.toLocaleString()}</p>
-            <p className="text-[10px] text-gray-400">came back · <span className="text-blue-600 font-bold">{(data?.cameBack?.his || 0).toLocaleString()} {blue}</span></p>
+            <p className="text-[10px] text-gray-400">came back another day · <span className="text-blue-600 font-bold">{(data?.cameBack?.his || 0).toLocaleString()} {blue}</span></p>
           </div>
           <div>
             <p className="text-2xl font-black text-gray-900 tabular-nums">{(data?.oneTime?.total || 0).toLocaleString()}</p>
-            <p className="text-[10px] text-gray-400">one-time · <span className="text-blue-600 font-bold">{(data?.oneTime?.his || 0).toLocaleString()} {blue}</span></p>
+            <p className="text-[10px] text-gray-400">visited one day only · <span className="text-blue-600 font-bold">{(data?.oneTime?.his || 0).toLocaleString()} {blue}</span></p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <SplitStat label="Unique that day" data={data?.unique} mine={mine} />
-        <SplitStat label="Joined that day" data={data?.newToday} mine={mine} />
-        <SplitStat label="Returning" data={data?.returning} mine={mine} />
-        <SplitStat label="Page views" data={data?.pageViews} mine={mine} />
-        <SplitStat label="Total members" data={data?.totalVisitors} mine={mine} />
+        <SplitStat label="Unique Visitors" data={data?.unique} mine={mine} hint="distinct that day" />
+        <SplitStat label="New Visitors" data={data?.newToday} mine={mine} hint="first time ever" />
+        <SplitStat label="Returning" data={data?.returning} mine={mine} hint="seen before today" />
+        <SplitStat label="Page Views" data={data?.pageViews} mine={mine} hint="incl. repeat pages" />
+        <SplitStat label="Total Visitors" data={data?.totalVisitors} mine={mine} hint="all-time, ever joined" />
       </div>
 
-      <h2 className="text-[13px] font-black text-gray-700 uppercase tracking-wider mt-7 mb-2">Unique visitors — last 30 days</h2>
+      <h2 className="text-[13px] font-black text-gray-700 uppercase tracking-wider mt-7 mb-2">Visitors — last 30 days</h2>
       <div className="bg-white rounded-2xl border border-gray-200 p-4">
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={trend}>
@@ -68,10 +68,10 @@ export default function VisitorsPanel({ data, mine }: { data: VisitorsData | nul
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3 mt-3">
-        <BreakdownList title="Devices (active that day)" rows={(data?.byDevice ?? []).map((d) => ({ label: d.name || "unknown", total: d.total, his: d.his }))} />
+        <BreakdownList title="Devices (selected day)" rows={(data?.byDevice ?? []).map((d) => ({ label: d.name || "unknown", total: d.total, his: d.his }))} />
       </div>
 
-      <h2 className="text-[13px] font-black text-gray-700 uppercase tracking-wider mt-7 mb-2">{mine ? "My" : "Their"} referred members (latest 50)</h2>
+      <h2 className="text-[13px] font-black text-gray-700 uppercase tracking-wider mt-7 mb-2">Latest visitors (who joined through {mine ? "you" : "them"})</h2>
       {roster.length === 0 ? (
         <p className="text-sm text-gray-400">No referred members yet.</p>
       ) : (
