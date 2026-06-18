@@ -137,6 +137,29 @@ function CountdownTimer({ targetDate }: { targetDate: number }) {
   );
 }
 
+function KickoffCountdownBanner({ targetDate }: { targetDate: number }) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const i = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(i);
+  }, []);
+  const diff = now === null ? 0 : Math.max(0, targetDate - now);
+  const h = Math.floor(diff / 3_600_000);
+  const m = Math.floor((diff / 60_000) % 60);
+  const s = Math.floor((diff / 1_000) % 60);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    <div className="mb-3 flex items-center justify-center gap-2.5 rounded-xl bg-gray-900 px-4 py-2.5">
+      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+      <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">Match starts in</span>
+      <span className="text-[15px] font-black tabular-nums text-white">
+        {h > 0 ? `${pad(h)}:` : ""}{pad(m)}:{pad(s)}
+      </span>
+    </div>
+  );
+}
+
 export default function WatchPage() {
   const params = useParams();
   const rawId = decodeURIComponent(params.id as string);
@@ -153,9 +176,9 @@ export default function WatchPage() {
   const [gaveUp, setGaveUp] = useState(false);
   const [forceLive, setForceLive] = useState(false);
   const [autoLive, setAutoLive] = useState(false);
-  // Force-live can be flipped on hours before kickoff. When it is, hold the
-  // pre-match countdown until 15 min before kickoff rather than dropping the
-  // viewer onto the player while the channel is still airing other programmes.
+  // A force-lived match shows the stream immediately, with a countdown to
+  // kickoff shown above it. `revealed` flips true 15 min before kickoff —
+  // the moment the countdown banner is removed, leaving just the stream.
   const [revealed, setRevealed] = useState(false);
   const [hotKeys, setHotKeys] = useState<Set<string>>(new Set());
 
@@ -165,8 +188,8 @@ export default function WatchPage() {
     getMatchFlags().then((f) => setHotKeys(new Set(f.hot))).catch(() => {});
   }, []);
 
-  // 15-min reveal gate (see `revealed`): flip to the player 15 min before
-  // kickoff. If kickoff is unknown or already within 15 min, reveal at once.
+  // Remove the kickoff countdown 15 min before kickoff (see `revealed`). If
+  // kickoff is unknown or already inside 15 min, there's no countdown to show.
   useEffect(() => {
     const kickoff = currentMatch?.date ?? 0;
     if (!kickoff) { setRevealed(true); return; }
@@ -191,7 +214,7 @@ export default function WatchPage() {
   // A match that can't be found in any current list and has no streams has
   // ENDED (feeds drop matches once played) — never show it as "upcoming".
   const matchStatus = currentMatch ? getMatchStatus(currentMatch) : (loading ? "upcoming" : "ended");
-  const isLive = matchStatus === "live" || autoLive || (forceLive && revealed);
+  const isLive = matchStatus === "live" || forceLive || autoLive;
   const isEnded = !isLive && matchStatus === "ended" && streams.length === 0;
 
   // Tell the global heartbeat when this match is over (covers both the FULL
@@ -629,6 +652,10 @@ export default function WatchPage() {
             </div>
           </div>
         ) : (
+          <>
+            {forceLive && !revealed && !!currentMatch?.date && (
+              <KickoffCountdownBanner targetDate={currentMatch.date} />
+            )}
           <div
             className={
               "relative w-full bg-black rounded-xl overflow-hidden " +
@@ -717,6 +744,7 @@ export default function WatchPage() {
               </div>
             )}
           </div>
+          </>
         )}
       </div>
 
