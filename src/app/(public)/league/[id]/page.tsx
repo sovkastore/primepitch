@@ -286,6 +286,106 @@ function FixturesTab({
   );
 }
 
+const CAL_MONTHS = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+const CAL_WD = ["Mo","Tu","We","Th","Fr","Sa","Su"];
+
+function ymd(y: number, m: number, d: number): string {
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+// Month calendar for Results: only days with finished matches are clickable.
+function ResultsCalendar({
+  dates,
+  selected,
+  onPick,
+}: {
+  dates: string[];
+  selected: string | null;
+  onPick: (d: string) => void;
+}) {
+  const dateSet = new Set(dates);
+  const monthKeys = Array.from(new Set(dates.map((d) => d.slice(0, 7)))).sort();
+  const anchor =
+    (selected ?? dates[0] ?? "").slice(0, 7) || monthKeys[monthKeys.length - 1] || "";
+  const [view, setView] = useState(anchor);
+  const idx = monthKeys.indexOf(view);
+  const [yy, mm] = view.split("-").map(Number);
+  const m = (mm || 1) - 1;
+  const y = yy || new Date().getFullYear();
+  const first = new Date(y, m, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  const canPrev = idx > 0;
+  const canNext = idx >= 0 && idx < monthKeys.length - 1;
+
+  return (
+    <div className="mb-4 bg-white border border-gray-200 rounded-xl p-3 w-full sm:max-w-[320px]">
+      <div className="flex items-center justify-between mb-2">
+        <button
+          onClick={() => canPrev && setView(monthKeys[idx - 1])}
+          disabled={!canPrev}
+          className={`w-7 h-7 rounded-lg flex items-center justify-center text-[18px] text-gray-500 ${
+            canPrev ? "hover:bg-gray-100" : "opacity-30"
+          }`}
+          aria-label="Previous month"
+        >
+          &#8249;
+        </button>
+        <span className="text-[13px] font-bold text-gray-900">
+          {CAL_MONTHS[m]} {y}
+        </span>
+        <button
+          onClick={() => canNext && setView(monthKeys[idx + 1])}
+          disabled={!canNext}
+          className={`w-7 h-7 rounded-lg flex items-center justify-center text-[18px] text-gray-500 ${
+            canNext ? "hover:bg-gray-100" : "opacity-30"
+          }`}
+          aria-label="Next month"
+        >
+          &#8250;
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {CAL_WD.map((w) => (
+          <span key={w} className="text-[9px] font-bold text-gray-300 text-center">
+            {w}
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((d, i) => {
+          if (d === null) return <span key={`e${i}`} />;
+          const key = ymd(y, m, d);
+          const has = dateSet.has(key);
+          const isSel = key === selected;
+          return (
+            <button
+              key={key}
+              onClick={() => has && onPick(key)}
+              disabled={!has}
+              className={`h-8 rounded-lg text-[12px] font-bold flex items-center justify-center transition-colors ${
+                isSel
+                  ? "bg-emerald-500 text-white"
+                  : has
+                  ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  : "text-gray-300"
+              }`}
+            >
+              {d}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ResultsTab({
   dates,
   selectedDate,
@@ -308,20 +408,7 @@ function ResultsTab({
   }
   return (
     <div>
-      <div className="mb-4">
-        <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Match day</span>
-        <select
-          value={selectedDate ?? ""}
-          onChange={(e) => onPickDate(e.target.value)}
-          className="w-full sm:w-auto px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-        >
-          {dates.map((d) => (
-            <option key={d} value={d}>
-              {fmtDateLabel(d)}
-            </option>
-          ))}
-        </select>
-      </div>
+      <ResultsCalendar dates={dates} selected={selectedDate} onPick={onPickDate} />
       {selectedDate && <p className="text-[13px] font-bold text-gray-500 mb-2">{fmtDateLabel(selectedDate)}</p>}
       <div className="space-y-2">
         {rows.map((m) => (
