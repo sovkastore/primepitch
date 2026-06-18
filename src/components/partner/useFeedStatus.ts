@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getAllMatches, getMatchStatus } from "@/lib/api";
+import { getAllMatches, getMatchStatus, getLiveMatches } from "@/lib/api";
 import { normTitle } from "@/lib/match-merge";
 
 export type FeedStatus = "live" | "upcoming" | "ended";
@@ -15,10 +15,12 @@ export function matchTitleFromId(matchId: string): string {
 export function useFeedStatus() {
   const [feedStatus, setFeedStatus] = useState<Record<string, FeedStatus> | null>(null);
   const [titleStatus, setTitleStatus] = useState<Record<string, FeedStatus> | null>(null);
+  const [liveIds, setLiveIds] = useState<Set<string> | null>(null);
+  const [endedIds, setEndedIds] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     let on = true;
-    const load = () =>
+    const load = () => {
       getAllMatches()
         .then((ms) => {
           if (!on) return;
@@ -35,6 +37,24 @@ export function useFeedStatus() {
           setTitleStatus(tmap);
         })
         .catch(() => {});
+      // Served live set: already includes Force-live + custom PPV matches and
+      // excludes End-now, so it's the source of truth for "is this match live".
+      getLiveMatches()
+        .then((ms) => {
+          if (!on) return;
+          const live = new Set<string>();
+          const ended = new Set<string>();
+          for (const m of ms) {
+            const s = m.sources?.[0];
+            const key = s ? `${s.source}--${s.id}` : String(m.id);
+            if (m.ended) ended.add(key);
+            else live.add(key);
+          }
+          setLiveIds(live);
+          setEndedIds(ended);
+        })
+        .catch(() => {});
+    };
     load();
     const t = setInterval(load, 5 * 60_000);
     return () => { on = false; clearInterval(t); };
@@ -43,6 +63,11 @@ export function useFeedStatus() {
   const rowStatus = useCallback(
     (matchId: string, title?: string): FeedStatus | null => {
       if (!feedStatus) return null;
+      // Flag precedence (mirrors the admin Pulse rowStatus): End-now → ended and
+      // served-live → live both win over the fixture clock, so Force-live and
+      // custom PPV (admin--…) matches are classified correctly instead of null.
+      if (endedIds?.has(matchId)) return "ended";
+      if (liveIds?.has(matchId)) return "live";
       const parts = matchId.split("--");
       const feedId = parts.length > 1 ? parts.slice(1).join("--") : matchId;
       if (feedStatus[feedId]) return feedStatus[feedId];
@@ -53,7 +78,7 @@ export function useFeedStatus() {
       const isCustom = parts[0] === "admin" || /^(live-)?event/i.test(parts[0]) || parts.length === 1;
       return isCustom ? null : "ended";
     },
-    [feedStatus, titleStatus],
+    [feedStatus, titleStatus, liveIds, endedIds],
   );
 
   return { rowStatus, ready: feedStatus !== null };
