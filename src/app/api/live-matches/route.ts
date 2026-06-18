@@ -12,10 +12,6 @@ import type { Match } from "@/lib/api";
 
 const LIVE_URL = "https://streamed.pk/api/matches/live";
 const TTL = 12_000; // short so admin hide / force-live / disable-auto reflect quickly
-// A force-lived match may surface in the public live list this long BEFORE its
-// kickoff, so admins can pre-arm a stream (test servers, then go live early).
-// It still auto-drops after kickoff+3h via getMatchStatus. Bump as needed.
-const FORCE_LIVE_LEAD_MS = 30 * 60_000; // 30 minutes
 let cache: { data: Match[]; ts: number } | null = null;
 
 function keyOf(m: Match): string {
@@ -101,7 +97,7 @@ export async function GET() {
     const curated: Match[] = liveRes.ok ? await liveRes.json() : [];
 
     // Candidate set: curated live ∪ override-backed (in window) ∪ forced-live
-    // (in its live window, or pre-kickoff within FORCE_LIVE_LEAD_MS).
+    // (shown from the moment it's forced until it ends).
     const candidates = new Map<string, Match>();
     for (const m of curated) candidates.set(keyOf(m), m);
     for (const [mid, m] of overrideBacked) {
@@ -109,11 +105,10 @@ export async function GET() {
     }
     for (const [mid, m] of flags.forcedLive) {
       if (candidates.has(mid)) continue;
-      // Explicit admin force: show in its normal live window, OR pre-kickoff once
-      // within the lead time (so "go live early" works). Still excluded once ended.
-      const st = getMatchStatus(m);
-      const armedEarly = st === "upcoming" && m.date - now <= FORCE_LIVE_LEAD_MS;
-      if (st === "live" || armedEarly) candidates.set(mid, m);
+      // Explicit admin force = show it live NOW, however long before kickoff, until
+      // it ends on its own (kickoff+3h via getMatchStatus) or the admin ends/unforces
+      // it. No lead-time cap — flipping Force live should surface it immediately.
+      if (getMatchStatus(m) !== "ended") candidates.set(mid, m);
     }
 
     const entries = Array.from(candidates.entries()).map(([mid, m]) => {
