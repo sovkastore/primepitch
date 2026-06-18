@@ -82,6 +82,33 @@ async function getOverrideBacked(): Promise<Map<string, Match>> {
   return map;
 }
 
+// Team-name key matching the push score-watcher's match_key (wc:home|away).
+const normName = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+function isRealMatchOver(m: Match, finishedKeys: Set<string>): boolean {
+  const h = normName(m.teams?.home?.name || "");
+  const a = normName(m.teams?.away?.name || "");
+  if (!h || !a) return false;
+  return finishedKeys.has(`wc:${h}|${a}`) || finishedKeys.has(`wc:${a}|${h}`);
+}
+
+// WC matches the score-watcher has marked finished — lets us retire a force-lived
+// card the moment the real game ends, instead of waiting for the kickoff+3h cap.
+async function getFinishedWcKeys(): Promise<Set<string>> {
+  const keys = new Set<string>();
+  try {
+    const { data } = await getSupabaseAdmin()
+      .from("push_match_state")
+      .select("match_key")
+      .eq("finished", true);
+    for (const r of (data ?? []) as Array<{ match_key: string }>) {
+      if (r.match_key) keys.add(r.match_key);
+    }
+  } catch {
+    /* push_match_state may not exist — skip early retire */
+  }
+  return keys;
+}
+
 export async function GET() {
   const now = Date.now();
   if (cache && now - cache.ts < TTL) {
@@ -89,10 +116,11 @@ export async function GET() {
   }
 
   try {
-    const [liveRes, flags, overrideBacked] = await Promise.all([
+    const [liveRes, flags, overrideBacked, finishedKeys] = await Promise.all([
       fetch(LIVE_URL, { signal: AbortSignal.timeout(8000) }),
       getFlags(),
       getOverrideBacked(),
+      getFinishedWcKeys(),
     ]);
     const curated: Match[] = liveRes.ok ? await liveRes.json() : [];
 
@@ -106,14 +134,17 @@ export async function GET() {
     for (const [mid, m] of flags.forcedLive) {
       if (candidates.has(mid)) continue;
       // Explicit admin force = show it live NOW, however long before kickoff, until
-      // it ends on its own (kickoff+3h via getMatchStatus) or the admin ends/unforces
-      // it. No lead-time cap — flipping Force live should surface it immediately.
+      // the real game is reported finished, it ages out (kickoff+3h via
+      // getMatchStatus), or the admin ends/unforces it. The finished check makes a
+      // force-lived card drop off LIVE NOW the moment the actual match ends, instead
+      // of lingering for the rest of the 3h window.
+      if (isRealMatchOver(m, finishedKeys)) continue;
       if (getMatchStatus(m) !== "ended") candidates.set(mid, m);
     }
 
     const entries = Array.from(candidates.entries()).map(([mid, m]) => {
       if (flags.hidden.has(mid)) return null;
-      if (flags.forcedLive.has(mid)) return m; // explicit admin force — show regardless
+      if (flags.forcedLive.has(mid)) return isRealMatchOver(m, finishedKeys) ? null : m; // admin force — show unless the real match is over
       // Every remaining candidate is either in streamed.pk's curated live feed
       // or backed by an enabled admin override — both mean it's genuinely live.
       // "echo" is only ONE of streamed.pk's many servers, so a match must NOT be
