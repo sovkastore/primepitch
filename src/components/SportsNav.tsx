@@ -70,7 +70,7 @@ export default function SportsNav({ activeSport, onSelect, worldCupActive = fals
                 <img
                   src={getSportIcon(id)}
                   alt={SPORT_LABELS[id] || id}
-                  className={`w-6 h-6 object-contain ${active ? "" : "invert opacity-60"}`}
+                  className={`w-6 h-6 object-contain ${id === "football" ? "" : active ? "" : "invert opacity-60"}`}
                 />
               </div>
               <span

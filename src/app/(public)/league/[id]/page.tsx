@@ -423,11 +423,11 @@ function FormPips({ form }: { form: string }) {
   const items = (form || "").slice(-5).split("");
   const color = (c: string) => (c === "W" ? "bg-emerald-500" : c === "L" ? "bg-red-500" : "bg-gray-300");
   return (
-    <span className="inline-flex gap-1">
+    <span className="inline-flex flex-wrap gap-0.5">
       {items.map((c, i) => (
         <span
           key={i}
-          className={`w-4 h-4 rounded-[3px] text-white text-[9px] font-black flex items-center justify-center ${color(c)}`}
+          className={`w-3.5 h-3.5 rounded-[3px] text-white text-[8px] font-black flex items-center justify-center ${color(c)}`}
         >
           {c}
         </span>
@@ -451,45 +451,47 @@ function TableTab({ rows, crests }: { rows: StandingRow[]; crests?: Record<strin
     ["Pts", "pts"],
   ];
   return (
-    <div className="overflow-x-auto -mx-4 px-4">
-      <table className="w-full min-w-[620px] text-[13px]">
-        <thead>
-          <tr className="text-gray-400 text-[10px] uppercase tracking-wider border-b border-gray-200">
-            <th className="text-left font-bold py-2 pl-1 w-7">#</th>
-            <th className="text-left font-bold py-2">Team</th>
-            {cols.map(([h]) => (
-              <th key={h} className="text-center font-bold py-2 px-1.5">
-                {h}
-              </th>
-            ))}
-            <th className="text-left font-bold py-2 px-2">Form</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.team_id ?? r.position} className="border-b border-gray-100">
-              <td className="py-2.5 pl-1 text-gray-400 font-bold tabular-nums">{r.position}</td>
-              <td className="py-2.5 font-bold text-gray-900 whitespace-nowrap">
-                <span className="inline-flex items-center gap-2">
-                  <Crest crestUrl={crestForName(r.team, crests)} name={r.team} />
-                  {shortTeamName(r.team)}
-                </span>
-              </td>
-              {cols.map(([h, key]) => (
+    <table className="w-full table-fixed text-[10.5px]">
+      <thead>
+        <tr className="text-gray-400 text-[9px] uppercase tracking-wide border-b border-gray-200">
+          <th className="text-left font-bold py-1.5 w-[16px]">#</th>
+          <th className="text-left font-bold py-1.5 pl-1">Team</th>
+          {cols.map(([h]) => (
+            <th key={h} className={`text-center font-bold py-1.5 ${h === "Pts" ? "w-[26px]" : h === "GD" ? "w-[24px]" : "w-[20px]"}`}>
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.team_id ?? r.position} className="border-b border-gray-100">
+            <td className="py-1.5 text-gray-400 font-bold tabular-nums align-middle">{r.position}</td>
+            <td className="py-1.5 pl-1 pr-1 align-middle">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Crest crestUrl={crestForName(r.team, crests)} name={r.team} />
+                <div className="min-w-0">
+                  <div className="font-bold text-gray-900 truncate leading-tight">{shortTeamName(r.team)}</div>
+                  <div className="mt-0.5">
+                    <FormPips form={r.form} />
+                  </div>
+                </div>
+              </div>
+            </td>
+            {cols.map(([h, key]) => {
+              const neg = h === "GD" && r.gd < 0;
+              return (
                 <td
                   key={h}
-                  className={`py-2.5 px-1.5 text-center tabular-nums ${h === "Pts" ? "font-black text-gray-900" : "text-gray-600"}`}
+                  className={`text-center tabular-nums align-middle ${h === "Pts" ? "font-black text-gray-900" : neg ? "text-red-500 font-semibold" : "text-gray-600"}`}
                 >
                   {h === "GD" ? (r.gd > 0 ? `+${r.gd}` : r.gd) : (r[key] as number)}
                 </td>
-              ))}
-              <td className="py-2.5 px-2">
-                <FormPips form={r.form} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

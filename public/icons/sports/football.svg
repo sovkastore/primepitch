@@ -1,10 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
-  <!-- Clean symmetric soccer ball: circle + central pentagon + 5 radiating seams -->
-  <circle cx="32" cy="32" r="24"/>
-  <polygon points="32,23 40.56,29.22 37.29,39.28 26.71,39.28 23.44,29.22" fill="#fff" stroke="#fff" stroke-width="2"/>
-  <line x1="32" y1="23" x2="32" y2="8"/>
-  <line x1="40.56" y1="29.22" x2="54.83" y2="24.58"/>
-  <line x1="37.29" y1="39.28" x2="46.11" y2="51.41"/>
-  <line x1="26.71" y1="39.28" x2="17.89" y2="51.41"/>
-  <line x1="23.44" y1="29.22" x2="9.17" y2="24.58"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <circle cx="32" cy="32" r="24" fill="#ffffff" stroke="#0f172a" stroke-width="3"/>
+  <polygon points="32,23 40.56,29.22 37.29,39.28 26.71,39.28 23.44,29.22" fill="#0f172a"/>
+  <g stroke="#0f172a" stroke-width="3" stroke-linecap="round">
+    <line x1="32" y1="23" x2="32" y2="9"/>
+    <line x1="40.56" y1="29.22" x2="53" y2="25"/>
+    <line x1="37.29" y1="39.28" x2="45" y2="49.5"/>
+    <line x1="26.71" y1="39.28" x2="19" y2="49.5"/>
+    <line x1="23.44" y1="29.22" x2="11" y2="25"/>
+  </g>
 </svg>

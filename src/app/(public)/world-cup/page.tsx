@@ -217,24 +217,12 @@ export default function WorldCupPage() {
       <LeagueNav active="wc" />
 
       <div className="max-w-[1100px] mx-auto px-4 lg:px-6 py-6 pb-24 md:pb-8">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shrink-0">
-          <img src="/icons/brands/fifa.svg" alt="" className="w-7 h-7 invert" />
+      {/* Slim live indicator only — the bulky badge/title was redundant with the nav. */}
+      {liveCount > 0 && (
+        <div className="flex items-center gap-1.5 text-red-500 font-bold text-[12px] mb-4">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> {liveCount} live now
         </div>
-        <div>
-          <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">FIFA World Cup 2026</h1>
-          <p className="text-sm text-gray-500">
-            {liveCount > 0 ? (
-              <span className="inline-flex items-center gap-1.5 text-red-500 font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> {liveCount} live now
-              </span>
-            ) : (
-              "48 teams · 12 groups"
-            )}
-          </p>
-        </div>
-      </div>
+      )}
 
       {/* View toggle */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max mb-5">
