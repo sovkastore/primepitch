@@ -132,7 +132,11 @@ export async function resolveStreams(opts: {
     serving = ov.streams.length > 0 ? "override" : echo.length > 0 ? "echo" : "none";
     // Self-heal: only when nothing else is available, auto isn't disabled, and
     // the match has kicked off (gateAuto prevents fallbacks counting as live early).
-    if (streams.length === 0 && !disableAuto && !gateAuto && title) {
+    // Football is opt-out of the AUTOMATIC fallback by default — admins add a
+    // fallback manually (the "Add fallback" button) rather than the provider
+    // being pulled in on its own. Other sports keep the automatic fallback.
+    const autoAllowed = sport.toLowerCase() !== "football";
+    if (streams.length === 0 && !disableAuto && !gateAuto && autoAllowed && title) {
       const fb = await searchFallbackStreams(title, sport);
       if (fb.length > 0) {
         streams = fb.map((s, i) => ({
