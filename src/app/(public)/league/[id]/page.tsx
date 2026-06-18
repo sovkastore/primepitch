@@ -26,7 +26,7 @@ const TAB_LABEL: Record<LeagueTab, string> = {
   results: "Results",
   fixtures: "Fixtures",
   table: "Table",
-  ko: "KO",
+  ko: "Knockout",
 };
 
 function kickoffTime(iso: string): string {
@@ -225,7 +225,7 @@ export default function CompetitionPage() {
               {data.seasonName && <p className="text-[12px] text-gray-400 font-medium">{data.seasonName}</p>}
             </div>
 
-            <div className="flex gap-1 border-b border-gray-200 mb-4">
+            <div className="flex gap-1 border-b border-gray-200 mb-4 overflow-x-auto scrollbar-hide">
               {data.tabs.map((t) => (
                 <button
                   key={t}
@@ -574,7 +574,15 @@ function KnockoutTab({
   badgeMap: Map<string, string> | null;
   crests?: Record<string, string> | null;
 }) {
-  const [sel, setSel] = useState(0);
+  // Open on the latest round that has a played leg (finished season → Final,
+  // mid-season → current round), instead of always the qualifying play-off.
+  const defaultSel = (() => {
+    for (let i = rounds.length - 1; i >= 0; i--) {
+      if (rounds[i].ties.some((t) => t.aggA != null || t.legs.some((l) => l.home_score != null))) return i;
+    }
+    return 0;
+  })();
+  const [sel, setSel] = useState(defaultSel);
   if (!rounds || rounds.length === 0) {
     return <p className="text-gray-500 py-10 text-center">The knockout stage hasn’t started yet.</p>;
   }

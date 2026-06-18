@@ -31,8 +31,9 @@ function resolveDefaultTab(cfg: LeagueConfig, fixturesCount: number, hasTable: b
   return hasTable ? "table" : "results";
 }
 
-const KO_ROUND_NAMES = ["Round of 16", "Quarterfinals", "Semifinals", "Final"];
+const KO_ROUND_NAMES = ["Playoff round", "Round of 16", "Quarterfinals", "Semifinals", "Final"];
 const KO_ORDER: Array<{ name: string; short: string }> = [
+  { name: "Playoff round", short: "Play-off" },
   { name: "Round of 16", short: "R16" },
   { name: "Quarterfinals", short: "Q.Final" },
   { name: "Semifinals", short: "S.Final" },
