@@ -137,29 +137,6 @@ function CountdownTimer({ targetDate }: { targetDate: number }) {
   );
 }
 
-function KickoffCountdownBanner({ targetDate }: { targetDate: number }) {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    setNow(Date.now());
-    const i = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(i);
-  }, []);
-  const diff = now === null ? 0 : Math.max(0, targetDate - now);
-  const h = Math.floor(diff / 3_600_000);
-  const m = Math.floor((diff / 60_000) % 60);
-  const s = Math.floor((diff / 1_000) % 60);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return (
-    <div className="mb-3 flex items-center justify-center gap-2.5 rounded-xl bg-gray-900 px-4 py-2.5">
-      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-      <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">Match starts in</span>
-      <span className="text-[15px] font-black tabular-nums text-white">
-        {h > 0 ? `${pad(h)}:` : ""}{pad(m)}:{pad(s)}
-      </span>
-    </div>
-  );
-}
-
 export default function WatchPage() {
   const params = useParams();
   const rawId = decodeURIComponent(params.id as string);
@@ -176,10 +153,6 @@ export default function WatchPage() {
   const [gaveUp, setGaveUp] = useState(false);
   const [forceLive, setForceLive] = useState(false);
   const [autoLive, setAutoLive] = useState(false);
-  // A force-lived match shows the stream immediately, with a countdown to
-  // kickoff shown above it. `revealed` flips true 15 min before kickoff —
-  // the moment the countdown banner is removed, leaving just the stream.
-  const [revealed, setRevealed] = useState(false);
   const [hotKeys, setHotKeys] = useState<Set<string>>(new Set());
 
   // One-time read of HOT flags so an upcoming/custom hot match's page is also
@@ -187,18 +160,6 @@ export default function WatchPage() {
   useEffect(() => {
     getMatchFlags().then((f) => setHotKeys(new Set(f.hot))).catch(() => {});
   }, []);
-
-  // Remove the kickoff countdown 15 min before kickoff (see `revealed`). If
-  // kickoff is unknown or already inside 15 min, there's no countdown to show.
-  useEffect(() => {
-    const kickoff = currentMatch?.date ?? 0;
-    if (!kickoff) { setRevealed(true); return; }
-    const until = kickoff - 15 * 60 * 1000 - Date.now();
-    if (until <= 0) { setRevealed(true); return; }
-    setRevealed(false);
-    const t = setTimeout(() => setRevealed(true), until);
-    return () => clearTimeout(t);
-  }, [currentMatch?.date]);
 
   const trackedRef = useRef(false);
   const streamTriesRef = useRef(0);
@@ -652,10 +613,6 @@ export default function WatchPage() {
             </div>
           </div>
         ) : (
-          <>
-            {forceLive && !revealed && !!currentMatch?.date && (
-              <KickoffCountdownBanner targetDate={currentMatch.date} />
-            )}
           <div
             className={
               "relative w-full bg-black rounded-xl overflow-hidden " +
@@ -744,7 +701,6 @@ export default function WatchPage() {
               </div>
             )}
           </div>
-          </>
         )}
       </div>
 
