@@ -6,16 +6,27 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 // Merged, playable streams for one match: manual overrides → echo → auto-fallback.
 // The watch page loads from here so an auto-found stream actually plays.
 
-async function isAutoDisabled(matchId: string): Promise<boolean> {
+// Per-match auto-fallback decision. Football is OFF by default; the admin's
+// Auto-fallback toggle (auto_fallback) opts a single match in (true) or out
+// (false). Other sports stay ON unless explicitly disabled (auto_fallback=false
+// or the legacy disable_auto flag).
+async function autoFlags(
+  matchId: string,
+  sport: string
+): Promise<{ disableAuto: boolean; allowFootballAuto: boolean }> {
+  const isFootball = sport.toLowerCase() === "football";
   try {
     const { data } = await getSupabaseAdmin()
       .from("match_flags")
-      .select("disable_auto")
+      .select("disable_auto, auto_fallback")
       .eq("match_id", matchId)
       .maybeSingle();
-    return !!data?.disable_auto;
+    const af = data?.auto_fallback as boolean | null | undefined;
+    const enabled =
+      af === true ? true : af === false ? false : !isFootball && !data?.disable_auto;
+    return { disableAuto: !enabled, allowFootballAuto: enabled && isFootball };
   } catch {
-    return false; // table may not exist yet — degrade to auto enabled
+    return { disableAuto: isFootball, allowFootballAuto: false }; // degrade to sport default
   }
 }
 
@@ -40,8 +51,8 @@ export async function GET(
     const kickoff = kickoffRaw ? Number(kickoffRaw) : NaN;
     const gateAuto = Number.isFinite(kickoff) && kickoff > 0 && Date.now() < kickoff;
 
-    const disableAuto = await isAutoDisabled(rawId);
-    const result = await resolveStreams({ source, id, title, sport, disableAuto, gateAuto });
+    const { disableAuto, allowFootballAuto } = await autoFlags(rawId, sport);
+    const result = await resolveStreams({ source, id, title, sport, disableAuto, gateAuto, allowFootballAuto });
 
     // An admin-curated set (replace_original) is the final word — show exactly it.
     // Otherwise aggregate EVERY source this match lists (same as the Test Stream

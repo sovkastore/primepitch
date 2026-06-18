@@ -104,12 +104,15 @@ export async function resolveStreams(opts: {
   /** When true, never use the auto-fallback (e.g. the match hasn't kicked off
    *  yet). Native (echo) and admin overrides still resolve normally. */
   gateAuto?: boolean;
+  /** Football's automatic fallback is off by default; this re-enables it for a
+   *  single match the admin has explicitly opted in (the Auto-fallback toggle). */
+  allowFootballAuto?: boolean;
 }): Promise<ResolvedStreams> {
-  const { source, id, title = "", sport = "football", disableAuto = false, gateAuto = false } = opts;
+  const { source, id, title = "", sport = "football", disableAuto = false, gateAuto = false, allowFootballAuto = false } = opts;
   const matchId = `${source}--${id}`;
   // Key includes the auto-fallback + gate flags so toggling "Disable auto-fallback"
   // or crossing kickoff re-resolves immediately (instead of serving a cached result).
-  const cacheKey = `${matchId}|${disableAuto ? "na" : "a"}|${gateAuto ? "g" : ""}`;
+  const cacheKey = `${matchId}|${disableAuto ? "na" : "a"}|${gateAuto ? "g" : ""}|${allowFootballAuto ? "fa" : ""}`;
   const now = Date.now();
   const hit = cache.get(cacheKey);
   if (hit && now - hit.ts < TTL) return hit.data;
@@ -133,9 +136,9 @@ export async function resolveStreams(opts: {
     // Self-heal: only when nothing else is available, auto isn't disabled, and
     // the match has kicked off (gateAuto prevents fallbacks counting as live early).
     // Football is opt-out of the AUTOMATIC fallback by default — admins add a
-    // fallback manually (the "Add fallback" button) rather than the provider
-    // being pulled in on its own. Other sports keep the automatic fallback.
-    const autoAllowed = sport.toLowerCase() !== "football";
+    // fallback manually, OR flip the per-match Auto-fallback toggle on (which
+    // passes allowFootballAuto here). Other sports keep the automatic fallback.
+    const autoAllowed = sport.toLowerCase() !== "football" || allowFootballAuto;
     if (streams.length === 0 && !disableAuto && !gateAuto && autoAllowed && title) {
       const fb = await searchFallbackStreams(title, sport);
       if (fb.length > 0) {

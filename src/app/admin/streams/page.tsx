@@ -30,6 +30,7 @@ interface FlagRow {
   forced_live: boolean;
   featured: boolean;
   disable_auto: boolean;
+  auto_fallback?: boolean | null;
   force_ended: boolean;
   hot: boolean;
 }
@@ -40,6 +41,14 @@ interface Entry {
   serving: string;
   overrides: OverrideRow[];
   flags: FlagRow | null;
+}
+
+// Effective Auto-fallback toggle state. Football is OFF by default; an explicit
+// per-match choice (auto_fallback) wins. Other sports stay ON unless turned off.
+function autoOn(flags: FlagRow | null | undefined, sport: string): boolean {
+  if (flags?.auto_fallback != null) return flags.auto_fallback;
+  if (flags?.disable_auto) return false;
+  return sport.toLowerCase() !== "football";
 }
 
 interface ResolvedStream { id: string; streamNo: number; language: string; hd: boolean; embedUrl: string; source: string }
@@ -378,7 +387,7 @@ export default function StreamsManagerPage() {
                     Hide this copy
                   </label>
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
-                    <Toggle on={!flags?.disable_auto} onClick={() => setFlag(e, { disable_auto: !flags?.disable_auto })} />
+                    <Toggle on={autoOn(flags, e.match.category)} onClick={() => setFlag(e, { auto_fallback: !autoOn(flags, e.match.category) })} />
                     Auto-fallback
                   </label>
                 </div>
