@@ -29,6 +29,9 @@ export default function PulsePage() {
   const [overrides, setOverrides] = useState<OverrideRow[]>([]);
   const [feedStatus, setFeedStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
   const [titleStatus, setTitleStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
+  // Admin flags that override the clock: a force-lived match counts as live and a
+  // force-ended one as ended, matching what visitors see on the public site.
+  const [flagStatus, setFlagStatus] = useState<Record<string, { forced_live?: boolean; force_ended?: boolean }>>({});
   const [overrideModal, setOverrideModal] = useState<{ matchId: string; append: boolean; title: string } | null>(null);
 
   useEffect(() => {
@@ -60,6 +63,11 @@ export default function PulsePage() {
   }
 
   const rowStatus = (matchId: string): "live" | "upcoming" | "ended" | null => {
+    // Admin overrides win over the fixture clock (same as the public site):
+    // End now forces ended, Force live forces live.
+    const fl = flagStatus[matchId];
+    if (fl?.force_ended) return "ended";
+    if (fl?.forced_live) return "live";
     if (!feedStatus) return null;
     const parts = matchId.split("--");
     const feedId = parts.length > 1 ? parts.slice(1).join("--") : matchId;
@@ -74,6 +82,25 @@ export default function PulsePage() {
     const isCustom = parts[0] === "admin" || /^(live-)?event/i.test(parts[0]) || parts.length === 1;
     return isCustom ? null : "ended";
   };
+
+  useEffect(() => {
+    let on = true;
+    const loadFlags = () =>
+      fetch("/api/admin/match-flags")
+        .then((r) => r.json())
+        .then((d) => {
+          if (!on) return;
+          const map: Record<string, { forced_live?: boolean; force_ended?: boolean }> = {};
+          for (const f of (d.flags || []) as Array<{ match_id: string; forced_live?: boolean; force_ended?: boolean }>) {
+            map[f.match_id] = { forced_live: f.forced_live, force_ended: f.force_ended };
+          }
+          setFlagStatus(map);
+        })
+        .catch(() => {});
+    loadFlags();
+    const t = setInterval(loadFlags, 60_000);
+    return () => { on = false; clearInterval(t); };
+  }, []);
 
   useEffect(() => {
     const fetchData = () => {
