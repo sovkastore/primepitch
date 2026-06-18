@@ -14,7 +14,7 @@ export async function GET() {
   try {
     const { data } = await getSupabaseAdmin()
       .from("league_config")
-      .select("league_id,label,enabled,display_order,has_table,default_tab")
+      .select("league_id,label,enabled,display_order,has_table,default_tab,logo_url")
       .eq("enabled", true)
       .order("display_order", { ascending: true });
     const payload = { leagues: data ?? [] };

@@ -15,6 +15,7 @@ export interface LeagueConfig {
   display_order: number;
   has_table: boolean;
   default_tab: DefaultTab;
+  logo_url?: string | null;
 }
 
 export interface LeagueMatchRow {

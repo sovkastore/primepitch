@@ -46,7 +46,7 @@ function Chip({
           <img
             src={logo}
             alt={label}
-            className={`w-7 h-7 object-contain ${active ? "" : "opacity-70"}`}
+            className={`w-7 h-7 object-contain`}
             onError={() => setImgFailed(true)}
           />
         ) : (
@@ -86,7 +86,7 @@ export default function LeagueNav({ active }: { active: "all" | "wc" | number })
             href={`/league/${l.league_id}`}
             label={l.label}
             active={active === l.league_id}
-            logo={LOGOS[l.league_id]}
+            logo={l.logo_url || LOGOS[l.league_id]}
           />
         ))}
       </div>
