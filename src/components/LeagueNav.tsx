@@ -22,12 +22,14 @@ function Chip({
   active,
   logo,
   chipRef,
+  invertInactive,
 }: {
   href: string;
   label: string;
   active: boolean;
   logo?: string;
   chipRef?: React.Ref<HTMLAnchorElement>;
+  invertInactive?: boolean;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const showImg = logo && !imgFailed;
@@ -48,7 +50,7 @@ function Chip({
           <img
             src={logo}
             alt={label}
-            className={`w-7 h-7 object-contain`}
+            className={`w-7 h-7 object-contain ${invertInactive && !active ? "invert opacity-60" : ""}`}
             onError={() => setImgFailed(true)}
           />
         ) : (
@@ -93,7 +95,7 @@ export default function LeagueNav({ active }: { active: "all" | "wc" | number })
     <section className="max-w-[1400px] mx-auto px-4 lg:px-6 pb-1">
       <div ref={scrollerRef} className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
         <Chip href="/" label="All" active={active === "all"} logo="/icons/sports/football.svg" chipRef={active === "all" ? activeRef : undefined} />
-        <Chip href="/world-cup" label="World Cup 2026" active={active === "wc"} logo="/icons/brands/fifa.svg" chipRef={active === "wc" ? activeRef : undefined} />
+        <Chip href="/world-cup" label="World Cup 2026" active={active === "wc"} logo="/icons/brands/fifa.svg" chipRef={active === "wc" ? activeRef : undefined} invertInactive />
         {leagues.map((l) => (
           <Chip
             key={l.league_id}

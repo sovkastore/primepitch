@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { SPORT_LABELS } from "@/lib/api";
 
 const SPORTS = [
@@ -30,28 +29,10 @@ interface SportsNavProps {
   worldCupActive?: boolean;
 }
 
-export default function SportsNav({ activeSport, onSelect, worldCupActive = false }: SportsNavProps) {
+export default function SportsNav({ activeSport, onSelect }: SportsNavProps) {
   return (
     <section className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
       <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-        {/* World Cup 2026 — a dedicated page, not a home filter tab */}
-        <Link href="/world-cup" className="flex flex-col items-center gap-1.5 shrink-0">
-          <div
-            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
-              worldCupActive
-                ? "bg-emerald-500 shadow-lg shadow-emerald-500/25"
-                : "bg-gray-100 hover:bg-gray-200"
-            }`}
-          >
-            <img
-              src="/icons/brands/fifa.svg"
-              alt="World Cup 2026"
-              className={`w-6 h-6 object-contain invert ${worldCupActive ? "opacity-100" : "opacity-60"}`}
-            />
-          </div>
-          <span className={`text-[10px] font-bold whitespace-nowrap ${worldCupActive ? "text-emerald-600" : "text-gray-500"}`}>World Cup 2026</span>
-        </Link>
-
         {SPORTS.map((id) => {
           const active = activeSport === id;
           return (
