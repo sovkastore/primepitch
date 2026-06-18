@@ -253,6 +253,32 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     }
   }
 
+  // Force-lived matches (admin flag) are treated as LIVE here regardless of the
+  // scheduled clock — the operator has declared the stream live, so the match
+  // shows under Live and its viewers (recorded is_live) count as live. Clearing
+  // the flag (or setting force_ended) reverts to the time-based status.
+  try {
+    const { data: flags } = await sb.from("match_flags")
+      .select("match_data, forced_live, force_ended")
+      .eq("forced_live", true);
+    for (const r of (flags ?? []) as Array<{ match_data: { date?: number | string; title?: string; category?: string; teams?: { home?: { name?: string }; away?: { name?: string } } } | null; forced_live: boolean; force_ended: boolean | null }>) {
+      if (r.force_ended) continue;
+      const md = r.match_data || {};
+      const home = md.teams?.home?.name; const away = md.teams?.away?.name;
+      const hv = home && away ? home + " vs " + away : null;
+      const title = md.title || hv;
+      if (!title) continue;
+      const kMs = typeof md.date === "number" ? md.date : (md.date ? Date.parse(md.date) : nowMs);
+      const keys = [normTitle(title), hv ? normTitle(hv) : null].filter(Boolean) as string[];
+      let existed = false;
+      for (const k of keys) {
+        const ex = fixtureIndex.get(k);
+        if (ex) { fixtureIndex.set(k, { ...ex, status: "live" }); existed = true; }
+      }
+      if (!existed) fixtureIndex.set(normTitle(title), { kickoffMs: Number.isFinite(kMs) ? kMs : nowMs, status: "live", sport: md.category || "football", title });
+    }
+  } catch { /* match_flags unavailable */ }
+
   const resolveFixture = (title: string): Fixture | null => fixtureIndex.get(normTitle(title)) ?? null;
   const fromMs = from ? Date.parse(from) : null;
   const toMs = to ? Date.parse(to) : null;

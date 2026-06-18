@@ -407,11 +407,10 @@ export default function WatchPage() {
         source,
         match_title: currentMatch.title,
         sport: currentMatch.category,
-        // A view counts as "live" only once the real kickoff has passed.
-        // forceLive can flip true when a stream is detected/overridden hours
-        // before kickoff (PPV/admin), which previously logged pre-match opens as
-        // live and mis-dated the match — gate it behind the scheduled start.
-        is_live: matchStatus === "live" || (forceLive && Date.now() >= currentMatch.date),
+        // A view counts as "live" if the feed says live, OR the match has been
+        // force-lived (admin/PPV): the stream is live now, so everyone watching
+        // is a live viewer — including before the scheduled kickoff.
+        is_live: matchStatus === "live" || forceLive,
       }),
     }).catch(() => {});
     // Presence heartbeats are handled site-wide by <Analytics/> (every 2.5 min,
