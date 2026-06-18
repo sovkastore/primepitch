@@ -2,6 +2,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
 import Analytics from "@/components/Analytics";
+import StaleSessionReset from "@/components/StaleSessionReset";
 import AnnouncementBar from "@/components/AnnouncementBar";
 
 export default function PublicLayout({
@@ -17,6 +18,7 @@ export default function PublicLayout({
       <Footer />
       {/* BottomNav removed */}
       <Analytics />
+      <StaleSessionReset />
     </>
   );
 }

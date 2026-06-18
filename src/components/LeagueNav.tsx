@@ -40,9 +40,9 @@ function Chip({
     .slice(0, 3)
     .toUpperCase();
   return (
-    <Link ref={chipRef} href={href} className="flex flex-col items-center gap-1.5 shrink-0 w-[64px]">
+    <Link ref={chipRef} href={href} className="flex flex-col items-center gap-1 shrink-0 w-[52px]">
       <div
-        className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
           active ? "bg-emerald-500 shadow-lg shadow-emerald-500/25" : "bg-gray-100 hover:bg-gray-200"
         }`}
       >
@@ -50,15 +50,15 @@ function Chip({
           <img
             src={logo}
             alt={label}
-            className={`w-7 h-7 object-contain ${invertInactive && !active ? "invert opacity-60" : ""}`}
+            className={`w-5 h-5 object-contain ${invertInactive && !active ? "invert opacity-60" : ""}`}
             onError={() => setImgFailed(true)}
           />
         ) : (
-          <span className={`text-[12px] font-black ${active ? "text-white" : "text-gray-500"}`}>{monogram}</span>
+          <span className={`text-[10px] font-black ${active ? "text-white" : "text-gray-500"}`}>{monogram}</span>
         )}
       </div>
       <span
-        className={`text-[10px] font-bold text-center leading-tight ${
+        className={`text-[9px] font-bold text-center leading-tight ${
           active ? "text-emerald-600" : "text-gray-500"
         }`}
       >
@@ -93,7 +93,7 @@ export default function LeagueNav({ active }: { active: "all" | "wc" | number })
 
   return (
     <section className="max-w-[1400px] mx-auto px-4 lg:px-6 pb-1">
-      <div ref={scrollerRef} className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+      <div ref={scrollerRef} className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
         <Chip href="/" label="All" active={active === "all"} logo="/icons/sports/football.svg" chipRef={active === "all" ? activeRef : undefined} />
         <Chip href="/world-cup" label="World Cup 2026" active={active === "wc"} logo="/icons/brands/fifa.svg" chipRef={active === "wc" ? activeRef : undefined} invertInactive />
         {leagues.map((l) => (
