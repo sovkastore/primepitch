@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type {
   CompetitionData,
+  KnockoutRound,
   LeagueConfig,
   LeagueMatchRow,
   LeagueTab,
@@ -28,6 +29,78 @@ function resolveDefaultTab(cfg: LeagueConfig, fixturesCount: number, hasTable: b
   // "auto": prefer Fixtures when something's upcoming, else the Table (or Results).
   if (fixturesCount > 0) return "fixtures";
   return hasTable ? "table" : "results";
+}
+
+const KO_ROUND_NAMES = ["Round of 16", "Quarterfinals", "Semifinals", "Final"];
+const KO_ORDER: Array<{ name: string; short: string }> = [
+  { name: "Round of 16", short: "R16" },
+  { name: "Quarterfinals", short: "Q.Final" },
+  { name: "Semifinals", short: "S.Final" },
+  { name: "Final", short: "Final" },
+];
+
+// Two-legged knockout ties: pair the legs by team-pair, sum the aggregate, and
+// mark the advancing side when the aggregate is decisive. Penalties aren't in
+// the feed, so a level aggregate is left without a highlighted winner.
+function buildKnockout(rows: LeagueMatchRow[]): KnockoutRound[] {
+  const out: KnockoutRound[] = [];
+  for (const { name, short } of KO_ORDER) {
+    const inRound = rows.filter((r) => r.round_name === name);
+    if (inRound.length === 0) continue;
+    const groups = new Map<string, LeagueMatchRow[]>();
+    for (const r of inRound) {
+      const key = [r.home_team, r.away_team].sort().join(" :: ");
+      const arr = groups.get(key);
+      if (arr) arr.push(r);
+      else groups.set(key, [r]);
+    }
+    const ties = Array.from(groups.values()).map((legsRaw) => {
+      const legs = [...legsRaw].sort(
+        (a, b) => Date.parse(a.event_date) - Date.parse(b.event_date)
+      );
+      const teamA = legs[0].home_team;
+      const teamB = legs[0].away_team;
+      let aggA = 0;
+      let aggB = 0;
+      let haveScores = true;
+      for (const lg of legs) {
+        if (lg.home_score == null || lg.away_score == null) {
+          haveScores = false;
+          continue;
+        }
+        if (lg.home_team === teamA) {
+          aggA += lg.home_score;
+          aggB += lg.away_score;
+        } else {
+          aggA += lg.away_score;
+          aggB += lg.home_score;
+        }
+      }
+      const decided = haveScores && aggA !== aggB;
+      return {
+        teamA,
+        teamB,
+        single: legs.length === 1,
+        aggA: haveScores ? aggA : null,
+        aggB: haveScores ? aggB : null,
+        winner: (decided ? (aggA > aggB ? "A" : "B") : null) as "A" | "B" | null,
+        legs: legs.map((l) => ({
+          home_team: l.home_team,
+          away_team: l.away_team,
+          home_score: l.home_score,
+          away_score: l.away_score,
+          event_date: l.event_date,
+          status: l.status,
+          match_key: l.match_key,
+        })),
+      };
+    });
+    ties.sort(
+      (a, b) => Date.parse(a.legs[0].event_date) - Date.parse(b.legs[0].event_date)
+    );
+    out.push({ name, short, ties });
+  }
+  return out;
 }
 
 export async function GET(
@@ -70,8 +143,9 @@ export async function GET(
 
     let fixtures: LeagueMatchRow[] = [];
     let finishedRows: LeagueMatchRow[] = [];
+    let koRows: LeagueMatchRow[] = [];
     if (seasonId != null) {
-      const [{ data: fx }, { data: fin }] = await Promise.all([
+      const [{ data: fx }, { data: fin }, { data: ko }] = await Promise.all([
         sb
           .from("league_matches")
           .select(COLS)
@@ -86,9 +160,17 @@ export async function GET(
           .eq("season_id", seasonId)
           .eq("status", "finished")
           .order("event_date", { ascending: false }),
+        sb
+          .from("league_matches")
+          .select(COLS)
+          .eq("league_id", leagueId)
+          .eq("season_id", seasonId)
+          .in("round_name", KO_ROUND_NAMES)
+          .order("event_date", { ascending: true }),
       ]);
       fixtures = (fx ?? []) as LeagueMatchRow[];
       finishedRows = (fin ?? []) as LeagueMatchRow[];
+      koRows = (ko ?? []) as LeagueMatchRow[];
     }
 
     // Distinct result dates (most recent first), then the selected day's matches.
@@ -126,9 +208,11 @@ export async function GET(
       }
     }
 
+    const knockout = buildKnockout(koRows);
     const tabs: LeagueTab[] = config.has_table
       ? ["results", "fixtures", "table"]
       : ["results", "fixtures"];
+    if (knockout.length > 0) tabs.push("ko");
     const defaultTab = resolveDefaultTab(config, fixtures.length, config.has_table);
 
     // Team crests (TheSportsDB) keyed by normalized name -> standings + rows.
@@ -153,6 +237,7 @@ export async function GET(
       standings,
       grouped,
       crests,
+      knockout,
     };
 
     // Bound the cache so it can't grow unbounded across many date params.

@@ -15,6 +15,8 @@ import {
   resolveLeagueStream,
   shortTeamName,
   type CompetitionData,
+  type KnockoutRound,
+  type KnockoutTie,
   type LeagueMatchRow,
   type LeagueTab,
   type StandingRow,
@@ -24,6 +26,7 @@ const TAB_LABEL: Record<LeagueTab, string> = {
   results: "Results",
   fixtures: "Fixtures",
   table: "Table",
+  ko: "KO",
 };
 
 function kickoffTime(iso: string): string {
@@ -227,7 +230,7 @@ export default function CompetitionPage() {
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className={`px-4 py-2 text-[13px] font-bold -mb-px border-b-2 transition-colors ${
+                  className={`px-3 py-2 text-[13px] font-bold -mb-px border-b-2 transition-colors ${
                     tab === t
                       ? "border-emerald-500 text-emerald-600"
                       : "border-transparent text-gray-400 hover:text-gray-600"
@@ -251,6 +254,7 @@ export default function CompetitionPage() {
               />
             )}
             {tab === "table" && <TableTab rows={data.standings} crests={data.crests} />}
+            {tab === "ko" && <KnockoutTab rounds={data.knockout ?? []} badgeMap={badgeMap} crests={data.crests} />}
           </>
         )}
       </div>
@@ -493,5 +497,109 @@ function TableTab({ rows, crests }: { rows: StandingRow[]; crests?: Record<strin
         ))}
       </tbody>
     </table>
+  );
+}
+
+
+function fmtKO(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+/* --------- one two-legged knockout tie (or single-leg final) --------- */
+function TieCard({
+  tie,
+  badgeMap,
+  crests,
+}: {
+  tie: KnockoutTie;
+  badgeMap: Map<string, string> | null;
+  crests?: Record<string, string> | null;
+}) {
+  const { teamA, teamB, legs, aggA, aggB, winner, single } = tie;
+  const goalsFor = (team: string, lg: KnockoutTie["legs"][number]) =>
+    lg.home_team === team ? lg.home_score : lg.away_score;
+  const teamRows: Array<{ team: string; win: boolean; agg: number | null }> = [
+    { team: teamA, win: winner === "A", agg: aggA },
+    { team: teamB, win: winner === "B", agg: aggB },
+  ];
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl px-3 py-2">
+      <div className="flex items-center text-[8.5px] font-bold text-gray-300 uppercase tracking-wider mb-1">
+        <span className="flex-1" />
+        {legs.map((_, i) => (
+          <span key={i} className="w-[24px] text-center">{single ? "FT" : `L${i + 1}`}</span>
+        ))}
+        {!single && <span className="w-[30px] text-center">Agg</span>}
+      </div>
+      {teamRows.map(({ team, win, agg }) => (
+        <div key={team} className="flex items-center py-0.5">
+          <span className="flex-1 flex items-center gap-2 min-w-0">
+            <Crest crestUrl={crestForName(team, crests)} badge={badgeForName(team, badgeMap)} name={team} />
+            <span className={`truncate text-[12.5px] ${win ? "font-extrabold text-gray-900" : "font-semibold text-gray-600"}`}>
+              {shortTeamName(team)}
+            </span>
+          </span>
+          {legs.map((lg, i) => (
+            <span
+              key={i}
+              className={`w-[24px] text-center tabular-nums text-[12.5px] ${win ? "font-bold text-gray-900" : "text-gray-500"}`}
+            >
+              {goalsFor(team, lg) ?? "-"}
+            </span>
+          ))}
+          {!single && (
+            <span
+              className={`w-[30px] text-center tabular-nums text-[13px] ${win ? "font-black text-gray-900" : "font-bold text-gray-400"}`}
+            >
+              {agg ?? "-"}
+            </span>
+          )}
+        </div>
+      ))}
+      <div className="text-[8.5px] text-gray-300 mt-1 truncate">
+        {legs.map((lg, i) => `${i > 0 ? " · " : ""}${single ? "" : `L${i + 1} `}${fmtKO(lg.event_date)}`).join("")}
+      </div>
+    </div>
+  );
+}
+
+function KnockoutTab({
+  rounds,
+  badgeMap,
+  crests,
+}: {
+  rounds: KnockoutRound[];
+  badgeMap: Map<string, string> | null;
+  crests?: Record<string, string> | null;
+}) {
+  const [sel, setSel] = useState(0);
+  if (!rounds || rounds.length === 0) {
+    return <p className="text-gray-500 py-10 text-center">The knockout stage hasn’t started yet.</p>;
+  }
+  const idx = Math.min(sel, rounds.length - 1);
+  const active = rounds[idx];
+  return (
+    <div>
+      <div className="flex gap-1.5 mb-4 overflow-x-auto scrollbar-hide">
+        {rounds.map((r, i) => (
+          <button
+            key={r.name}
+            onClick={() => setSel(i)}
+            className={`px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-colors ${
+              i === idx ? "bg-emerald-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            }`}
+          >
+            {r.short}
+          </button>
+        ))}
+      </div>
+      <div className="space-y-2.5">
+        {active.ties.map((t, i) => (
+          <TieCard key={i} tie={t} badgeMap={badgeMap} crests={crests} />
+        ))}
+      </div>
+    </div>
   );
 }

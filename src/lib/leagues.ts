@@ -5,7 +5,7 @@ import { Match, getMatchKey, normTeamKey, normTeamName, getBadgeUrl } from "@/li
 // BSD API directly — these shapes mirror the cache rows. Streams still come from
 // streamed.pk, matched to a league fixture at read-time (see resolveLeagueStream).
 
-export type LeagueTab = "results" | "fixtures" | "table";
+export type LeagueTab = "results" | "fixtures" | "table" | "ko";
 export type DefaultTab = "auto" | LeagueTab;
 
 export interface LeagueConfig {
@@ -53,6 +53,32 @@ export interface StandingRow {
   live?: boolean;
 }
 
+export interface KnockoutLeg {
+  home_team: string;
+  away_team: string;
+  home_score: number | null;
+  away_score: number | null;
+  event_date: string;
+  status: string;
+  match_key: string;
+}
+
+export interface KnockoutTie {
+  teamA: string;
+  teamB: string;
+  single: boolean;
+  aggA: number | null;
+  aggB: number | null;
+  winner: "A" | "B" | null;
+  legs: KnockoutLeg[];
+}
+
+export interface KnockoutRound {
+  name: string;
+  short: string;
+  ties: KnockoutTie[];
+}
+
 export interface CompetitionData {
   config: LeagueConfig;
   tabs: LeagueTab[];
@@ -67,6 +93,7 @@ export interface CompetitionData {
   standings: StandingRow[];
   grouped: boolean;
   crests?: Record<string, string>;
+  knockout?: KnockoutRound[];
 }
 
 export function dayOf(iso: string): string {
