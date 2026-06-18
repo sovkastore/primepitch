@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { resolveStreams } from "@/lib/streams";
 import { getMatchStatus } from "@/lib/api";
 import type { Match } from "@/lib/api";
 
 // "LIVE" = actually watchable. Start from streamed.pk's curated live set, union in
-// admin override-backed and force-live matches (within their live window), then keep
-// only matches that resolve to >=1 playable stream (echo / manual override / auto-
-// fallback) and aren't hidden. Featured matches float to the top.
+// admin override-backed and force-live matches (within their live window). Trust
+// those buckets: streamed.pk lists a match live off ANY of its many servers (echo
+// is just one of them), and an override carries its own stream — so drop only
+// hidden matches or ones with no server at all, never on a single source coming
+// back empty. Featured matches float to the top.
 
 const LIVE_URL = "https://streamed.pk/api/matches/live";
 const TTL = 12_000; // short so admin hide / force-live / disable-auto reflect quickly
@@ -115,28 +116,19 @@ export async function GET() {
       if (st === "live" || armedEarly) candidates.set(mid, m);
     }
 
-    const entries = await Promise.all(
-      Array.from(candidates.entries()).map(async ([mid, m]) => {
-        if (flags.hidden.has(mid)) return null;
-        if (flags.forcedLive.has(mid)) return m; // explicit admin force — show regardless
-        const s = m.sources?.[0];
-        if (!s) return null;
-        // Before kickoff, an auto-fallback must not make a match "live" (fallback
-        // providers run a continuous feed, so one "exists" even pre-match). Only
-        // native (echo) or admin override may go live early; otherwise it stays
-        // Upcoming until kickoff. After kickoff, auto is allowed as a backup.
-        const beforeKickoff = getMatchStatus(m) === "upcoming";
-        const r = await resolveStreams({
-          source: s.source,
-          id: s.id,
-          title: m.title,
-          sport: m.category,
-          disableAuto: flags.disableAuto.has(mid),
-          gateAuto: beforeKickoff,
-        });
-        return r.streams.length > 0 ? m : null;
-      })
-    );
+    const entries = Array.from(candidates.entries()).map(([mid, m]) => {
+      if (flags.hidden.has(mid)) return null;
+      if (flags.forcedLive.has(mid)) return m; // explicit admin force — show regardless
+      // Every remaining candidate is either in streamed.pk's curated live feed
+      // or backed by an enabled admin override — both mean it's genuinely live.
+      // "echo" is only ONE of streamed.pk's many servers, so a match must NOT be
+      // dropped just because its FIRST source has no native stream: its other
+      // servers carry it, and streamed.pk itself shows it live off those. The
+      // watch page resolves every source on open and plays whichever works, so
+      // keep any candidate that has at least one server.
+      if (!m.sources?.length) return null;
+      return m;
+    });
 
     let matches = entries.filter((m): m is Match => m !== null);
     // Admin renames: swap in the display title where one is set.
