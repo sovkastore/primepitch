@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SportsNav from "@/components/SportsNav";
+import LeagueNav from "@/components/LeagueNav";
 import NotifyMeButton from "@/components/NotifyMeButton";
 import { Match, getLiveMatches, getWatchHref } from "@/lib/api";
 import { getCountryFlagUrl } from "@/lib/country-flags";
@@ -212,7 +213,8 @@ export default function WorldCupPage() {
     <>
       {/* Category bar — same as home, with World Cup highlighted; tapping a
           category returns to home with that category active. */}
-      <SportsNav activeSport={null} onSelect={selectSport} worldCupActive />
+      <SportsNav activeSport="football" onSelect={selectSport} />
+      <LeagueNav active="wc" />
 
       <div className="max-w-[1100px] mx-auto px-4 lg:px-6 py-6 pb-24 md:pb-8">
       {/* Header */}
