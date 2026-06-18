@@ -297,9 +297,11 @@ export default function WorldCupPage() {
               <h3 className="text-[12px] font-extrabold text-gray-500 tracking-wider uppercase mb-2">{day}</h3>
               <div className="space-y-2">
                 {items.map((f) => {
-                  const liveNow = isLiveFixture(f, nowTs);
                   const done = isDone(f.status);
-                  const href = liveNow ? watchHref(f) : null;
+                  // A force-lived match sits in the live set (getLiveMatches) even
+                  // before kickoff, so a watch link resolves → show it as LIVE.
+                  const href = !done ? watchHref(f) : null;
+                  const liveNow = isLiveFixture(f, nowTs) || !!href;
                   const time = f.date ? new Date(f.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "";
                   const showScore = f.home_score !== null || f.away_score !== null;
                   const Row: React.ElementType = href ? Link : "div";
@@ -342,11 +344,11 @@ export default function WorldCupPage() {
                           {showScore && <span className="text-[13px] font-black text-gray-900 tabular-nums shrink-0">{f.away_score ?? 0}</span>}
                         </div>
                       </div>
-                      <div className="shrink-0 flex flex-col items-end gap-1 w-16">
+                      <div className="shrink-0 flex flex-col items-end gap-1 w-[72px]">
                         {f.group && <span className="text-[8px] font-bold text-gray-400 whitespace-nowrap">{f.group}</span>}
                         {href ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-500 px-2.5 py-1 rounded-lg">
-                            ▶ WATCH
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-500 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                            <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg> WATCH
                           </span>
                         ) : liveNow ? (
                           <span className="text-[8px] font-bold text-red-400 whitespace-nowrap animate-pulse">finding stream…</span>
