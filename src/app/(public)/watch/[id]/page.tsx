@@ -153,6 +153,9 @@ export default function WatchPage() {
   const [gaveUp, setGaveUp] = useState(false);
   const [forceLive, setForceLive] = useState(false);
   const [autoLive, setAutoLive] = useState(false);
+  // True once the live-set lookup has resolved, so the view is tracked with the
+  // correct forceLive value (avoids a race that logged force-lived viewers as pre).
+  const [liveResolved, setLiveResolved] = useState(false);
   const [hotKeys, setHotKeys] = useState<Set<string>>(new Set());
 
   // One-time read of HOT flags so an upcoming/custom hot match's page is also
@@ -280,6 +283,7 @@ export default function WatchPage() {
         console.error("Failed to load:", e);
       } finally {
         setLoading(false);
+        setLiveResolved(true);
       }
     }
     if (source && matchId) load();
@@ -387,7 +391,7 @@ export default function WatchPage() {
 
   // Track match view + heartbeat
   useEffect(() => {
-    if (!currentMatch || trackedRef.current) return;
+    if (!currentMatch || !liveResolved || trackedRef.current) return;
     // Never record a visit to an ended match page — not as a load, not as a
     // watcher, not toward peak/unique. Only live (watching) and upcoming
     // (before kickoff) are tracked. This also keeps the "not-live" bucket
@@ -415,7 +419,7 @@ export default function WatchPage() {
     }).catch(() => {});
     // Presence heartbeats are handled site-wide by <Analytics/> (every 2.5 min,
     // includes match_id on watch pages) — no per-page heartbeat anymore.
-  }, [currentMatch, rawId, source, matchStatus, forceLive]);
+  }, [currentMatch, rawId, source, matchStatus, forceLive, liveResolved]);
 
   const currentStream = streams[activeStream];
 
