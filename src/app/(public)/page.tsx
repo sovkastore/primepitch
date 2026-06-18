@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import SportsNav from "@/components/SportsNav";
+import LeagueNav from "@/components/LeagueNav";
 import LiveNow from "@/components/LiveNow";
 import TodayMatches from "@/components/Upcoming";
 import Logo from "@/components/Logo";
@@ -207,6 +208,7 @@ export default function HomePage() {
     <div className="pb-20 md:pb-0">
       <PreRollGate page="home" />
       <SportsNav activeSport={activeSport} onSelect={selectSport} />
+      {activeSport === "football" && <LeagueNav active="all" />}
       <LiveNow matches={liveForSport} />
       <TodayMatches matches={filtered} excludeKeys={liveKeys} />
     </div>
