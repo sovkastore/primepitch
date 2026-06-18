@@ -153,6 +153,10 @@ export default function WatchPage() {
   const [gaveUp, setGaveUp] = useState(false);
   const [forceLive, setForceLive] = useState(false);
   const [autoLive, setAutoLive] = useState(false);
+  // Force-live can be flipped on hours before kickoff. When it is, hold the
+  // pre-match countdown until 15 min before kickoff rather than dropping the
+  // viewer onto the player while the channel is still airing other programmes.
+  const [revealed, setRevealed] = useState(false);
   const [hotKeys, setHotKeys] = useState<Set<string>>(new Set());
 
   // One-time read of HOT flags so an upcoming/custom hot match's page is also
@@ -160,6 +164,18 @@ export default function WatchPage() {
   useEffect(() => {
     getMatchFlags().then((f) => setHotKeys(new Set(f.hot))).catch(() => {});
   }, []);
+
+  // 15-min reveal gate (see `revealed`): flip to the player 15 min before
+  // kickoff. If kickoff is unknown or already within 15 min, reveal at once.
+  useEffect(() => {
+    const kickoff = currentMatch?.date ?? 0;
+    if (!kickoff) { setRevealed(true); return; }
+    const until = kickoff - 15 * 60 * 1000 - Date.now();
+    if (until <= 0) { setRevealed(true); return; }
+    setRevealed(false);
+    const t = setTimeout(() => setRevealed(true), until);
+    return () => clearTimeout(t);
+  }, [currentMatch?.date]);
 
   const trackedRef = useRef(false);
   const streamTriesRef = useRef(0);
@@ -175,7 +191,7 @@ export default function WatchPage() {
   // A match that can't be found in any current list and has no streams has
   // ENDED (feeds drop matches once played) — never show it as "upcoming".
   const matchStatus = currentMatch ? getMatchStatus(currentMatch) : (loading ? "upcoming" : "ended");
-  const isLive = matchStatus === "live" || forceLive || autoLive;
+  const isLive = matchStatus === "live" || autoLive || (forceLive && revealed);
   const isEnded = !isLive && matchStatus === "ended" && streams.length === 0;
 
   // Tell the global heartbeat when this match is over (covers both the FULL
