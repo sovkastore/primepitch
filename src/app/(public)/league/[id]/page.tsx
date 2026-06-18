@@ -11,6 +11,7 @@ import {
   buildBadgeMap,
   badgeForName,
   badgeUrl,
+  crestForName,
   resolveLeagueStream,
   shortTeamName,
   type CompetitionData,
@@ -38,12 +39,13 @@ function fmtDateLabel(day: string): string {
 }
 
 /* --------- crest: streamed.pk badge, else a clean monogram --------- */
-function Crest({ badge, name }: { badge?: string; name: string }) {
+function Crest({ badge, crestUrl, name }: { badge?: string; crestUrl?: string; name: string }) {
   const [failed, setFailed] = useState(false);
-  if (badge && !failed) {
+  const src = crestUrl ?? (badge ? badgeUrl(badge) : undefined);
+  if (src && !failed) {
     return (
       <img
-        src={badgeUrl(badge)}
+        src={src}
         alt=""
         loading="lazy"
         decoding="async"
@@ -64,10 +66,12 @@ function Crest({ badge, name }: { badge?: string; name: string }) {
 function MatchRow({
   row,
   badgeMap,
+  crests,
   href,
 }: {
   row: LeagueMatchRow;
   badgeMap: Map<string, string> | null;
+  crests?: Record<string, string> | null;
   href: string | null;
 }) {
   const finished = row.status === "finished";
@@ -80,7 +84,7 @@ function MatchRow({
 
   const teamLine = (name: string, badge: string | undefined, win: boolean, score: number | null) => (
     <div className="flex items-center gap-2.5 min-w-0">
-      <Crest badge={badge} name={name} />
+      <Crest badge={badge} crestUrl={crestForName(name, crests)} name={name} />
       <span className={`text-[13.5px] truncate ${win ? "font-extrabold text-gray-900" : "font-semibold text-gray-700"}`}>
         {shortTeamName(name)}
       </span>
@@ -234,7 +238,7 @@ export default function CompetitionPage() {
               ))}
             </div>
 
-            {tab === "fixtures" && <FixturesTab rows={data.fixtures} badgeMap={badgeMap} watchHref={watchHref} />}
+            {tab === "fixtures" && <FixturesTab rows={data.fixtures} badgeMap={badgeMap} crests={data.crests} watchHref={watchHref} />}
             {tab === "results" && (
               <ResultsTab
                 dates={data.resultDates}
@@ -242,10 +246,11 @@ export default function CompetitionPage() {
                 onPickDate={pickDate}
                 rows={results}
                 badgeMap={badgeMap}
+                crests={data.crests}
                 watchHref={watchHref}
               />
             )}
-            {tab === "table" && <TableTab rows={data.standings} />}
+            {tab === "table" && <TableTab rows={data.standings} crests={data.crests} />}
           </>
         )}
       </div>
@@ -256,10 +261,12 @@ export default function CompetitionPage() {
 function FixturesTab({
   rows,
   badgeMap,
+  crests,
   watchHref,
 }: {
   rows: LeagueMatchRow[];
   badgeMap: Map<string, string> | null;
+  crests?: Record<string, string> | null;
   watchHref: (r: LeagueMatchRow) => string | null;
 }) {
   if (rows.length === 0) {
@@ -273,7 +280,7 @@ function FixturesTab({
   return (
     <div className="space-y-2">
       {rows.map((m) => (
-        <MatchRow key={m.match_key} row={m} badgeMap={badgeMap} href={watchHref(m)} />
+        <MatchRow key={m.match_key} row={m} badgeMap={badgeMap} crests={crests} href={watchHref(m)} />
       ))}
     </div>
   );
@@ -285,6 +292,7 @@ function ResultsTab({
   onPickDate,
   rows,
   badgeMap,
+  crests,
   watchHref,
 }: {
   dates: string[];
@@ -292,6 +300,7 @@ function ResultsTab({
   onPickDate: (d: string) => void;
   rows: LeagueMatchRow[];
   badgeMap: Map<string, string> | null;
+  crests?: Record<string, string> | null;
   watchHref: (r: LeagueMatchRow) => string | null;
 }) {
   if (dates.length === 0) {
@@ -316,7 +325,7 @@ function ResultsTab({
       {selectedDate && <p className="text-[13px] font-bold text-gray-500 mb-2">{fmtDateLabel(selectedDate)}</p>}
       <div className="space-y-2">
         {rows.map((m) => (
-          <MatchRow key={m.match_key} row={m} badgeMap={badgeMap} href={watchHref(m)} />
+          <MatchRow key={m.match_key} row={m} badgeMap={badgeMap} crests={crests} href={watchHref(m)} />
         ))}
       </div>
     </div>
@@ -340,7 +349,7 @@ function FormPips({ form }: { form: string }) {
   );
 }
 
-function TableTab({ rows }: { rows: StandingRow[] }) {
+function TableTab({ rows, crests }: { rows: StandingRow[]; crests?: Record<string, string> | null }) {
   if (rows.length === 0) {
     return <p className="text-gray-500 py-10 text-center">Table not available.</p>;
   }
@@ -373,7 +382,12 @@ function TableTab({ rows }: { rows: StandingRow[] }) {
           {rows.map((r) => (
             <tr key={r.team_id ?? r.position} className="border-b border-gray-100">
               <td className="py-2.5 pl-1 text-gray-400 font-bold tabular-nums">{r.position}</td>
-              <td className="py-2.5 font-bold text-gray-900 whitespace-nowrap">{shortTeamName(r.team)}</td>
+              <td className="py-2.5 font-bold text-gray-900 whitespace-nowrap">
+                <span className="inline-flex items-center gap-2">
+                  <Crest crestUrl={crestForName(r.team, crests)} name={r.team} />
+                  {shortTeamName(r.team)}
+                </span>
+              </td>
               {cols.map(([h, key]) => (
                 <td
                   key={h}

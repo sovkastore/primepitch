@@ -8,6 +8,7 @@ import type {
   StandingRow,
 } from "@/lib/leagues";
 import { dayOf } from "@/lib/leagues";
+import { normTeamName } from "@/lib/api";
 
 // One competition's public data, all from the Supabase cache tables. Always
 // scoped to the league's CURRENT season (max season_id) so August never mixes
@@ -130,6 +131,14 @@ export async function GET(
       : ["results", "fixtures"];
     const defaultTab = resolveDefaultTab(config, fixtures.length, config.has_table);
 
+    // Team crests (TheSportsDB) keyed by normalized name -> standings + rows.
+    const { data: crestRows } = await sb.from("league_teams").select("name,crest_url");
+    const crests: Record<string, string> = {};
+    for (const cr of crestRows ?? []) {
+      const c = cr as { name?: string; crest_url?: string };
+      if (c.name && c.crest_url) crests[normTeamName(c.name)] = c.crest_url;
+    }
+
     const data: CompetitionData = {
       config,
       tabs,
@@ -143,6 +152,7 @@ export async function GET(
       results,
       standings,
       grouped,
+      crests,
     };
 
     // Bound the cache so it can't grow unbounded across many date params.

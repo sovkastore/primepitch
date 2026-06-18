@@ -66,6 +66,7 @@ export interface CompetitionData {
   results: LeagueMatchRow[]; // finished on selectedDate
   standings: StandingRow[];
   grouped: boolean;
+  crests?: Record<string, string>;
 }
 
 export function dayOf(iso: string): string {
@@ -218,4 +219,14 @@ export function badgeForName(name: string, map: Map<string, string> | null): str
 
 export function badgeUrl(badge: string): string {
   return getBadgeUrl(badge);
+}
+
+// name -> crest URL from the league_teams cache (TheSportsDB), keyed by the same
+// normalized name used elsewhere. Full URLs, used directly (not via badgeUrl).
+export function crestForName(
+  name: string,
+  crests?: Record<string, string> | null
+): string | undefined {
+  if (!crests) return undefined;
+  return crests[normTeamName(name)];
 }
