@@ -1,13 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import SportsNav from "@/components/SportsNav";
 import LeagueNav from "@/components/LeagueNav";
 import type { Match } from "@/lib/api";
 import {
   buildStreamIndex,
+  buildBadgeMap,
+  badgeForName,
+  badgeUrl,
   resolveLeagueStream,
+  shortTeamName,
   type CompetitionData,
   type LeagueMatchRow,
   type LeagueTab,
@@ -20,31 +25,112 @@ const TAB_LABEL: Record<LeagueTab, string> = {
   table: "Table",
 };
 
-function fmtKickoff(iso: string): string {
+function kickoffTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 function fmtDateLabel(day: string): string {
   const d = new Date(`${day}T12:00:00`);
   if (Number.isNaN(d.getTime())) return day;
-  return d.toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+}
+
+/* --------- crest: streamed.pk badge, else a clean monogram --------- */
+function Crest({ badge, name }: { badge?: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (badge && !failed) {
+    return (
+      <img
+        src={badgeUrl(badge)}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className="w-6 h-6 object-contain shrink-0"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  const letter = (name.replace(/[^A-Za-z]/g, "").charAt(0) || "?").toUpperCase();
+  return (
+    <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-[10px] font-black flex items-center justify-center shrink-0">
+      {letter}
+    </span>
+  );
+}
+
+/* --------- one match row (livescore style) --------- */
+function MatchRow({
+  row,
+  badgeMap,
+  href,
+}: {
+  row: LeagueMatchRow;
+  badgeMap: Map<string, string> | null;
+  href: string | null;
+}) {
+  const finished = row.status === "finished";
+  const hs = row.home_score;
+  const as = row.away_score;
+  const homeWin = finished && hs != null && as != null && hs > as;
+  const awayWin = finished && hs != null && as != null && as > hs;
+  const hBadge = badgeForName(row.home_team, badgeMap);
+  const aBadge = badgeForName(row.away_team, badgeMap);
+
+  const teamLine = (name: string, badge: string | undefined, win: boolean, score: number | null) => (
+    <div className="flex items-center gap-2.5 min-w-0">
+      <Crest badge={badge} name={name} />
+      <span className={`text-[13.5px] truncate ${win ? "font-extrabold text-gray-900" : "font-semibold text-gray-700"}`}>
+        {shortTeamName(name)}
+      </span>
+      {finished && (
+        <span className={`ml-auto pl-2 text-[15px] tabular-nums ${win ? "font-extrabold text-gray-900" : "font-bold text-gray-400"}`}>
+          {score ?? "-"}
+        </span>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="flex items-stretch bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 transition-colors">
+      <div className="flex-1 min-w-0 px-3.5 py-2.5 space-y-2">
+        {teamLine(row.home_team, hBadge, homeWin, hs)}
+        {teamLine(row.away_team, aBadge, awayWin, as)}
+      </div>
+      <div className="shrink-0 w-[84px] border-l border-gray-100 flex flex-col items-center justify-center gap-1 px-1.5">
+        {finished ? (
+          <>
+            <span className="text-[9px] font-black text-gray-300 tracking-widest">FT</span>
+            {href && (
+              <Link href={href} className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700">
+                Watch
+              </Link>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="text-[12px] font-bold text-gray-900 tabular-nums">{kickoffTime(row.event_date)}</span>
+            {href ? (
+              <Link
+                href={href}
+                className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-lg transition-colors"
+              >
+                Watch
+              </Link>
+            ) : (
+              <span className="text-[8.5px] text-gray-400 text-center leading-tight">near kick-off</span>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function CompetitionPage() {
   const params = useParams();
+  const router = useRouter();
   const leagueId = Number(decodeURIComponent((params.id as string) ?? ""));
 
   const [data, setData] = useState<CompetitionData | null>(null);
@@ -53,8 +139,8 @@ export default function CompetitionPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [results, setResults] = useState<LeagueMatchRow[]>([]);
   const [streamIdx, setStreamIdx] = useState<Map<string, Match[]> | null>(null);
+  const [badgeMap, setBadgeMap] = useState<Map<string, string> | null>(null);
 
-  // Competition bundle (current-season fixtures/results/dates/standings).
   useEffect(() => {
     if (!Number.isFinite(leagueId)) return;
     let on = true;
@@ -76,13 +162,15 @@ export default function CompetitionPage() {
     };
   }, [leagueId]);
 
-  // streamed.pk football feed (the only stream source) for read-time Watch links.
+  // streamed.pk football feed → Watch links + crests-by-name.
   useEffect(() => {
     let on = true;
     fetch("https://streamed.pk/api/matches/football")
       .then((r) => r.json())
       .then((ms: Match[]) => {
-        if (on && Array.isArray(ms)) setStreamIdx(buildStreamIndex(ms));
+        if (!on || !Array.isArray(ms)) return;
+        setStreamIdx(buildStreamIndex(ms));
+        setBadgeMap(buildBadgeMap(ms));
       })
       .catch(() => {});
     return () => {
@@ -101,19 +189,23 @@ export default function CompetitionPage() {
       .catch(() => {});
   }
 
+  function chooseSport(s: string | null) {
+    if (s) sessionStorage.setItem("pp_sport", s);
+    router.push("/");
+  }
+
   const watchHref = (row: LeagueMatchRow): string | null =>
     streamIdx ? resolveLeagueStream(row, streamIdx) : null;
 
-  if (!Number.isFinite(leagueId)) {
-    return <div className="max-w-[1400px] mx-auto px-4 py-10 text-gray-500">Unknown competition.</div>;
-  }
-
   return (
     <>
-      <LeagueNav active={leagueId} />
+      <SportsNav activeSport="football" onSelect={chooseSport} />
+      <LeagueNav active={Number.isFinite(leagueId) ? leagueId : "all"} />
 
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
-        {loading && !data ? (
+        {!Number.isFinite(leagueId) ? (
+          <p className="text-gray-500 py-10">Unknown competition.</p>
+        ) : loading && !data ? (
           <div className="flex items-center justify-center h-48">
             <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           </div>
@@ -126,8 +218,7 @@ export default function CompetitionPage() {
               {data.seasonName && <p className="text-[12px] text-gray-400 font-medium">{data.seasonName}</p>}
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 border-b border-gray-200 mb-4">
+            <div className="flex gap-1 border-b border-gray-200 mb-4">
               {data.tabs.map((t) => (
                 <button
                   key={t}
@@ -143,13 +234,14 @@ export default function CompetitionPage() {
               ))}
             </div>
 
-            {tab === "fixtures" && <FixturesTab rows={data.fixtures} watchHref={watchHref} />}
+            {tab === "fixtures" && <FixturesTab rows={data.fixtures} badgeMap={badgeMap} watchHref={watchHref} />}
             {tab === "results" && (
               <ResultsTab
                 dates={data.resultDates}
                 selectedDate={selectedDate}
                 onPickDate={pickDate}
                 rows={results}
+                badgeMap={badgeMap}
                 watchHref={watchHref}
               />
             )}
@@ -161,68 +253,45 @@ export default function CompetitionPage() {
   );
 }
 
-/* ----------------------------- Fixtures ----------------------------- */
 function FixturesTab({
   rows,
+  badgeMap,
   watchHref,
 }: {
   rows: LeagueMatchRow[];
+  badgeMap: Map<string, string> | null;
   watchHref: (r: LeagueMatchRow) => string | null;
 }) {
   if (rows.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500 font-semibold">No upcoming fixtures</p>
+      <div className="text-center py-14">
+        <p className="text-gray-700 font-bold">No upcoming fixtures</p>
         <p className="text-[13px] text-gray-400 mt-1">New season starts August.</p>
       </div>
     );
   }
   return (
     <div className="space-y-2">
-      {rows.map((m) => {
-        const href = watchHref(m);
-        return (
-          <div
-            key={m.match_key}
-            className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3"
-          >
-            <div className="min-w-0">
-              <p className="text-[14px] font-bold text-gray-900 truncate">
-                {m.home_team} <span className="text-gray-300 font-medium">vs</span> {m.away_team}
-              </p>
-              <p className="text-[11px] text-gray-400 font-medium mt-0.5">{fmtKickoff(m.event_date)}</p>
-            </div>
-            {href ? (
-              <Link
-                href={href}
-                className="shrink-0 px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold rounded-lg transition-colors"
-              >
-                Watch
-              </Link>
-            ) : (
-              <span className="shrink-0 text-[11px] text-gray-400 font-medium text-right max-w-[120px]">
-                stream available near kick-off
-              </span>
-            )}
-          </div>
-        );
-      })}
+      {rows.map((m) => (
+        <MatchRow key={m.match_key} row={m} badgeMap={badgeMap} href={watchHref(m)} />
+      ))}
     </div>
   );
 }
 
-/* ----------------------------- Results ----------------------------- */
 function ResultsTab({
   dates,
   selectedDate,
   onPickDate,
   rows,
+  badgeMap,
   watchHref,
 }: {
   dates: string[];
   selectedDate: string | null;
   onPickDate: (d: string) => void;
   rows: LeagueMatchRow[];
+  badgeMap: Map<string, string> | null;
   watchHref: (r: LeagueMatchRow) => string | null;
 }) {
   if (dates.length === 0) {
@@ -231,13 +300,11 @@ function ResultsTab({
   return (
     <div>
       <div className="mb-4">
-        <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-          Match day
-        </label>
+        <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Match day</span>
         <select
           value={selectedDate ?? ""}
           onChange={(e) => onPickDate(e.target.value)}
-          className="w-full sm:w-auto px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          className="w-full sm:w-auto px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
         >
           {dates.map((d) => (
             <option key={d} value={d}>
@@ -246,47 +313,24 @@ function ResultsTab({
           ))}
         </select>
       </div>
-
+      {selectedDate && <p className="text-[13px] font-bold text-gray-500 mb-2">{fmtDateLabel(selectedDate)}</p>}
       <div className="space-y-2">
-        {rows.map((m) => {
-          const href = watchHref(m);
-          return (
-            <div
-              key={m.match_key}
-              className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3"
-            >
-              <p className="text-[14px] font-bold text-gray-900 min-w-0 truncate">{m.home_team}</p>
-              <span className="shrink-0 px-2.5 py-1 bg-gray-900 text-white text-[13px] font-black rounded-lg tabular-nums">
-                {m.home_score ?? "-"} : {m.away_score ?? "-"}
-              </span>
-              <p className="text-[14px] font-bold text-gray-900 min-w-0 truncate text-right">{m.away_team}</p>
-              {href && (
-                <Link
-                  href={href}
-                  className="shrink-0 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold rounded-lg transition-colors"
-                >
-                  Watch
-                </Link>
-              )}
-            </div>
-          );
-        })}
+        {rows.map((m) => (
+          <MatchRow key={m.match_key} row={m} badgeMap={badgeMap} href={watchHref(m)} />
+        ))}
       </div>
     </div>
   );
 }
 
-/* ------------------------------ Table ------------------------------ */
 function FormPips({ form }: { form: string }) {
   const items = (form || "").slice(-5).split("");
-  const color = (c: string) =>
-    c === "W" ? "bg-emerald-500" : c === "L" ? "bg-red-500" : "bg-gray-300";
+  const color = (c: string) => (c === "W" ? "bg-emerald-500" : c === "L" ? "bg-red-500" : "bg-gray-300");
   return (
     <span className="inline-flex gap-1">
       {items.map((c, i) => (
         <span
           key={i}
-          title={c}
           className={`w-4 h-4 rounded-[3px] text-white text-[9px] font-black flex items-center justify-center ${color(c)}`}
         >
           {c}
@@ -297,23 +341,29 @@ function FormPips({ form }: { form: string }) {
 }
 
 function TableTab({ rows }: { rows: StandingRow[] }) {
-  const cols = useMemo(
-    () => ["P", "W", "D", "L", "GF", "GA", "GD", "Pts"] as const,
-    []
-  );
   if (rows.length === 0) {
     return <p className="text-gray-500 py-10 text-center">Table not available.</p>;
   }
+  const cols: Array<[string, keyof StandingRow]> = [
+    ["P", "played"],
+    ["W", "won"],
+    ["D", "drawn"],
+    ["L", "lost"],
+    ["GF", "gf"],
+    ["GA", "ga"],
+    ["GD", "gd"],
+    ["Pts", "pts"],
+  ];
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] text-[13px]">
+    <div className="overflow-x-auto -mx-4 px-4">
+      <table className="w-full min-w-[620px] text-[13px]">
         <thead>
-          <tr className="text-gray-400 text-[11px] uppercase tracking-wider border-b border-gray-200">
-            <th className="text-left font-bold py-2 pl-2 w-8">#</th>
+          <tr className="text-gray-400 text-[10px] uppercase tracking-wider border-b border-gray-200">
+            <th className="text-left font-bold py-2 pl-1 w-7">#</th>
             <th className="text-left font-bold py-2">Team</th>
-            {cols.map((c) => (
-              <th key={c} className="text-center font-bold py-2 px-2">
-                {c}
+            {cols.map(([h]) => (
+              <th key={h} className="text-center font-bold py-2 px-1.5">
+                {h}
               </th>
             ))}
             <th className="text-left font-bold py-2 px-2">Form</th>
@@ -322,16 +372,16 @@ function TableTab({ rows }: { rows: StandingRow[] }) {
         <tbody>
           {rows.map((r) => (
             <tr key={r.team_id ?? r.position} className="border-b border-gray-100">
-              <td className="py-2.5 pl-2 text-gray-400 font-bold tabular-nums">{r.position}</td>
-              <td className="py-2.5 font-bold text-gray-900 whitespace-nowrap">{r.team}</td>
-              <td className="py-2.5 px-2 text-center tabular-nums">{r.played}</td>
-              <td className="py-2.5 px-2 text-center tabular-nums">{r.won}</td>
-              <td className="py-2.5 px-2 text-center tabular-nums">{r.drawn}</td>
-              <td className="py-2.5 px-2 text-center tabular-nums">{r.lost}</td>
-              <td className="py-2.5 px-2 text-center tabular-nums">{r.gf}</td>
-              <td className="py-2.5 px-2 text-center tabular-nums">{r.ga}</td>
-              <td className="py-2.5 px-2 text-center tabular-nums">{r.gd > 0 ? `+${r.gd}` : r.gd}</td>
-              <td className="py-2.5 px-2 text-center font-black text-gray-900 tabular-nums">{r.pts}</td>
+              <td className="py-2.5 pl-1 text-gray-400 font-bold tabular-nums">{r.position}</td>
+              <td className="py-2.5 font-bold text-gray-900 whitespace-nowrap">{shortTeamName(r.team)}</td>
+              {cols.map(([h, key]) => (
+                <td
+                  key={h}
+                  className={`py-2.5 px-1.5 text-center tabular-nums ${h === "Pts" ? "font-black text-gray-900" : "text-gray-600"}`}
+                >
+                  {h === "GD" ? (r.gd > 0 ? `+${r.gd}` : r.gd) : (r[key] as number)}
+                </td>
+              ))}
               <td className="py-2.5 px-2">
                 <FormPips form={r.form} />
               </td>

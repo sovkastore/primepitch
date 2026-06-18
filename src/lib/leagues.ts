@@ -1,4 +1,4 @@
-import { Match, getMatchKey, normTeamKey } from "@/lib/api";
+import { Match, getMatchKey, normTeamKey, normTeamName, getBadgeUrl } from "@/lib/api";
 
 // Read-only frontend layer over the already-built BSD→Supabase cache tables
 // (league_config / league_matches / league_standings). The site NEVER calls the
@@ -115,4 +115,106 @@ export function resolveLeagueStream(
   }
   if (target && best.date && Math.abs(best.date - target) > TWO_DAYS) return null;
   return `/watch/${encodeURIComponent(getMatchKey(best))}`;
+}
+
+// ---- Display helpers (professional club names + crests) -----------------
+
+// Clubs whose feed names are long/awkward; everything else uses a light
+// generic cleanup. Keeps rows readable on a phone instead of truncating mid-word.
+const SHORT_NAMES: Record<string, string> = {
+  "brighton & hove albion": "Brighton",
+  "wolverhampton wanderers": "Wolves",
+  "tottenham hotspur": "Tottenham",
+  "manchester united": "Man United",
+  "manchester city": "Man City",
+  "newcastle united": "Newcastle",
+  "west ham united": "West Ham",
+  "nottingham forest": "Nott'm Forest",
+  "sheffield united": "Sheffield Utd",
+  "leeds united": "Leeds",
+  "leicester city": "Leicester",
+  "norwich city": "Norwich",
+  "cardiff city": "Cardiff",
+  "swansea city": "Swansea",
+  "stoke city": "Stoke",
+  "hull city": "Hull",
+  "west bromwich albion": "West Brom",
+  "queens park rangers": "QPR",
+  "wolverhampton": "Wolves",
+  "borussia mönchengladbach": "M'gladbach",
+  "borussia monchengladbach": "M'gladbach",
+  "borussia dortmund": "Dortmund",
+  "bayern munich": "Bayern",
+  "bayern münchen": "Bayern",
+  "bayer leverkusen": "Leverkusen",
+  "eintracht frankfurt": "Frankfurt",
+  "rb leipzig": "RB Leipzig",
+  "vfb stuttgart": "Stuttgart",
+  "vfl wolfsburg": "Wolfsburg",
+  "1899 hoffenheim": "Hoffenheim",
+  "tsg hoffenheim": "Hoffenheim",
+  "fc augsburg": "Augsburg",
+  "werder bremen": "Bremen",
+  "paris saint-germain": "PSG",
+  "paris saint germain": "PSG",
+  "olympique marseille": "Marseille",
+  "olympique de marseille": "Marseille",
+  "olympique lyonnais": "Lyon",
+  "as monaco": "Monaco",
+  "lille osc": "Lille",
+  "stade rennais": "Rennes",
+  "atlético madrid": "Atlético",
+  "atletico madrid": "Atlético",
+  "athletic club": "Athletic",
+  "athletic bilbao": "Athletic",
+  "real sociedad": "Sociedad",
+  "real betis": "Betis",
+  "celta vigo": "Celta",
+  "rayo vallecano": "Rayo",
+  "rcd espanyol": "Espanyol",
+  "deportivo alavés": "Alavés",
+  "internazionale": "Inter",
+  "inter milan": "Inter",
+  "ac milan": "Milan",
+  "as roma": "Roma",
+  "ss lazio": "Lazio",
+  "hellas verona": "Verona",
+  "us sassuolo": "Sassuolo",
+};
+
+export function shortTeamName(name: string): string {
+  if (!name) return "";
+  const key = name.trim().toLowerCase();
+  if (SHORT_NAMES[key]) return SHORT_NAMES[key];
+  // Generic: drop bare club-type tokens that add no information on a small screen.
+  const cleaned = name
+    .replace(/\b(FC|AFC|CF|SC|AC|BK|SK|VfL|VfB|TSG|SV|RC|CD)\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return cleaned || name;
+}
+
+// Build name → crest map from the whole streamed.pk football feed, so a club
+// gets a real crest even when its specific fixture isn't currently listed
+// (most top-flight clubs appear somewhere in a given match-week).
+export function buildBadgeMap(footballMatches: Match[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const m of footballMatches) {
+    for (const t of [m.teams?.home, m.teams?.away]) {
+      if (t?.name && t.badge) {
+        const k = normTeamName(t.name);
+        if (k && !map.has(k)) map.set(k, t.badge);
+      }
+    }
+  }
+  return map;
+}
+
+export function badgeForName(name: string, map: Map<string, string> | null): string | undefined {
+  if (!map) return undefined;
+  return map.get(normTeamName(name));
+}
+
+export function badgeUrl(badge: string): string {
+  return getBadgeUrl(badge);
 }
