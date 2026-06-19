@@ -155,18 +155,14 @@ export default function PulsePage() {
     );
   }
 
-  // Viewers parked on ended matches don't count as live.
-  // Viewers parked on ended OR upcoming (not-yet-kicked-off) pages don't count
-  // as watching live — live means a live match only.
-  const nonLiveViewers = feedStatus
-    ? data.activeMatches
-        .filter((m) => { const s = rowStatus(m.match_id); return s === "ended" || s === "upcoming"; })
-        .reduce((sum, m) => sum + m.viewers, 0)
-    : 0;
   const endedViewers = feedStatus
     ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "ended").reduce((sum, m) => sum + m.viewers, 0)
     : 0;
-  const trueLiveViewers = Math.max(0, (data.liveViewers ?? 0) - nonLiveViewers);
+  // Exactly the sum of the "Watching live now" list: only matches whose status
+  // resolves to live (feed-live or admin force-lived), nothing unidentified.
+  const trueLiveViewers = data.activeMatches
+    .filter((m) => rowStatus(m.match_id) === "live")
+    .reduce((sum, m) => sum + m.viewers, 0);
   // People sitting on a pre-kickoff (upcoming) match page — waiting, not watching.
   const waitingViewers = feedStatus
     ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "upcoming").reduce((sum, m) => sum + m.viewers, 0)
