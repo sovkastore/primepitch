@@ -39,12 +39,35 @@ export default function AdminHome() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [feedStatus, setFeedStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
   const [titleStatus, setTitleStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
+  // Admin force-live / force-ended flags so a forced match counts as live here too.
+  const [flagStatus, setFlagStatus] = useState<Record<string, { forced_live?: boolean; force_ended?: boolean }>>({});
 
   useEffect(() => {
     const fetchData = () => {
       fetch("/api/admin/overview").then((r) => r.json()).then(setData).catch(() => {});
     };
     return visibleInterval(fetchData, 30_000);
+  }, []);
+
+  // Force-live / force-ended flags (same source Pulse uses) so a force-lived
+  // match is counted under "Watching Live" here, not dropped as unknown.
+  useEffect(() => {
+    let on = true;
+    const loadFlags = () =>
+      fetch("/api/admin/match-flags")
+        .then((r) => r.json())
+        .then((d) => {
+          if (!on) return;
+          const map: Record<string, { forced_live?: boolean; force_ended?: boolean }> = {};
+          for (const fl of (d.flags || []) as Array<{ match_id: string; forced_live?: boolean; force_ended?: boolean }>) {
+            map[fl.match_id] = { forced_live: fl.forced_live, force_ended: fl.force_ended };
+          }
+          setFlagStatus(map);
+        })
+        .catch(() => {});
+    loadFlags();
+    const t = setInterval(loadFlags, 60_000);
+    return () => { on = false; clearInterval(t); };
   }, []);
 
   // Same live/upcoming/ended source Pulse uses, refreshed every 5 min.
@@ -76,6 +99,10 @@ export default function AdminHome() {
     matchId.split("--").pop()?.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || matchId;
 
   const rowStatus = (matchId: string): "live" | "upcoming" | "ended" | null => {
+    // Admin overrides win over the clock (same as Pulse + the public site).
+    const fl = flagStatus[matchId];
+    if (fl?.force_ended) return "ended";
+    if (fl?.forced_live) return "live";
     if (!feedStatus) return null;
     const parts = matchId.split("--");
     const feedId = parts.length > 1 ? parts.slice(1).join("--") : matchId;

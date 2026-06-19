@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       const { data, error } = await sb.rpc("window_people_split", { p_start: start, p_end: end });
       if (error) throw error;
       const r = (data || [])[0] as { active: number; new_visitors: number; returning_visitors: number } | undefined;
-      if (r) { active = num(r.active); newVisitors = num(r.new_visitors); returningVisitors = Math.max(0, active - newVisitors); }
+      if (r) { active = num(r.active); newVisitors = num(r.new_visitors); returningVisitors = num(r.returning_visitors); }
     } catch { /* RPC missing */ }
 
     // --- Match activity -----------------------------------------------------

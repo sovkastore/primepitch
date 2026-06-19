@@ -101,7 +101,16 @@ export async function GET(request: NextRequest) {
       }
     } catch { /* visitors table not created yet */ }
 
-    const returning = newVisitors === null ? null : Math.max(0, unique - newVisitors);
+    // Returning = people active in the window whose first-ever visit was before it
+    // (precise, from the DB) rather than "unique minus new", which over-counts when
+    // an active visitor has no profile row.
+    let returning: number | null = null;
+    try {
+      const { data: ps } = await sb.rpc("window_people_split", { p_start: start, p_end: end });
+      const r0 = (ps || [])[0] as { returning_visitors: number } | undefined;
+      if (r0) returning = Number(r0.returning_visitors) || 0;
+    } catch { /* RPC missing */ }
+    if (returning === null) returning = newVisitors === null ? null : Math.max(0, unique - newVisitors);
 
     // 30-day unique trend (accurate via RPC; fall back to sampled set)
     const dayUnique: Record<string, number> = {};
