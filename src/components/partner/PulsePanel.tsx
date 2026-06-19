@@ -23,12 +23,12 @@ export default function PulsePanel({ data, mine }: { data: PulseData | null; min
   const sumBy = (want: string, key: "total" | "his"): number =>
     matches.filter((m) => rowStatus(m.match_id, m.title) === want).reduce((acc, m) => acc + (m[key] || 0), 0);
 
-  const onMatchTotal = data?.liveNow?.total ?? 0;
-  const onMatchHis = data?.liveNow?.his ?? 0;
   const upTotal = sumBy("upcoming", "total"), upHis = sumBy("upcoming", "his");
   const endTotal = sumBy("ended", "total"), endHis = sumBy("ended", "his");
-  const liveTotal = Math.max(0, onMatchTotal - upTotal - endTotal);
-  const liveHis = Math.max(0, onMatchHis - upHis - endHis);
+  // Watching Live = exactly the sum of the genuinely-live matches below (mirrors
+  // the admin Pulse). rowStatus already counts Force-live/PPV via the served set.
+  const liveTotal = sumBy("live", "total");
+  const liveHis = sumBy("live", "his");
   const liveMatches = matches.filter((m) => rowStatus(m.match_id, m.title) === "live");
 
   const split = (total: number, his: number): Split => ({ total, his, yours: Math.max(0, total - his) });
