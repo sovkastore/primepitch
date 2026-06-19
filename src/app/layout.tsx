@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import AdsLoader from "@/components/AdsLoader";
+import SwCleanup from "@/components/SwCleanup";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -72,6 +73,7 @@ export default function RootLayout({
       <body className={`${inter.className} antialiased min-h-screen flex flex-col bg-white text-gray-900`}>
         {children}
         <AdsLoader />
+        <SwCleanup />
       </body>
     </html>
   );
