@@ -261,6 +261,17 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     const { data: flags } = await sb.from("match_flags")
       .select("match_data, forced_live, force_ended")
       .eq("forced_live", true);
+    // Don't keep showing a force-lived match as live once the real game is over:
+    // the score-watcher marks it finished (same signal the homepage + ads use), or
+    // it ages out a few hours past kickoff. Recomputed every load, so this applies
+    // to any force-lived match regardless of when it was forced.
+    const finishedKeys = new Set<string>();
+    try {
+      const { data: fin } = await sb.from("push_match_state").select("match_key").eq("finished", true);
+      for (const fr of (fin ?? []) as Array<{ match_key: string }>) if (fr.match_key) finishedKeys.add(fr.match_key);
+    } catch { /* push_match_state may be unavailable */ }
+    const normTeam = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const FORCE_MAX_AGE_MS = 5 * 3600 * 1000;
     for (const r of (flags ?? []) as Array<{ match_data: { date?: number | string; title?: string; category?: string; teams?: { home?: { name?: string }; away?: { name?: string } } } | null; forced_live: boolean; force_ended: boolean | null }>) {
       if (r.force_ended) continue;
       const md = r.match_data || {};
@@ -269,6 +280,10 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
       const title = md.title || hv;
       if (!title) continue;
       const kMs = typeof md.date === "number" ? md.date : (md.date ? Date.parse(md.date) : nowMs);
+      const ph = normTeam(home || ""); const pa = normTeam(away || "");
+      const reallyFinished = !!(ph && pa) && (finishedKeys.has("wc:" + ph + "|" + pa) || finishedKeys.has("wc:" + pa + "|" + ph));
+      const tooOld = Number.isFinite(kMs) && (nowMs - kMs) > FORCE_MAX_AGE_MS;
+      if (reallyFinished || tooOld) continue;
       const keys = [normTitle(title), hv ? normTitle(hv) : null].filter(Boolean) as string[];
       let existed = false;
       for (const k of keys) {
