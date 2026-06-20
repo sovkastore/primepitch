@@ -13,6 +13,7 @@ interface OverviewData {
   uniqueToday: number;
   onlineNow: number;
   liveViewers: number;
+  ppvWatchingNow?: number;
   todayViews: number;
   activeMatches?: { match_id: string; viewers: number }[];
 }
@@ -126,10 +127,11 @@ export default function AdminHome() {
       </div>
 
       {/* Live snapshot */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Stat label="Online Now" value={data?.onlineNow ?? 0} sub="on the site" people />
         <Stat label="Watching Live" value={liveWatching} sub="live matches only" people />
         <Stat label="On a Match Page" value={data?.liveViewers ?? 0} sub="live, upcoming or ended" people />
+        <Stat label="Watching /ppv" value={data?.ppvWatchingNow ?? 0} sub="on the PPV page" people />
         <Stat label="Today's Visitors" value={data?.uniqueToday ?? 0} sub="unique people" people />
         <Stat label="Page Views Today" value={data?.todayViews ?? 0} sub="incl. repeats" />
       </div>

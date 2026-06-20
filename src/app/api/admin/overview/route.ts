@@ -30,10 +30,11 @@ export async function GET() {
     const nowWindow = new Date(now.getTime() - 6 * 60 * 1000).toISOString();
     const { data: activeNow } = await sb
       .from("active_viewers")
-      .select("match_id")
+      .select("match_id, path")
       .gte("last_seen", nowWindow);
     const onlineNow = activeNow?.length || 0;
     const liveViewers = activeNow?.filter((r) => r.match_id).length || 0;
+    const ppvWatchingNow = activeNow?.filter((r) => r.path === "/ppv").length || 0;
 
     // Per-match breakdown so the overview can count genuinely-live viewers
     // client-side (same status logic as Pulse).
@@ -95,6 +96,7 @@ export async function GET() {
       uniqueToday,
       onlineNow,
       liveViewers,
+      ppvWatchingNow,
       activeMatches,
       matchViewsToday: matchViewsToday || 0,
       weekViews: weekViews || 0,
