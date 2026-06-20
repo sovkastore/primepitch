@@ -35,9 +35,9 @@ export default function PartnerOverview() {
 
       <p className="text-[13px] text-gray-400 font-medium mt-0.5 mb-5">
         {scoped ? (
-          <>These are <span className="text-[#3cac3b] font-bold">the people you brought</span> — your own visitors.</>
+          <>These are the people you brought — your own visitors.</>
         ) : (
-          <>Big number = everyone. <span className="text-[#3cac3b] font-bold">Blue = me</span> (the people you brought). Grey = everyone else.</>
+          <>Big number = everyone. <span className="text-[#3cac3b] font-bold">Green = me</span> (the people you brought). Grey = everyone else.</>
         )}
       </p>
 

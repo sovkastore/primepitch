@@ -1,4 +1,5 @@
-// Shared his/yours/total stat card. Blue always = the partner's referred people.
+// Shared his/yours/total stat card. Green always = the partner's referred people.
+// `solo` = own-people-only view: just the partner's own number + the hint, no split.
 export interface Split { total: number; his: number; yours: number }
 
 export function n(v: unknown): number {
@@ -10,7 +11,6 @@ export function asSplit(s: Partial<Split> | undefined | null): Split {
   return { total: n(s?.total), his: n(s?.his), yours: n(s?.yours) };
 }
 
-// `solo` = own-people-only view: show just the partner's own number, no split.
 export function SplitStat({ label, data, hint, mine, solo }: { label: string; data?: Partial<Split>; hint?: string; mine?: boolean; solo?: boolean }) {
   const d = asSplit(data);
   const blueLabel = mine ? "me" : "his";
@@ -19,9 +19,7 @@ export function SplitStat({ label, data, hint, mine, solo }: { label: string; da
     <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
       <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase">{label}</p>
       <p className="text-2xl sm:text-3xl font-black mt-2 tabular-nums text-gray-900">{d.total.toLocaleString()}</p>
-      {solo ? (
-        <div className="mt-2 text-[12px] font-bold text-[#3cac3b]">your visitors</div>
-      ) : (
+      {!solo && (
         <div className="flex items-center gap-2.5 mt-2 text-[12px] font-bold">
           <span className="text-[#3cac3b]">{d.his.toLocaleString()} {blueLabel}</span>
           <span className="text-gray-300">•</span>
@@ -33,14 +31,16 @@ export function SplitStat({ label, data, hint, mine, solo }: { label: string; da
   );
 }
 
-// Convenience wrapper for the partner's own dashboard, where blue = "me".
-export function MeStat(props: { label: string; data?: Partial<Split>; hint?: string }) {
+export function MeStat(props: { label: string; data?: Partial<Split>; hint?: string; solo?: boolean }) {
   return <SplitStat {...props} mine />;
 }
 
-// Small inline his/yours pair for use inside table rows.
-export function SplitInline({ data }: { data?: Partial<Split> }) {
+// Small inline pair for table rows. solo = show only the partner's own number.
+export function SplitInline({ data, solo }: { data?: Partial<Split>; solo?: boolean }) {
   const d = asSplit(data);
+  if (solo) {
+    return <span className="tabular-nums font-bold text-gray-900">{d.his.toLocaleString()}</span>;
+  }
   return (
     <span className="tabular-nums">
       <span className="text-gray-900 font-bold">{d.total.toLocaleString()}</span>

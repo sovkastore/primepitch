@@ -14,13 +14,23 @@ export interface VisitorsData {
 
 function fmt(ts: string) { try { return new Date(ts).toLocaleString(); } catch { return ts; } }
 
-export default function VisitorsPanel({ data, mine }: { data: VisitorsData | null; mine?: boolean }) {
+export default function VisitorsPanel({ data, mine, solo }: { data: VisitorsData | null; mine?: boolean; solo?: boolean }) {
   const total = data?.totalVisitors?.total || 0;
   const cb = data?.cameBack?.total || 0;
   const rate = total ? Math.round((cb / total) * 1000) / 10 : 0;
   const roster = data?.hisRoster ?? [];
   const trend = (data?.trendUnique ?? []).map((p) => ({ date: p.date.slice(5), Total: p.total, Me: p.his }));
   const blue = mine ? "me" : "his";
+
+  const Cell = ({ value, label, his }: { value: number; label: string; his: number }) => (
+    <div>
+      <p className="text-2xl font-black text-gray-900 tabular-nums">{value.toLocaleString()}</p>
+      <p className="text-[10px] text-gray-400">
+        {label}
+        {!solo && <> · <span className="text-[#3cac3b] font-bold">{his.toLocaleString()} {blue}</span></>}
+      </p>
+    </div>
+  );
 
   return (
     <>
@@ -30,27 +40,18 @@ export default function VisitorsPanel({ data, mine }: { data: VisitorsData | nul
           <span className="text-[11px] font-bold text-emerald-600">{rate}% came back</span>
         </div>
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div>
-            <p className="text-2xl font-black text-gray-900 tabular-nums">{total.toLocaleString()}</p>
-            <p className="text-[10px] text-gray-400">total visitors · <span className="text-[#3cac3b] font-bold">{(data?.totalVisitors?.his || 0).toLocaleString()} {blue}</span></p>
-          </div>
-          <div>
-            <p className="text-2xl font-black text-gray-900 tabular-nums">{cb.toLocaleString()}</p>
-            <p className="text-[10px] text-gray-400">came back another day · <span className="text-[#3cac3b] font-bold">{(data?.cameBack?.his || 0).toLocaleString()} {blue}</span></p>
-          </div>
-          <div>
-            <p className="text-2xl font-black text-gray-900 tabular-nums">{(data?.oneTime?.total || 0).toLocaleString()}</p>
-            <p className="text-[10px] text-gray-400">visited one day only · <span className="text-[#3cac3b] font-bold">{(data?.oneTime?.his || 0).toLocaleString()} {blue}</span></p>
-          </div>
+          <Cell value={total} label="total visitors" his={data?.totalVisitors?.his || 0} />
+          <Cell value={cb} label="came back another day" his={data?.cameBack?.his || 0} />
+          <Cell value={data?.oneTime?.total || 0} label="visited one day only" his={data?.oneTime?.his || 0} />
         </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <SplitStat label="Unique Visitors" data={data?.unique} mine={mine} hint="distinct that day" />
-        <SplitStat label="New Visitors" data={data?.newToday} mine={mine} hint="first time ever" />
-        <SplitStat label="Returning" data={data?.returning} mine={mine} hint="seen before today" />
-        <SplitStat label="Page Views" data={data?.pageViews} mine={mine} hint="incl. repeat pages" />
-        <SplitStat label="Total Visitors" data={data?.totalVisitors} mine={mine} hint="all-time, ever joined" />
+        <SplitStat label="Unique Visitors" data={data?.unique} mine={mine} solo={solo} hint="distinct that day" />
+        <SplitStat label="New Visitors" data={data?.newToday} mine={mine} solo={solo} hint="first time ever" />
+        <SplitStat label="Returning" data={data?.returning} mine={mine} solo={solo} hint="seen before today" />
+        <SplitStat label="Page Views" data={data?.pageViews} mine={mine} solo={solo} hint="incl. repeat pages" />
+        <SplitStat label="Total Visitors" data={data?.totalVisitors} mine={mine} solo={solo} hint="all-time, ever joined" />
       </div>
 
       <h2 className="text-[13px] font-black text-gray-700 uppercase tracking-wider mt-7 mb-2">Visitors — last 30 days</h2>
@@ -61,14 +62,20 @@ export default function VisitorsPanel({ data, mine }: { data: VisitorsData | nul
             <XAxis dataKey="date" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
             <Tooltip />
-            <Line type="monotone" dataKey="Total" stroke="#111827" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="Me" stroke="#2563eb" strokeWidth={2} dot={false} />
+            {solo ? (
+              <Line type="monotone" dataKey="Me" name="You" stroke="#3cac3b" strokeWidth={2} dot={false} />
+            ) : (
+              <>
+                <Line type="monotone" dataKey="Total" stroke="#111827" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Me" stroke="#3cac3b" strokeWidth={2} dot={false} />
+              </>
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3 mt-3">
-        <BreakdownList title="Devices (selected day)" rows={(data?.byDevice ?? []).map((d) => ({ label: d.name || "unknown", total: d.total, his: d.his }))} />
+        <BreakdownList title="Devices (selected day)" solo={solo} rows={(data?.byDevice ?? []).map((d) => ({ label: d.name || "unknown", total: d.total, his: d.his }))} />
       </div>
 
       <h2 className="text-[13px] font-black text-gray-700 uppercase tracking-wider mt-7 mb-2">Latest visitors (who joined through {mine ? "you" : "them"})</h2>

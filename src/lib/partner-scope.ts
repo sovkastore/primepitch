@@ -19,29 +19,47 @@ export async function partnerFlags(
       paid: Number(data?.paid_total) || 0,
     };
   } catch {
-    // Safe default: own-people-only.
     return { fullStats: false, earned: 0, paid: 0 };
   }
 }
 
-// Recursively rewrite every {total, his, yours?, own?} metric so the partner
-// sees ONLY their own referred people: the headline (total) becomes their own
-// count, and the "everyone else" figures collapse to 0. Every other field is
-// left exactly as-is. Used only when fullStats is false.
+const SUFFIXES = ["Total", "His", "Yours", "Own"] as const;
+
+// Recursively rewrite EVERY split metric so a limited partner sees ONLY their
+// own referred people. For each group {..Total, ..His, ..Yours, ..Own} that has
+// a "His" (their own number), the headline (Total) becomes their own count and
+// the everyone-else figures (Yours/Own) collapse to 0. Standalone fields with no
+// "His" counterpart are left untouched. Used only when fullStats is false, so no
+// platform number is ever even sent to a limited partner.
 export function scopeToOwn<T>(value: T): T {
   if (Array.isArray(value)) {
     return value.map((v) => scopeToOwn(v)) as unknown as T;
   }
   if (value && typeof value === "object") {
     const obj = value as Record<string, unknown>;
-    const isMetric = typeof obj.total === "number" && typeof obj.his === "number";
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj)) out[k] = scopeToOwn(v);
-    if (isMetric) {
-      out.total = obj.his; // headline = their own people
-      out.his = obj.his;
-      if ("yours" in obj) out.yours = 0;
-      if ("own" in obj) out.own = 0;
+
+    const prefixes = new Set<string>();
+    for (const k of Object.keys(obj)) {
+      if (k === "total" || k === "his" || k === "yours" || k === "own") {
+        prefixes.add("");
+      } else {
+        for (const suf of SUFFIXES) {
+          if (k.length > suf.length && k.endsWith(suf)) prefixes.add(k.slice(0, -suf.length));
+        }
+      }
+    }
+    for (const p of prefixes) {
+      const hk = p === "" ? "his" : `${p}His`;
+      const tk = p === "" ? "total" : `${p}Total`;
+      const yk = p === "" ? "yours" : `${p}Yours`;
+      const ok = p === "" ? "own" : `${p}Own`;
+      if (typeof obj[hk] === "number") {
+        if (tk in out) out[tk] = obj[hk];
+        if (yk in out) out[yk] = 0;
+        if (ok in out) out[ok] = 0;
+      }
     }
     return out as unknown as T;
   }

@@ -33,15 +33,14 @@ const STATUSES = [
 ];
 const SPORTS = ["football", "basketball", "american-football", "fight", "motor-sports", "tennis", "hockey", "baseball", "cricket", "rugby", "golf", "other"];
 
-// src = the matches endpoint (already includes ?stat/&code for admin). The panel
-// owns the day filter and refetches server-side, plus client-side status/sort/sport.
 export default function MatchesPanel({ src, mine, compare = "all" }: { src: string; mine?: boolean; compare?: CompareMode }) {
-  const [day, setDay] = useState(""); // "" = all time
+  const [day, setDay] = useState("");
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState<"recent" | "views">("recent");
   const [sport, setSport] = useState("");
   const [matches, setMatches] = useState<PanelMatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [solo, setSolo] = useState(false);
 
   const url = useMemo(() => src + (src.includes("?") ? "&" : "?") + (day ? `day=${day}` : ""), [src, day]);
 
@@ -51,6 +50,7 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
       const r = await fetch(url, { cache: "no-store" });
       const j = await r.json();
       setMatches(j.matches ?? []);
+      setSolo(j.full_stats === false);
     } catch {
       setMatches([]);
     } finally {
@@ -73,10 +73,11 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
     if (sport) r = r.filter((m) => (m.sport || "").toLowerCase() === sport);
     r.sort((a, b) => (sort === "views" ? b.viewsTotal - a.viewsTotal : (b.kickoff ?? 0) - (a.kickoff ?? 0)));
     return r;
-  }, [withStatus, status, sport, sort]);
+  }, [withStatus, status, sort, sport]);
 
   const blue = mine ? "me" : "his";
   const grey = mine ? "others" : "yours";
+  const triple = (t: string) => (solo ? t : `${t} (total / ${blue} / ${grey})`);
   const tab = (active: boolean) =>
     `px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${active ? "bg-[#3cac3b] text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`;
 
@@ -110,9 +111,9 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
               <tr>
                 <th className="text-left font-bold px-3 py-2">Match</th>
                 <th className="text-left font-bold px-3 py-2">Status</th>
-                <th className="text-right font-bold px-3 py-2">Views ({`total / ${blue} / ${grey}`})</th>
-                <th className="text-right font-bold px-3 py-2">Unique ({`total / ${blue} / ${grey}`})</th>
-                <th className="text-right font-bold px-3 py-2">Peak ({`total / ${blue} / ${grey}`})</th>
+                <th className="text-right font-bold px-3 py-2">{triple("Views")}</th>
+                <th className="text-right font-bold px-3 py-2">{triple("Unique")}</th>
+                <th className="text-right font-bold px-3 py-2">{triple("Peak")}</th>
                 <th className="text-right font-bold px-3 py-2">Avg watch</th>
                 <th className="text-right font-bold px-3 py-2">Last viewed</th>
               </tr>
@@ -123,10 +124,10 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
                   <td className="px-3 py-2.5">
                     <span className="font-semibold text-gray-800">{m.title}</span>
                     {m.sport && <span className="text-[10px] text-gray-400 ml-2 uppercase">{m.sport}</span>}
-                    {(m.liveTotal + m.preTotal) > 0 && (
+                    {((solo ? m.liveHis + m.preHis : m.liveTotal + m.preTotal) > 0) && (
                       <div className="text-[10px] text-gray-400 mt-0.5">
-                        {m.liveTotal} watched live · {m.preTotal} before kickoff
-                        {(m.liveHis + m.preHis) > 0 && (
+                        {solo ? m.liveHis : m.liveTotal} watched live · {solo ? m.preHis : m.preTotal} before kickoff
+                        {!solo && (m.liveHis + m.preHis) > 0 && (
                           <span className="text-[#3cac3b] ml-1">· {m.liveHis}/{m.preHis} {blue}</span>
                         )}
                       </div>
@@ -139,21 +140,33 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
                       : "bg-gray-100 text-gray-500"}`}>{m.st}</span>
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
-                    <div>
-                      <span className="font-bold text-gray-900">{m.viewsTotal}</span>
-                      <span className="text-[#3cac3b] font-semibold ml-2">{m.viewsHis}</span>
-                      <span className="text-gray-400 ml-1.5">/ {m.viewsYours}</span>
-                    </div>
-                    <div className="text-[9px] text-gray-400 mt-0.5">{m.liveViews} live · {m.preViews} pre</div>
+                    {solo ? (
+                      <span className="font-bold text-gray-900">{m.viewsHis}</span>
+                    ) : (
+                      <div>
+                        <span className="font-bold text-gray-900">{m.viewsTotal}</span>
+                        <span className="text-[#3cac3b] font-semibold ml-2">{m.viewsHis}</span>
+                        <span className="text-gray-400 ml-1.5">/ {m.viewsYours}</span>
+                      </div>
+                    )}
+                    {!solo && <div className="text-[9px] text-gray-400 mt-0.5">{m.liveViews} live · {m.preViews} pre</div>}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
-                    <span className="font-bold text-gray-900">{m.uniqueTotal}</span>
-                    <span className="text-[#3cac3b] font-semibold ml-2">{m.uniqueHis}</span>
-                    <span className="text-gray-400 ml-1.5">/ {m.uniqueYours}</span>
+                    {solo ? (
+                      <span className="font-bold text-gray-900">{m.uniqueHis}</span>
+                    ) : (
+                      <>
+                        <span className="font-bold text-gray-900">{m.uniqueTotal}</span>
+                        <span className="text-[#3cac3b] font-semibold ml-2">{m.uniqueHis}</span>
+                        <span className="text-gray-400 ml-1.5">/ {m.uniqueYours}</span>
+                      </>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     {m.st === "upcoming" ? (
                       <span className="font-bold text-gray-300">—</span>
+                    ) : solo ? (
+                      <span className="font-bold text-gray-900">{m.peakHis}</span>
                     ) : (
                       <>
                         <span className="font-bold text-gray-900">{m.peakTotal}</span>
