@@ -22,6 +22,7 @@ export interface Match {
   };
   ended?: boolean; // admin forced this match to FULL TIME (manual "End now")
   hot?: boolean; // admin manually flagged this fixture as HOT (red animated badge)
+  forced?: boolean; // admin force-lived this match; exempt from premature-live suppression
 }
 
 export interface Stream {
@@ -302,7 +303,7 @@ export function suppressPrematureLive(live: Match[], allMatches: Match[]): Match
     allMatches.filter((m) => m.date - now > 10 * 60 * 1000).map((m) => base(m.title))
   );
   return live.filter((m) => {
-    if (m.sources?.[0]?.source === "admin") return true;
+    if (m.sources?.[0]?.source === "admin" || m.forced) return true;
     return !upcomingFixtures.has(base(m.title));
   });
 }

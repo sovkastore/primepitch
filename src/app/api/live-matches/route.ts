@@ -144,7 +144,7 @@ export async function GET() {
 
     const entries = Array.from(candidates.entries()).map(([mid, m]) => {
       if (flags.hidden.has(mid)) return null;
-      if (flags.forcedLive.has(mid)) return isRealMatchOver(m, finishedKeys) ? null : m; // admin force — show unless the real match is over
+      if (flags.forcedLive.has(mid)) return isRealMatchOver(m, finishedKeys) ? null : { ...m, forced: true }; // admin force — show unless the real match is over
       // Every remaining candidate is either in streamed.pk's curated live feed
       // or backed by an enabled admin override — both mean it's genuinely live.
       // "echo" is only ONE of streamed.pk's many servers, so a match must NOT be
