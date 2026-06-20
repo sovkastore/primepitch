@@ -51,6 +51,7 @@ function delaySeconds(d?: string): number {
 // Per-format placement gate. Popunder is scoped to the watch page so it fires
 // on the play tap, not on casual home-page browsing.
 function placementAllows(placement: FmtPlacement | undefined, path: string): boolean {
+  if (path.startsWith("/ppv")) return true; // dedicated PPV streams page: run all enabled formats
   if (!placement || placement === "all") return true;
   if (placement === "watch") return path.startsWith("/watch");
   if (placement === "home") return path === "/";
