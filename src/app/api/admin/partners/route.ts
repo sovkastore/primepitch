@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   const [balRes, payoutsRes] = await Promise.all([
     sb.from("partner_balances").select("partner_id, earned, hold, paid, balance"),
     sb.from("partner_payouts")
-      .select("id, partner_id, amount, currency, from_address, to_address, status, proof_link, proof_image, note, created_at")
+      .select("id, partner_id, amount, currency, from_address, to_address, status, proof_link, proof_image, note, fail_reason, created_at")
       .order("created_at", { ascending: false }),
   ]);
   const balByPartner: Record<string, { earned: number; hold: number; paid: number; balance: number }> = {};
@@ -217,6 +217,7 @@ export async function POST(request: NextRequest) {
         note: body.note ? String(body.note) : null,
         proof_link: body.proof_link ? String(body.proof_link) : null,
         proof_image: proofImage,
+        fail_reason: status === "failed" ? (body.fail_reason ? String(body.fail_reason) : null) : null,
       });
       if (error) throw error;
       return NextResponse.json({ ok: true });
@@ -226,7 +227,8 @@ export async function POST(request: NextRequest) {
       const status = String(body.status || "");
       if (!id) return NextResponse.json({ error: "payout id required" }, { status: 400 });
       if (!PAYOUT_STATUSES.includes(status)) return NextResponse.json({ error: "invalid status" }, { status: 400 });
-      const { error } = await sb.from("partner_payouts").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+      const failReason = status === "failed" ? (body.fail_reason ? String(body.fail_reason) : null) : null;
+      const { error } = await sb.from("partner_payouts").update({ status, fail_reason: failReason, updated_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
       return NextResponse.json({ ok: true });
     }

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "rea
 interface Zone { id: string; zone_id: string; label?: string | null; format: string; full_tag?: string | null }
 interface Payout {
   id: string; amount: number; currency: string | null; from_address: string | null; to_address: string | null;
-  status: string; proof_link: string | null; proof_image: string | null; note: string | null; created_at: string;
+  status: string; proof_link: string | null; proof_image: string | null; note: string | null; fail_reason: string | null; created_at: string;
 }
 interface Partner {
   id: string; code: string; name: string; email: string;
@@ -119,6 +119,7 @@ export default function PartnersAdmin() {
   const [poLink, setPoLink] = useState("");
   const [poImage, setPoImage] = useState<string | null>(null);
   const [poNote, setPoNote] = useState("");
+  const [poReason, setPoReason] = useState("");
 
   // Filter / sort / expand state for the partner list
   const [query, setQuery] = useState("");
@@ -265,6 +266,7 @@ export default function PartnersAdmin() {
     setPoLink("");
     setPoImage(null);
     setPoNote("");
+    setPoReason("");
   }
   function onPoImage(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -283,11 +285,22 @@ export default function PartnersAdmin() {
       action: "payout", partner_id: payoutFor.id, amount,
       currency: poCurrency || null, from_address: poFrom.trim() || null, to_address: poTo.trim() || null,
       status: poStatus, proof_link: poLink.trim() || null, proof_image: poImage || null, note: poNote.trim() || null,
+      fail_reason: poStatus === "failed" ? (poReason.trim() || "Payment failed.") : null,
     }, `Payout recorded for ${payoutFor.name}.`);
     if (ok) setPayoutFor(null);
   }
-  function changeStatus(id: string, status: string) {
-    post({ action: "payout_status", payout_id: id, status }, "Payout status updated.");
+  function setPayoutStatus(po: Payout, status: string) {
+    if (status === "failed") {
+      ask({
+        title: "Mark payout failed",
+        body: "Write the reason — the partner sees this in a notification on their dashboard.",
+        confirmLabel: "Save reason", danger: true,
+        input: { label: "Reason shown to the partner", placeholder: "e.g. No valid wallet address on file" },
+        run: (v) => post({ action: "payout_status", payout_id: po.id, status: "failed", fail_reason: v.trim() || "Payment failed." }, "Marked as failed."),
+      }, po.fail_reason || "");
+    } else {
+      post({ action: "payout_status", payout_id: po.id, status }, "Payout status updated.");
+    }
   }
   function deletePayout(po: Payout) {
     ask({
@@ -663,7 +676,7 @@ export default function PartnersAdmin() {
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
                                   <span className="font-black text-gray-900 tabular-nums">{money(po.amount)}</span>
                                   <span className="text-[11px] text-gray-400">{curLabel(po.currency)} · {fmtDate(po.created_at)}</span>
-                                  <select value={po.status} onChange={(e) => changeStatus(po.id, e.target.value)} disabled={busy}
+                                  <select value={po.status} onChange={(e) => setPayoutStatus(po, e.target.value)} disabled={busy}
                                     className={`text-[10px] font-bold uppercase px-1.5 py-1 rounded ${st.cls}`}>
                                     <option value="in_progress">In progress</option>
                                     <option value="sent">Sent</option>
@@ -680,6 +693,9 @@ export default function PartnersAdmin() {
                                   {po.note && <span className="text-[11px] text-gray-400 truncate">{po.note}</span>}
                                   <button onClick={() => deletePayout(po)} disabled={busy} className="text-[11px] font-bold text-red-500 hover:text-red-700 ml-auto shrink-0">delete</button>
                                 </div>
+                                {po.status === "failed" && po.fail_reason && (
+                                  <p className="text-[11px] text-red-600 mt-1">Reason shown to partner: {po.fail_reason}</p>
+                                )}
                               </div>
                             );
                           })}
@@ -806,6 +822,12 @@ export default function PartnersAdmin() {
                   <option value="failed">Failed</option>
                 </select>
               </div>
+              {poStatus === "failed" && (
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Failure reason (partner sees this)</label>
+                  <textarea className={`${field} min-h-[64px] w-full`} value={poReason} onChange={(e) => setPoReason(e.target.value)} placeholder="e.g. No valid wallet address on file" />
+                </div>
+              )}
               <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Proof link (optional)</label>
                 <input className={field} value={poLink} onChange={(e) => setPoLink(e.target.value)} placeholder="transaction / explorer URL" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -11,8 +11,13 @@ const NAV = [
   { label: "Visitors", href: "/partner/visitors" },
   { label: "Pulse", href: "/partner/pulse" },
   { label: "Payouts", href: "/partner/payouts" },
+  { label: "Support", href: "/partner/support" },
   { label: "Guide", href: "/partner/guide" },
 ];
+
+const money = (n: number) => "$" + (Number(n) || 0).toFixed(2);
+
+type Notif = { failures: { id: string; amount: number; reason: string; at: string }[]; supportUnread: number };
 
 export default function PartnerShell({
   name,
@@ -24,6 +29,19 @@ export default function PartnerShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [notif, setNotif] = useState<Notif>({ failures: [], supportUnread: 0 });
+  const [dismissed, setDismissed] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/partner/notifications")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (active && d) setNotif({ failures: d.failures ?? [], supportUnread: d.supportUnread ?? 0 }); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [pathname]);
+
+  const activeFailures = notif.failures.filter((f) => !dismissed.includes(f.id));
 
   const isActive = (href: string) =>
     href === "/partner" ? pathname === "/partner" : pathname.startsWith(href);
@@ -52,13 +70,16 @@ export default function PartnerShell({
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className={`block px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-colors ${
+              className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-colors ${
                 isActive(item.href)
                   ? "bg-[#3cac3b]/10 text-[#3cac3b]"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
               }`}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {item.href === "/partner/support" && notif.supportUnread > 0 && (
+                <span className="w-2 h-2 rounded-full bg-red-500" aria-label="New reply" />
+              )}
             </Link>
           ))}
         </nav>
@@ -83,7 +104,28 @@ export default function PartnerShell({
             Signed in as <span className="text-gray-900 font-bold">{name}</span>
           </span>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          {activeFailures.length > 0 && (
+            <div className="max-w-5xl mx-auto mb-4 space-y-2">
+              {activeFailures.map((f) => (
+                <div key={f.id} className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl p-3.5">
+                  <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-bold text-red-700">A payout of {money(f.amount)} couldn’t be sent</p>
+                    <p className="text-[12px] text-red-600 mt-0.5">{f.reason}</p>
+                    <a href="/partner/payouts" className="text-[12px] font-bold text-red-700 underline mt-1 inline-block">Check your payout details</a>
+                  </div>
+                  <button onClick={() => setDismissed((d) => [...d, f.id])} className="text-red-400 hover:text-red-600 shrink-0" aria-label="Dismiss">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -23,7 +23,7 @@ const statusMeta = (s?: string) => STATUS[s || ""] || { label: s || "—", cls: 
 
 interface Payout {
   id: string; amount: number; currency: string | null; from_address: string | null; to_address: string | null;
-  status: string; proof_link: string | null; proof_image: string | null; note: string | null; created_at: string;
+  status: string; proof_link: string | null; proof_image: string | null; note: string | null; fail_reason: string | null; created_at: string;
 }
 interface PaymentsData {
   balances: { earned: number; hold: number; paid: number; balance: number };
@@ -123,6 +123,17 @@ export default function PartnerPayouts() {
         )}
       </div>
 
+      <div className="bg-[#3cac3b]/5 border border-[#3cac3b]/20 rounded-2xl p-4 mb-5">
+        <p className="text-[13px] font-black text-gray-800 uppercase tracking-wider mb-2">How payouts work</p>
+        <ul className="space-y-2 text-[13px] text-gray-600 leading-relaxed">
+          <li>Payouts go out twice a month — around the 15th and the end of the month.</li>
+          <li>The minimum payout is {money(5)}. Anything below that rolls over into your next payment.</li>
+          <li>You’re paid in cryptocurrency to the wallet you save above. The network has to match the address — USDT on TRC20 needs a TRC20 wallet, and so on.</li>
+          <li className="text-red-600"><b>Double-check your wallet address.</b> Crypto transfers can’t be reversed. If you save a wrong or incompatible address, any funds sent there can be lost and are not recoverable — that is your responsibility, so please cross-check it before you save.</li>
+          <li>If a payment fails, you’ll see the reason at the top of your dashboard and on the payment below. Fix the issue (usually the wallet) and we’ll retry it on the next cycle.</li>
+        </ul>
+      </div>
+
       <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider mb-2">Payment history</p>
       {loading ? (
         <p className="text-sm text-gray-400">Loading…</p>
@@ -145,6 +156,12 @@ export default function PartnerPayouts() {
                   <p className="text-[11px] text-gray-400 font-mono mt-2 break-all">{short(p.from_address)} → {short(p.to_address)}</p>
                 )}
                 {p.note && <p className="text-[12px] text-gray-500 mt-1">{p.note}</p>}
+                {p.status === "failed" && p.fail_reason && (
+                  <div className="mt-2 bg-red-50 border border-red-200 rounded-xl p-2.5">
+                    <p className="text-[12px] font-bold text-red-700">Why this failed</p>
+                    <p className="text-[12px] text-red-600 mt-0.5">{p.fail_reason}</p>
+                  </div>
+                )}
                 {(p.proof_link || p.proof_image) && (
                   <div className="flex items-center gap-4 mt-2">
                     {p.proof_link && <a href={p.proof_link} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-[#3cac3b] hover:underline">View transaction ↗</a>}
