@@ -7,6 +7,7 @@ type Match = {
   title?: string;
   date?: number;
   teams?: { home?: { name?: string }; away?: { name?: string } };
+  category?: string;
 };
 
 type Picked = { home: string; away: string; label: string };
@@ -61,8 +62,8 @@ export default function AdminNotifyPage() {
         fetch("/api/live-matches").then((r) => (r.ok ? r.json() : [])).catch(() => []),
         fetch("/api/matches?sport=football").then((r) => (r.ok ? r.json() : [])).catch(() => []),
       ]);
-      const liveArr: Match[] = Array.isArray(lr) ? lr : Array.isArray(lr?.matches) ? lr.matches : [];
-      const upArr: Match[] = Array.isArray(ur) ? ur : [];
+      const liveArr: Match[] = (Array.isArray(lr) ? lr : Array.isArray(lr?.matches) ? lr.matches : []).filter((m: Match) => !m.category || m.category === "football");
+      const upArr: Match[] = (Array.isArray(ur) ? ur : []).filter((m: Match) => !m.category || m.category === "football");
       setLive(liveArr);
       const now = Date.now();
       const liveKeys = new Set(
