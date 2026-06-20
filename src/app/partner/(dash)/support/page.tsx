@@ -8,7 +8,7 @@ type ThreadTicket = { id: string; subject: string; status: string; created_at: s
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   open: { label: "Open", cls: "bg-amber-50 text-amber-700" },
-  answered: { label: "Replied", cls: "bg-[#3cac3b]/10 text-[#3cac3b]" },
+  answered: { label: "Replied", cls: "bg-[#10b981]/10 text-[#10b981]" },
   resolved: { label: "Resolved", cls: "bg-gray-100 text-gray-500" },
   closed: { label: "Closed", cls: "bg-gray-100 text-gray-500" },
 };
@@ -18,7 +18,7 @@ function fmt(d: string) {
   try { return new Date(d).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return d; }
 }
 
-const field = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#3cac3b]";
+const field = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#10b981]";
 
 export default function SupportPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -97,7 +97,7 @@ export default function SupportPage() {
             </div>
             <div className="space-y-3 mb-4">
               {thread.messages.map((m) => (
-                <div key={m.id} className={`rounded-2xl p-3.5 ${m.sender === "partner" ? "bg-[#3cac3b]/10 ml-6" : "bg-white border border-gray-200 mr-6"}`}>
+                <div key={m.id} className={`rounded-2xl p-3.5 ${m.sender === "partner" ? "bg-[#10b981]/10 ml-6" : "bg-white border border-gray-200 mr-6"}`}>
                   <p className="text-[11px] font-bold text-gray-400 mb-1">{m.sender === "partner" ? "You" : "PrimePitch Support"} · {fmt(m.created_at)}</p>
                   <p className="text-[14px] text-gray-700 whitespace-pre-wrap break-words">{m.body}</p>
                 </div>
@@ -109,7 +109,7 @@ export default function SupportPage() {
             ) : (
               <div className="flex gap-2 items-end">
                 <textarea className={`${field} min-h-[56px]`} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Write a reply…" />
-                <button onClick={sendReply} disabled={busy || !reply.trim()} className="px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-[#3cac3b] hover:bg-[#2e8e2d] disabled:opacity-50 shrink-0">{busy ? "…" : "Send"}</button>
+                <button onClick={sendReply} disabled={busy || !reply.trim()} className="px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 shrink-0">{busy ? "…" : "Send"}</button>
               </div>
             )}
           </>
@@ -137,7 +137,7 @@ export default function SupportPage() {
             <textarea className={`${field} min-h-[140px]`} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe the issue in as much detail as you can…" />
           </div>
           {err && <p className="text-[13px] text-red-600">{err}</p>}
-          <button onClick={createTicket} disabled={busy} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[#3cac3b] hover:bg-[#2e8e2d] disabled:opacity-50">{busy ? "Sending…" : "Submit ticket"}</button>
+          <button onClick={createTicket} disabled={busy} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[#10b981] hover:bg-[#059669] disabled:opacity-50">{busy ? "Sending…" : "Submit ticket"}</button>
         </div>
       </div>
     );
@@ -148,7 +148,7 @@ export default function SupportPage() {
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-xl font-black text-gray-900">Support</h1>
-        <button onClick={() => { setView("new"); setErr(""); }} className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-[#3cac3b] hover:bg-[#2e8e2d]">New ticket</button>
+        <button onClick={() => { setView("new"); setErr(""); }} className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-[#10b981] hover:bg-[#059669]">New ticket</button>
       </div>
       <p className="text-[13px] text-gray-400 mb-4">Reach our team and track your conversations here.</p>
       {loading ? (
@@ -156,14 +156,14 @@ export default function SupportPage() {
       ) : tickets.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
           <p className="text-sm text-gray-500">You haven’t opened any tickets yet.</p>
-          <button onClick={() => setView("new")} className="mt-3 px-4 py-2 rounded-xl text-sm font-bold text-white bg-[#3cac3b] hover:bg-[#2e8e2d]">Open your first ticket</button>
+          <button onClick={() => setView("new")} className="mt-3 px-4 py-2 rounded-xl text-sm font-bold text-white bg-[#10b981] hover:bg-[#059669]">Open your first ticket</button>
         </div>
       ) : (
         <div className="space-y-2">
           {tickets.map((t) => {
             const st = statusMeta(t.status);
             return (
-              <button key={t.id} onClick={() => openTicket(t.id)} className="w-full text-left bg-white rounded-2xl border border-gray-200 p-4 hover:border-[#3cac3b]/40 transition-colors">
+              <button key={t.id} onClick={() => openTicket(t.id)} className="w-full text-left bg-white rounded-2xl border border-gray-200 p-4 hover:border-[#10b981]/40 transition-colors">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[15px] font-bold text-gray-900 truncate flex items-center gap-2">
                     {t.partner_unread && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />}

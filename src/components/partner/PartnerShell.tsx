@@ -17,9 +17,19 @@ const NAV = [
   { label: "Guide", href: "/partner/guide", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
 ];
 
-const money = (n: number) => "$" + (Number(n) || 0).toFixed(2);
+type NItem = { id: string; kind: string; title: string; body: string; at: string; href: string };
+type Notif = { items: NItem[]; unread: number; supportUnread: number };
 
-type Notif = { failures: { id: string; amount: number; reason: string; at: string }[]; supportUnread: number };
+function timeAgo(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!t) return "";
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24); if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 export default function PartnerShell({
   name,
@@ -31,19 +41,26 @@ export default function PartnerShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [notif, setNotif] = useState<Notif>({ failures: [], supportUnread: 0 });
-  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [notif, setNotif] = useState<Notif>({ items: [], unread: 0, supportUnread: 0 });
+  const [bellOpen, setBellOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
     fetch("/api/partner/notifications")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (active && d) setNotif({ failures: d.failures ?? [], supportUnread: d.supportUnread ?? 0 }); })
+      .then((d) => { if (active && d) setNotif({ items: d.items ?? [], unread: d.unread ?? 0, supportUnread: d.supportUnread ?? 0 }); })
       .catch(() => {});
     return () => { active = false; };
   }, [pathname]);
 
-  const activeFailures = notif.failures.filter((f) => !dismissed.includes(f.id));
+  function openBell() {
+    const opening = !bellOpen;
+    setBellOpen(opening);
+    if (opening && notif.unread > 0) {
+      setNotif((n) => ({ ...n, unread: 0 }));
+      fetch("/api/partner/notifications", { method: "POST" }).catch(() => {});
+    }
+  }
 
   const isActive = (href: string) =>
     href === "/partner" ? pathname === "/partner" : pathname.startsWith(href);
@@ -66,7 +83,7 @@ export default function PartnerShell({
       >
         <div className="h-14 flex items-center gap-2 px-4 border-b border-gray-100 shrink-0">
           <Logo size="sm" />
-          <span className="text-[9px] font-bold text-[#3cac3b] bg-[#3cac3b]/10 px-1.5 py-0.5 rounded">PARTNER</span>
+          <span className="text-[9px] font-bold text-[#10b981] bg-[#10b981]/10 px-1.5 py-0.5 rounded">PARTNER</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3">
@@ -79,7 +96,7 @@ export default function PartnerShell({
                 onClick={() => setOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-colors ${
                   isActive(item.href)
-                    ? "bg-[#3cac3b]/10 text-[#3cac3b]"
+                    ? "bg-[#10b981]/10 text-[#10b981]"
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                 }`}
               >
@@ -115,35 +132,60 @@ export default function PartnerShell({
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="flex items-center gap-2.5 ml-auto">
+          <div className="flex items-center gap-2 sm:gap-2.5 ml-auto">
+            <div className="relative">
+              <button onClick={openBell} aria-label="Notifications" className="relative w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                </svg>
+                {notif.unread > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-black">{notif.unread > 9 ? "9+" : notif.unread}</span>
+                )}
+              </button>
+
+              {bellOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl border border-gray-200 shadow-xl z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-[13px] font-black text-gray-900">Notifications</p>
+                    </div>
+                    {notif.items.length === 0 ? (
+                      <div className="px-4 py-8 text-center">
+                        <p className="text-[13px] text-gray-400">You’re all caught up.</p>
+                      </div>
+                    ) : (
+                      <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-50">
+                        {notif.items.map((it) => (
+                          <Link key={it.id} href={it.href} onClick={() => setBellOpen(false)} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                            <span className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${it.kind === "payout_failed" ? "bg-red-50 text-red-500" : "bg-[#10b981]/10 text-[#10b981]"}`}>
+                              {it.kind === "payout_failed" ? (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                              )}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-[13px] font-bold text-gray-900 leading-snug">{it.title}</span>
+                              <span className="block text-[12px] text-gray-500 mt-0.5 break-words">{it.body}</span>
+                              <span className="block text-[11px] text-gray-400 mt-0.5">{timeAgo(it.at)}</span>
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
             <span className="hidden sm:block text-[13px] font-semibold text-gray-500">
               Signed in as <span className="text-gray-900 font-bold">{name}</span>
             </span>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3cac3b] to-[#22c55e] flex items-center justify-center text-white font-black text-[13px] shrink-0">{initial}</div>
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#10b981] to-[#059669] flex items-center justify-center text-white font-black text-[13px] shrink-0">{initial}</div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {activeFailures.length > 0 && (
-            <div className="max-w-5xl mx-auto mb-4 space-y-2">
-              {activeFailures.map((f) => (
-                <div key={f.id} className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl p-3.5">
-                  <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                  </svg>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold text-red-700">A payout of {money(f.amount)} couldn’t be sent</p>
-                    <p className="text-[12px] text-red-600 mt-0.5">{f.reason}</p>
-                    <Link href="/partner/payouts" className="text-[12px] font-bold text-red-700 underline mt-1 inline-block">Check your payout details</Link>
-                  </div>
-                  <button onClick={() => setDismissed((d) => [...d, f.id])} className="text-red-400 hover:text-red-600 shrink-0" aria-label="Dismiss">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
     </div>
   );

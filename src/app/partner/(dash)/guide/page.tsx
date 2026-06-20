@@ -64,7 +64,7 @@ export default function PartnerGuide() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search… e.g. peak, returned, unique"
-        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-[#3cac3b]"
+        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-[#10b981]"
       />
       <div className="space-y-2.5">
         {filtered.map((e) => (

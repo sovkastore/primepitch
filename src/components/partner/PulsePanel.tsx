@@ -73,7 +73,7 @@ export default function PulsePanel({ data, mine, solo }: { data: PulseData | nul
                     ) : (
                       <>
                         <span className="font-bold text-gray-900">{m.total}</span>
-                        <span className="text-[#3cac3b] font-semibold ml-2">{m.his}</span>
+                        <span className="text-[#10b981] font-semibold ml-2">{m.his}</span>
                         <span className="text-gray-400 ml-1.5">/ {m.yours}</span>
                       </>
                     )}
@@ -84,7 +84,7 @@ export default function PulsePanel({ data, mine, solo }: { data: PulseData | nul
                     ) : (
                       <>
                         <span className="font-bold text-gray-900">{m.peakTotal}</span>
-                        <span className="text-[#3cac3b] font-semibold ml-2">{m.peakHis}</span>
+                        <span className="text-[#10b981] font-semibold ml-2">{m.peakHis}</span>
                         <span className="text-gray-400 ml-1.5">/ {m.peakYours}</span>
                       </>
                     )}
@@ -118,7 +118,7 @@ export default function PulsePanel({ data, mine, solo }: { data: PulseData | nul
                     ) : (
                       <>
                         <span className="font-bold text-gray-900">{p.total}</span>
-                        <span className="text-[#3cac3b] font-semibold ml-2">{p.his}</span>
+                        <span className="text-[#10b981] font-semibold ml-2">{p.his}</span>
                         <span className="text-gray-400 ml-1.5">/ {p.yours}</span>
                       </>
                     )}

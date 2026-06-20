@@ -27,7 +27,7 @@ export default function VisitorsPanel({ data, mine, solo }: { data: VisitorsData
       <p className="text-2xl font-black text-gray-900 tabular-nums">{value.toLocaleString()}</p>
       <p className="text-[10px] text-gray-400">
         {label}
-        {!solo && <> · <span className="text-[#3cac3b] font-bold">{his.toLocaleString()} {blue}</span></>}
+        {!solo && <> · <span className="text-[#10b981] font-bold">{his.toLocaleString()} {blue}</span></>}
       </p>
     </div>
   );
@@ -63,11 +63,11 @@ export default function VisitorsPanel({ data, mine, solo }: { data: VisitorsData
             <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
             <Tooltip />
             {solo ? (
-              <Line type="monotone" dataKey="Me" name="You" stroke="#3cac3b" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="Me" name="You" stroke="#10b981" strokeWidth={2} dot={false} />
             ) : (
               <>
                 <Line type="monotone" dataKey="Total" stroke="#111827" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="Me" stroke="#3cac3b" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Me" stroke="#10b981" strokeWidth={2} dot={false} />
               </>
             )}
           </LineChart>
@@ -95,7 +95,7 @@ export default function VisitorsPanel({ data, mine, solo }: { data: VisitorsData
             <tbody className="divide-y divide-gray-100">
               {roster.map((r) => (
                 <tr key={r.visitor_id}>
-                  <td className="px-3 py-2.5 font-mono text-[12px] text-[#3cac3b]">{r.visitor_id}…</td>
+                  <td className="px-3 py-2.5 font-mono text-[12px] text-[#10b981]">{r.visitor_id}…</td>
                   <td className="px-3 py-2.5 text-gray-600">{fmt(r.first_seen)}</td>
                   <td className="px-3 py-2.5 text-gray-600">{fmt(r.last_seen)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-bold text-gray-900">{r.visit_count}</td>

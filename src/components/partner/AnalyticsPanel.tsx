@@ -43,7 +43,7 @@ export default function AnalyticsPanel({ data, mine, solo }: { data: AnalyticsDa
           <p className="text-2xl sm:text-3xl font-black mt-2 tabular-nums text-gray-900">{rate(rT, uT)}%</p>
           {!solo && (
             <div className="flex items-center gap-2.5 mt-2 text-[12px] font-bold">
-              <span className="text-[#3cac3b]">{rate(rH, uH)}% {mine ? "me" : "his"}</span>
+              <span className="text-[#10b981]">{rate(rH, uH)}% {mine ? "me" : "his"}</span>
               <span className="text-gray-300">•</span>
               <span className="text-gray-500">{rate(rY, uY)}% {mine ? "others" : "yours"}</span>
             </div>
@@ -63,7 +63,7 @@ export default function AnalyticsPanel({ data, mine, solo }: { data: AnalyticsDa
 
       <h2 className="text-[13px] font-black text-gray-700 uppercase tracking-wider mt-7 mb-2">Breakdowns</h2>
       <p className="text-[11px] text-gray-400 font-medium mb-2">
-        {solo ? "Each row is your own referred people." : <>Each row shows total then <span className="text-[#3cac3b] font-bold">{mine ? "me" : "his"}</span>.</>}
+        {solo ? "Each row is your own referred people." : <>Each row shows total then <span className="text-[#10b981] font-bold">{mine ? "me" : "his"}</span>.</>}
       </p>
       <div className="grid sm:grid-cols-2 gap-3">
         <BreakdownList title="Devices" solo={solo} rows={(data?.byDevice ?? []).map((d) => ({ label: d.name || "unknown", total: d.total, his: d.his }))} />

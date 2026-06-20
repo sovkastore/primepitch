@@ -21,7 +21,7 @@ export function SplitStat({ label, data, hint, mine, solo }: { label: string; da
       <p className="text-2xl sm:text-3xl font-black mt-2 tabular-nums text-gray-900">{d.total.toLocaleString()}</p>
       {!solo && (
         <div className="flex items-center gap-2.5 mt-2 text-[12px] font-bold">
-          <span className="text-[#3cac3b]">{d.his.toLocaleString()} {blueLabel}</span>
+          <span className="text-[#10b981]">{d.his.toLocaleString()} {blueLabel}</span>
           <span className="text-gray-300">•</span>
           <span className="text-gray-500">{d.yours.toLocaleString()} {greyLabel}</span>
         </div>
@@ -44,7 +44,7 @@ export function SplitInline({ data, solo }: { data?: Partial<Split>; solo?: bool
   return (
     <span className="tabular-nums">
       <span className="text-gray-900 font-bold">{d.total.toLocaleString()}</span>
-      <span className="text-[#3cac3b] font-semibold ml-2">{d.his.toLocaleString()}</span>
+      <span className="text-[#10b981] font-semibold ml-2">{d.his.toLocaleString()}</span>
       <span className="text-gray-400 ml-1.5">/ {d.yours.toLocaleString()}</span>
     </span>
   );

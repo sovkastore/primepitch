@@ -62,12 +62,12 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
 
   const shown = useMemo(() => applyCompare(data, compare), [data, compare]);
   const cmpTab = (active: boolean) =>
-    `px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${active ? "bg-[#3cac3b] text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`;
+    `px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${active ? "bg-[#10b981] text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`;
 
   return (
     <div className="max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-        <h1 className="text-xl font-black text-gray-900"><span className="text-[#3cac3b]">p/</span>{title}</h1>
+        <h1 className="text-xl font-black text-gray-900"><span className="text-[#10b981]">p/</span>{title}</h1>
         <select value={code} onChange={(e) => setCode(e.target.value)}
           className="px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] font-semibold">
           {partners.map((p) => (
@@ -76,7 +76,7 @@ export default function AdminPartnerView({ stat, title }: { stat: Stat; title: s
         </select>
       </div>
       <p className="text-[13px] text-gray-400 font-medium mb-3">
-        Partner breakdown — <span className="text-[#3cac3b] font-bold">blue = their people</span>, grey = {compare === "me" ? "your own traffic" : "the rest"}, big = total. Your normal pages are unchanged.
+        Partner breakdown — <span className="text-[#10b981] font-bold">blue = their people</span>, grey = {compare === "me" ? "your own traffic" : "the rest"}, big = total. Your normal pages are unchanged.
       </p>
       <div className="flex items-center gap-1.5 mb-5">
         <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mr-1">Compare to</span>

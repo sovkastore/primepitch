@@ -86,7 +86,7 @@ export default function PartnerPayouts() {
       </div>
 
       {msg && (
-        <div className={`mb-4 text-[13px] font-semibold px-3 py-2 rounded-xl ${msg.type === "ok" ? "bg-[#3cac3b]/10 text-[#2e8e2d]" : "bg-red-50 text-red-600"}`}>{msg.text}</div>
+        <div className={`mb-4 text-[13px] font-semibold px-3 py-2 rounded-xl ${msg.type === "ok" ? "bg-[#10b981]/10 text-[#059669]" : "bg-red-50 text-red-600"}`}>{msg.text}</div>
       )}
 
       <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 mb-5">
@@ -95,16 +95,16 @@ export default function PartnerPayouts() {
         <div className="flex flex-wrap gap-1.5 mb-3">
           {CURRENCIES.map((c) => (
             <button key={c.id} onClick={() => setCurrency(c.id)}
-              className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${currency === c.id ? "bg-[#3cac3b] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${currency === c.id ? "bg-[#10b981] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
               {c.label}
             </button>
           ))}
         </div>
         <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Wallet address</label>
         <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Paste your wallet address"
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#3cac3b]" />
+          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#10b981]" />
         <button onClick={saveMethod} disabled={busy || !currency || !address.trim()}
-          className="mt-3 px-5 py-2.5 rounded-xl bg-[#3cac3b] text-white text-sm font-bold hover:bg-[#2e8e2d] disabled:opacity-60 transition-colors">
+          className="mt-3 px-5 py-2.5 rounded-xl bg-[#10b981] text-white text-sm font-bold hover:bg-[#059669] disabled:opacity-60 transition-colors">
           {busy ? "Saving…" : "Save wallet"}
         </button>
         {data?.method?.address && (
@@ -112,7 +112,7 @@ export default function PartnerPayouts() {
         )}
       </div>
 
-      <div className="bg-[#3cac3b]/5 border border-[#3cac3b]/20 rounded-2xl p-4 mb-5">
+      <div className="bg-[#10b981]/5 border border-[#10b981]/20 rounded-2xl p-4 mb-5">
         <p className="text-[13px] font-black text-gray-800 uppercase tracking-wider mb-2">How payouts work</p>
         <ul className="space-y-2 text-[13px] text-gray-600 leading-relaxed">
           <li>Payouts go out twice a month — around the 15th and the end of the month.</li>
@@ -123,7 +123,7 @@ export default function PartnerPayouts() {
         </ul>
       </div>
 
-      <Link href="/partner/history" className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-gray-200 p-4 hover:border-[#3cac3b]/40 transition-colors">
+      <Link href="/partner/history" className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-gray-200 p-4 hover:border-[#10b981]/40 transition-colors">
         <div>
           <p className="text-[13px] font-black text-gray-700">Payment history</p>
           <p className="text-[12px] text-gray-400">See every payout, status, address and proof in detail.</p>

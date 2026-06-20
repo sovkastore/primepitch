@@ -17,7 +17,7 @@ export default function BreakdownList({ title, rows, empty, solo }: { title: str
                 ) : (
                   <>
                     <span className="font-bold text-gray-900">{r.total.toLocaleString()}</span>
-                    <span className="text-[#3cac3b] font-semibold ml-2">{r.his.toLocaleString()}</span>
+                    <span className="text-[#10b981] font-semibold ml-2">{r.his.toLocaleString()}</span>
                   </>
                 )}
               </span>

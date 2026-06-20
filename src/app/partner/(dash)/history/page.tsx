@@ -16,7 +16,7 @@ const curLabel = (id?: string | null) => CURRENCIES.find((c) => c.id === id)?.la
 const STATUS: Record<string, { label: string; cls: string }> = {
   in_progress: { label: "In progress", cls: "bg-amber-50 text-amber-700" },
   sent: { label: "Sent", cls: "bg-violet-50 text-violet-700" },
-  completed: { label: "Completed", cls: "bg-[#3cac3b]/10 text-[#3cac3b]" },
+  completed: { label: "Completed", cls: "bg-[#10b981]/10 text-[#10b981]" },
   failed: { label: "Failed", cls: "bg-red-50 text-red-600" },
 };
 const statusMeta = (s?: string) => STATUS[s || ""] || { label: s || "—", cls: "bg-gray-100 text-gray-500" };
@@ -75,7 +75,7 @@ export default function PartnerHistory() {
       <div className="flex flex-wrap gap-1.5 mb-4">
         {FILTERS.map((f) => (
           <button key={f.id} onClick={() => setFilter(f.id)}
-            className={`text-[12px] font-bold px-3 py-1.5 rounded-lg transition-colors ${filter === f.id ? "bg-[#3cac3b] text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+            className={`text-[12px] font-bold px-3 py-1.5 rounded-lg transition-colors ${filter === f.id ? "bg-[#10b981] text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
             {f.label}
           </button>
         ))}
@@ -115,8 +115,8 @@ export default function PartnerHistory() {
                 )}
                 {(p.proof_link || p.proof_image) && (
                   <div className="flex items-center gap-4 mt-2">
-                    {p.proof_link && <a href={p.proof_link} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-[#3cac3b] hover:underline">View transaction ↗</a>}
-                    {p.proof_image && <a href={p.proof_image} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-[#3cac3b] hover:underline">View screenshot ↗</a>}
+                    {p.proof_link && <a href={p.proof_link} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-[#10b981] hover:underline">View transaction ↗</a>}
+                    {p.proof_image && <a href={p.proof_image} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-[#10b981] hover:underline">View screenshot ↗</a>}
                   </div>
                 )}
               </div>

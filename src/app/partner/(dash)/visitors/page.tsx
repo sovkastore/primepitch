@@ -18,7 +18,7 @@ export default function PartnerVisitors() {
         {scoped ? (
           <>Your own people for a day, plus your lifetime and trend. Days are UTC.</>
         ) : (
-          <>People for a day, plus lifetime and trend. <span className="text-[#3cac3b] font-bold">Green = me</span>. Days are UTC.</>
+          <>People for a day, plus lifetime and trend. <span className="text-[#10b981] font-bold">Green = me</span>. Days are UTC.</>
         )}
       </p>
       <DayPicker date={date} onChange={(d) => setDate(d || today)} />

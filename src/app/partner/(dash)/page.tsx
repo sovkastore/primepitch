@@ -38,7 +38,7 @@ export default function PartnerOverview() {
         {scoped ? (
           <>These are the people you brought — your own visitors.</>
         ) : (
-          <>Big number = everyone. <span className="text-[#3cac3b] font-bold">Green = me</span> (the people you brought). Grey = everyone else.</>
+          <>Big number = everyone. <span className="text-[#10b981] font-bold">Green = me</span> (the people you brought). Grey = everyone else.</>
         )}
       </p>
 

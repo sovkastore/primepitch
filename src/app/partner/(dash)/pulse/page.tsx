@@ -13,7 +13,7 @@ export default function PartnerPulse() {
         {scoped ? (
           <>Live, right now — your own people. Only people on a genuinely-live match count as “watching live.”</>
         ) : (
-          <>Live, right now. <span className="text-[#3cac3b] font-bold">Green = me</span> (the people you brought). Only people on a genuinely-live match count as “watching live.”</>
+          <>Live, right now. <span className="text-[#10b981] font-bold">Green = me</span> (the people you brought). Only people on a genuinely-live match count as “watching live.”</>
         )}
       </p>
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
