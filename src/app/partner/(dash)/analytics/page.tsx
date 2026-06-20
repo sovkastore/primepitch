@@ -18,7 +18,7 @@ export default function PartnerAnalytics() {
     <div className="max-w-5xl mx-auto">
       <h1 className="text-xl font-black text-gray-900">Analytics</h1>
       <p className="text-[13px] text-gray-400 font-medium mt-0.5 mb-4">
-        Totals for a time window. <span className="text-blue-600 font-bold">Blue = me</span>. Windows are UTC days.
+        Totals for a time window. <span className="text-[#3cac3b] font-bold">Blue = me</span>. Windows are UTC days.
       </p>
       <RangePicker preset={preset} dateStr={dateStr} onPreset={setPreset}
         onDate={(d) => { setDateStr(d); setPreset("date"); }} />

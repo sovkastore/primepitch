@@ -53,7 +53,7 @@ export default function ApplyForm() {
     );
   }
 
-  const field = "w-full px-4 py-3 rounded-xl border border-gray-200 text-[15px] bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const field = "w-full px-4 py-3 rounded-xl border border-gray-200 text-[15px] bg-white focus:outline-none focus:ring-2 focus:ring-[#3cac3b]";
   const label = "block text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-1.5";
 
   return (
@@ -103,7 +103,7 @@ export default function ApplyForm() {
       </p>
 
       <button onClick={submit} disabled={status === "sending"}
-        className="mt-5 w-full sm:w-auto px-6 py-3 rounded-xl bg-blue-600 text-white text-[15px] font-bold hover:bg-blue-700 disabled:opacity-60 transition-colors">
+        className="mt-5 w-full sm:w-auto px-6 py-3 rounded-xl bg-[#3cac3b] text-white text-[15px] font-bold hover:bg-[#2e8e2d] disabled:opacity-60 transition-colors">
         {status === "sending" ? "Sending…" : "Submit application"}
       </button>
     </div>

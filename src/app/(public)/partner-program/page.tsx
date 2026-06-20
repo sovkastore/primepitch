@@ -23,7 +23,7 @@ async function programOpen(): Promise<boolean> {
 function Step({ n, title, body }: { n: string; title: string; body: string }) {
   return (
     <div className="relative rounded-2xl border border-gray-200 bg-white p-6">
-      <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-[15px] font-black">{n}</div>
+      <div className="w-9 h-9 rounded-full bg-[#3cac3b] text-white flex items-center justify-center text-[15px] font-black">{n}</div>
       <h3 className="mt-4 text-[17px] font-black text-gray-900">{title}</h3>
       <p className="mt-1.5 text-[14px] text-gray-500 leading-relaxed">{body}</p>
     </div>
@@ -37,16 +37,16 @@ export default async function PartnerProgramPage() {
     <div className="bg-white">
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-white" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#3cac3b]/10 to-white" />
         <div className="relative max-w-[1100px] mx-auto px-4 lg:px-6 pt-14 pb-12 sm:pt-20 sm:pb-16 text-center">
-          <span className="inline-block text-[12px] font-black tracking-[0.2em] text-blue-600 uppercase">PrimePitch Partners</span>
+          <span className="inline-block text-[12px] font-black tracking-[0.2em] text-[#3cac3b] uppercase">PrimePitch Partners</span>
           <h1 className="mt-4 text-[34px] sm:text-[52px] leading-[1.05] font-black text-gray-900">
             Bring the match.<br />Earn from every viewer.
           </h1>
           <p className="mt-5 text-[16px] sm:text-[18px] text-gray-600 max-w-2xl mx-auto leading-relaxed">
             You already have an audience that loves football. Send them to PrimePitch for free live streams — and get paid for the people who watch.
           </p>
-          <a href="#apply" className="mt-8 inline-block px-7 py-3.5 rounded-xl bg-blue-600 text-white text-[15px] font-bold hover:bg-blue-700 transition-colors">
+          <a href="#apply" className="mt-8 inline-block px-7 py-3.5 rounded-xl bg-[#3cac3b] text-white text-[15px] font-bold hover:bg-[#2e8e2d] transition-colors">
             Apply to join
           </a>
         </div>
@@ -97,7 +97,7 @@ export default async function PartnerProgramPage() {
               "Works on any phone or laptop.",
             ].map((t) => (
               <li key={t} className="flex items-start gap-3 text-[15px] text-gray-700">
-                <span className="mt-1 text-blue-600 font-black">✓</span><span>{t}</span>
+                <span className="mt-1 text-[#3cac3b] font-black">✓</span><span>{t}</span>
               </li>
             ))}
           </ul>
@@ -111,7 +111,7 @@ export default async function PartnerProgramPage() {
               "Twice-monthly payouts in Bitcoin.",
             ].map((t) => (
               <li key={t} className="flex items-start gap-3 text-[15px] text-gray-700">
-                <span className="mt-1 text-blue-600 font-black">✓</span><span>{t}</span>
+                <span className="mt-1 text-[#3cac3b] font-black">✓</span><span>{t}</span>
               </li>
             ))}
           </ul>

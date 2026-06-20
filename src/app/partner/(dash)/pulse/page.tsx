@@ -17,7 +17,7 @@ export default function PartnerPulse() {
     <div className="max-w-5xl mx-auto">
       <h1 className="text-xl font-black text-gray-900">Pulse</h1>
       <p className="text-[13px] text-gray-400 font-medium mt-0.5 mb-5">
-        Live, right now. <span className="text-blue-600 font-bold">Blue = me</span> (the people you brought). Only people on a genuinely-live match count as &ldquo;watching live.&rdquo;
+        Live, right now. <span className="text-[#3cac3b] font-bold">Blue = me</span> (the people you brought). Only people on a genuinely-live match count as &ldquo;watching live.&rdquo;
       </p>
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
       {loading && !data ? (

@@ -13,7 +13,7 @@ export default function BreakdownList({ title, rows, empty }: { title: string; r
               <span className="text-gray-700 truncate min-w-0">{r.label}</span>
               <span className="tabular-nums shrink-0">
                 <span className="font-bold text-gray-900">{r.total.toLocaleString()}</span>
-                <span className="text-blue-600 font-semibold ml-2">{r.his.toLocaleString()}</span>
+                <span className="text-[#3cac3b] font-semibold ml-2">{r.his.toLocaleString()}</span>
               </span>
             </div>
           ))}

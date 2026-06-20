@@ -39,7 +39,7 @@ export default function PartnerLogin() {
       <div className="w-full max-w-sm bg-white rounded-2xl border border-gray-200 p-6 sm:p-8">
         <div className="flex items-center gap-2 mb-1">
           <span className="font-black text-gray-900 text-lg tracking-tight">PrimePitch</span>
-          <span className="text-[9px] font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">PARTNER</span>
+          <span className="text-[9px] font-bold text-[#3cac3b] bg-[#3cac3b]/10 px-1.5 py-0.5 rounded">PARTNER</span>
         </div>
         <p className="text-[13px] text-gray-400 font-medium mb-6">Sign in to your partner dashboard</p>
 
@@ -48,7 +48,7 @@ export default function PartnerLogin() {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#3cac3b]"
           placeholder="you@example.com"
         />
 
@@ -58,7 +58,7 @@ export default function PartnerLogin() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#3cac3b]"
           placeholder="••••••••"
         />
 
@@ -67,7 +67,7 @@ export default function PartnerLogin() {
         <button
           onClick={submit}
           disabled={loading}
-          className="w-full py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60 transition-colors"
+          className="w-full py-2.5 rounded-xl bg-[#3cac3b] text-white text-sm font-bold hover:bg-[#2e8e2d] disabled:opacity-60 transition-colors"
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>

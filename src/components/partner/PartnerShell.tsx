@@ -43,7 +43,7 @@ export default function PartnerShell({
       >
         <div className="h-14 flex items-center px-5 border-b border-gray-100">
           <span className="font-black text-gray-900 tracking-tight">PrimePitch</span>
-          <span className="ml-2 text-[9px] font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">PARTNER</span>
+          <span className="ml-2 text-[9px] font-bold text-[#3cac3b] bg-[#3cac3b]/10 px-1.5 py-0.5 rounded">PARTNER</span>
         </div>
         <nav className="p-3 space-y-0.5">
           {NAV.map((item) => (
@@ -53,7 +53,7 @@ export default function PartnerShell({
               onClick={() => setOpen(false)}
               className={`block px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-colors ${
                 isActive(item.href)
-                  ? "bg-blue-50 text-blue-600"
+                  ? "bg-[#3cac3b]/10 text-[#3cac3b]"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
               }`}
             >

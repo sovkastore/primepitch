@@ -20,10 +20,10 @@ export function SplitStat({ label, data, hint, mine, solo }: { label: string; da
       <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase">{label}</p>
       <p className="text-2xl sm:text-3xl font-black mt-2 tabular-nums text-gray-900">{d.total.toLocaleString()}</p>
       {solo ? (
-        <div className="mt-2 text-[12px] font-bold text-blue-600">your visitors</div>
+        <div className="mt-2 text-[12px] font-bold text-[#3cac3b]">your visitors</div>
       ) : (
         <div className="flex items-center gap-2.5 mt-2 text-[12px] font-bold">
-          <span className="text-blue-600">{d.his.toLocaleString()} {blueLabel}</span>
+          <span className="text-[#3cac3b]">{d.his.toLocaleString()} {blueLabel}</span>
           <span className="text-gray-300">•</span>
           <span className="text-gray-500">{d.yours.toLocaleString()} {greyLabel}</span>
         </div>
@@ -44,7 +44,7 @@ export function SplitInline({ data }: { data?: Partial<Split> }) {
   return (
     <span className="tabular-nums">
       <span className="text-gray-900 font-bold">{d.total.toLocaleString()}</span>
-      <span className="text-blue-600 font-semibold ml-2">{d.his.toLocaleString()}</span>
+      <span className="text-[#3cac3b] font-semibold ml-2">{d.his.toLocaleString()}</span>
       <span className="text-gray-400 ml-1.5">/ {d.yours.toLocaleString()}</span>
     </span>
   );

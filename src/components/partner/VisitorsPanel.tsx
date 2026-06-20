@@ -32,15 +32,15 @@ export default function VisitorsPanel({ data, mine }: { data: VisitorsData | nul
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <p className="text-2xl font-black text-gray-900 tabular-nums">{total.toLocaleString()}</p>
-            <p className="text-[10px] text-gray-400">total visitors · <span className="text-blue-600 font-bold">{(data?.totalVisitors?.his || 0).toLocaleString()} {blue}</span></p>
+            <p className="text-[10px] text-gray-400">total visitors · <span className="text-[#3cac3b] font-bold">{(data?.totalVisitors?.his || 0).toLocaleString()} {blue}</span></p>
           </div>
           <div>
             <p className="text-2xl font-black text-gray-900 tabular-nums">{cb.toLocaleString()}</p>
-            <p className="text-[10px] text-gray-400">came back another day · <span className="text-blue-600 font-bold">{(data?.cameBack?.his || 0).toLocaleString()} {blue}</span></p>
+            <p className="text-[10px] text-gray-400">came back another day · <span className="text-[#3cac3b] font-bold">{(data?.cameBack?.his || 0).toLocaleString()} {blue}</span></p>
           </div>
           <div>
             <p className="text-2xl font-black text-gray-900 tabular-nums">{(data?.oneTime?.total || 0).toLocaleString()}</p>
-            <p className="text-[10px] text-gray-400">visited one day only · <span className="text-blue-600 font-bold">{(data?.oneTime?.his || 0).toLocaleString()} {blue}</span></p>
+            <p className="text-[10px] text-gray-400">visited one day only · <span className="text-[#3cac3b] font-bold">{(data?.oneTime?.his || 0).toLocaleString()} {blue}</span></p>
           </div>
         </div>
       </div>
@@ -88,7 +88,7 @@ export default function VisitorsPanel({ data, mine }: { data: VisitorsData | nul
             <tbody className="divide-y divide-gray-100">
               {roster.map((r) => (
                 <tr key={r.visitor_id}>
-                  <td className="px-3 py-2.5 font-mono text-[12px] text-blue-600">{r.visitor_id}…</td>
+                  <td className="px-3 py-2.5 font-mono text-[12px] text-[#3cac3b]">{r.visitor_id}…</td>
                   <td className="px-3 py-2.5 text-gray-600">{fmt(r.first_seen)}</td>
                   <td className="px-3 py-2.5 text-gray-600">{fmt(r.last_seen)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-bold text-gray-900">{r.visit_count}</td>

@@ -78,7 +78,7 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
   const blue = mine ? "me" : "his";
   const grey = mine ? "others" : "yours";
   const tab = (active: boolean) =>
-    `px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${active ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`;
+    `px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${active ? "bg-[#3cac3b] text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`;
 
   return (
     <>
@@ -127,7 +127,7 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
                       <div className="text-[10px] text-gray-400 mt-0.5">
                         {m.liveTotal} watched live · {m.preTotal} before kickoff
                         {(m.liveHis + m.preHis) > 0 && (
-                          <span className="text-blue-600 ml-1">· {m.liveHis}/{m.preHis} {blue}</span>
+                          <span className="text-[#3cac3b] ml-1">· {m.liveHis}/{m.preHis} {blue}</span>
                         )}
                       </div>
                     )}
@@ -141,14 +141,14 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     <div>
                       <span className="font-bold text-gray-900">{m.viewsTotal}</span>
-                      <span className="text-blue-600 font-semibold ml-2">{m.viewsHis}</span>
+                      <span className="text-[#3cac3b] font-semibold ml-2">{m.viewsHis}</span>
                       <span className="text-gray-400 ml-1.5">/ {m.viewsYours}</span>
                     </div>
                     <div className="text-[9px] text-gray-400 mt-0.5">{m.liveViews} live · {m.preViews} pre</div>
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     <span className="font-bold text-gray-900">{m.uniqueTotal}</span>
-                    <span className="text-blue-600 font-semibold ml-2">{m.uniqueHis}</span>
+                    <span className="text-[#3cac3b] font-semibold ml-2">{m.uniqueHis}</span>
                     <span className="text-gray-400 ml-1.5">/ {m.uniqueYours}</span>
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
@@ -157,7 +157,7 @@ export default function MatchesPanel({ src, mine, compare = "all" }: { src: stri
                     ) : (
                       <>
                         <span className="font-bold text-gray-900">{m.peakTotal}</span>
-                        <span className="text-blue-600 font-semibold ml-2">{m.peakHis}</span>
+                        <span className="text-[#3cac3b] font-semibold ml-2">{m.peakHis}</span>
                         <span className="text-gray-400 ml-1.5">/ {m.peakYours}</span>
                       </>
                     )}

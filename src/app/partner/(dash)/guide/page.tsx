@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 const ENTRIES: { term: string; desc: string }[] = [
-  { term: "Me / Others / Total", desc: "Every number is split three ways. 'Me' (shown in blue) is the people who first arrived through your referral link. 'Others' is everyone else on PrimePitch. 'Total' (the big number) is both combined." },
+  { term: "Me / Others / Total", desc: "Every number is split three ways. 'Me' (shown in green) is the people who first arrived through your referral link. 'Others' is everyone else on PrimePitch. 'Total' (the big number) is both combined." },
   { term: "Referred member", desc: "Anyone whose very first visit to the site came through your link. Once tagged to you, they stay yours forever — even if they come back later by typing the address directly." },
   { term: "Online now", desc: "People active on the site in the last few minutes — anywhere, not only on a match." },
   { term: "Watching live now", desc: "People who are on a match page right now." },
@@ -37,7 +37,7 @@ export default function PartnerGuide() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search… e.g. peak, returned, unique"
-        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-[#3cac3b]"
       />
       <div className="space-y-2.5">
         {filtered.map((e) => (

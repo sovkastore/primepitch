@@ -70,12 +70,12 @@ export default function PulsePanel({ data, mine }: { data: PulseData | null; min
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{m.title}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     <span className="font-bold text-gray-900">{m.total}</span>
-                    <span className="text-blue-600 font-semibold ml-2">{m.his}</span>
+                    <span className="text-[#3cac3b] font-semibold ml-2">{m.his}</span>
                     <span className="text-gray-400 ml-1.5">/ {m.yours}</span>
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     <span className="font-bold text-gray-900">{m.peakTotal}</span>
-                    <span className="text-blue-600 font-semibold ml-2">{m.peakHis}</span>
+                    <span className="text-[#3cac3b] font-semibold ml-2">{m.peakHis}</span>
                     <span className="text-gray-400 ml-1.5">/ {m.peakYours}</span>
                   </td>
                 </tr>
@@ -103,7 +103,7 @@ export default function PulsePanel({ data, mine }: { data: PulseData | null; min
                   <td className="px-3 py-2.5 text-gray-700 truncate max-w-[240px]">{pageLabel(p.path)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     <span className="font-bold text-gray-900">{p.total}</span>
-                    <span className="text-blue-600 font-semibold ml-2">{p.his}</span>
+                    <span className="text-[#3cac3b] font-semibold ml-2">{p.his}</span>
                     <span className="text-gray-400 ml-1.5">/ {p.yours}</span>
                   </td>
                 </tr>

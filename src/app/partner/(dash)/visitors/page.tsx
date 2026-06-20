@@ -14,7 +14,7 @@ export default function PartnerVisitors() {
     <div className="max-w-5xl mx-auto">
       <h1 className="text-xl font-black text-gray-900">Visitors</h1>
       <p className="text-[13px] text-gray-400 font-medium mt-0.5 mb-4">
-        People for a day, plus lifetime &amp; trend. <span className="text-blue-600 font-bold">Blue = me</span>. Days are UTC.
+        People for a day, plus lifetime &amp; trend. <span className="text-[#3cac3b] font-bold">Blue = me</span>. Days are UTC.
       </p>
       <DayPicker date={date} onChange={(d) => setDate(d || today)} />
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
