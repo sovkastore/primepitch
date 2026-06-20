@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import Logo from "@/components/Logo";
 
 const NAV = [
   { label: "Overview", href: "/partner", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" },
@@ -11,6 +12,7 @@ const NAV = [
   { label: "Visitors", href: "/partner/visitors", icon: "M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-9a4 4 0 11-8 0 4 4 0 018 0zm6 3a3 3 0 11-6 0 3 3 0 016 0z" },
   { label: "Pulse", href: "/partner/pulse", icon: "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" },
   { label: "Payouts", href: "/partner/payouts", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
+  { label: "History", href: "/partner/history", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
   { label: "Support", href: "/partner/support", icon: "M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" },
   { label: "Guide", href: "/partner/guide", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
 ];
@@ -63,8 +65,7 @@ export default function PartnerShell({
         }`}
       >
         <div className="h-14 flex items-center gap-2 px-4 border-b border-gray-100 shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#3cac3b] to-[#22c55e] flex items-center justify-center text-white font-black text-sm shrink-0">P</div>
-          <span className="font-black text-gray-900 tracking-tight">PrimePitch</span>
+          <Logo size="sm" />
           <span className="text-[9px] font-bold text-[#3cac3b] bg-[#3cac3b]/10 px-1.5 py-0.5 rounded">PARTNER</span>
         </div>
 
@@ -132,7 +133,7 @@ export default function PartnerShell({
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-bold text-red-700">A payout of {money(f.amount)} couldn’t be sent</p>
                     <p className="text-[12px] text-red-600 mt-0.5">{f.reason}</p>
-                    <a href="/partner/payouts" className="text-[12px] font-bold text-red-700 underline mt-1 inline-block">Check your payout details</a>
+                    <Link href="/partner/payouts" className="text-[12px] font-bold text-red-700 underline mt-1 inline-block">Check your payout details</Link>
                   </div>
                   <button onClick={() => setDismissed((d) => [...d, f.id])} className="text-red-400 hover:text-red-600 shrink-0" aria-label="Dismiss">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>

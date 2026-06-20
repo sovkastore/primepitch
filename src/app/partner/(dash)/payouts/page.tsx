@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 const money = (v: unknown) => "$" + (Number(v) || 0).toFixed(2);
 
@@ -13,14 +14,6 @@ const CURRENCIES: { id: string; label: string }[] = [
 ];
 const curLabel = (id?: string | null) => CURRENCIES.find((c) => c.id === id)?.label || id || "—";
 
-const STATUS: Record<string, { label: string; cls: string }> = {
-  in_progress: { label: "In progress", cls: "bg-amber-50 text-amber-700" },
-  sent: { label: "Sent", cls: "bg-violet-50 text-violet-700" },
-  completed: { label: "Completed", cls: "bg-[#3cac3b]/10 text-[#3cac3b]" },
-  failed: { label: "Failed", cls: "bg-red-50 text-red-600" },
-};
-const statusMeta = (s?: string) => STATUS[s || ""] || { label: s || "—", cls: "bg-gray-100 text-gray-500" };
-
 interface Payout {
   id: string; amount: number; currency: string | null; from_address: string | null; to_address: string | null;
   status: string; proof_link: string | null; proof_image: string | null; note: string | null; fail_reason: string | null; created_at: string;
@@ -31,12 +24,9 @@ interface PaymentsData {
   payouts: Payout[];
 }
 
-const short = (a?: string | null) => (!a ? "—" : a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a);
-const fmtDate = (iso: string) => { try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; } };
 
 export default function PartnerPayouts() {
   const [data, setData] = useState<PaymentsData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [currency, setCurrency] = useState("");
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState(false);
@@ -51,7 +41,7 @@ export default function PartnerPayouts() {
         setCurrency((c) => c || j.method?.currency || "");
         setAddress((a) => a || j.method?.address || "");
       }
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch { /* ignore */ }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -72,7 +62,6 @@ export default function PartnerPayouts() {
   }
 
   const b = data?.balances;
-  const payouts = data?.payouts ?? [];
   const tiles: { v: unknown; l: string; muted?: boolean }[] = [
     { v: b?.balance, l: "Balance" },
     { v: b?.hold, l: "On hold" },
@@ -84,7 +73,7 @@ export default function PartnerPayouts() {
     <div className="max-w-3xl mx-auto">
       <h1 className="text-xl font-black text-gray-900">Payouts</h1>
       <p className="text-[13px] text-gray-400 font-medium mt-0.5 mb-4">
-        Set the wallet we pay you to, and track your payment history.
+        Set the wallet we pay you to, and see how payouts work.
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
@@ -134,45 +123,15 @@ export default function PartnerPayouts() {
         </ul>
       </div>
 
-      <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider mb-2">Payment history</p>
-      {loading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
-      ) : payouts.length === 0 ? (
-        <p className="text-sm text-gray-400">No payments yet. When we pay you, it’ll show up here.</p>
-      ) : (
-        <div className="space-y-2">
-          {payouts.map((p) => {
-            const st = statusMeta(p.status);
-            return (
-              <div key={p.id} className="bg-white rounded-2xl border border-gray-200 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[17px] font-black text-gray-900 tabular-nums">{money(p.amount)}</p>
-                    <p className="text-[11px] text-gray-400">{curLabel(p.currency)} · {fmtDate(p.created_at)}</p>
-                  </div>
-                  <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${st.cls}`}>{st.label}</span>
-                </div>
-                {(p.from_address || p.to_address) && (
-                  <p className="text-[11px] text-gray-400 font-mono mt-2 break-all">{short(p.from_address)} → {short(p.to_address)}</p>
-                )}
-                {p.note && <p className="text-[12px] text-gray-500 mt-1">{p.note}</p>}
-                {p.status === "failed" && p.fail_reason && (
-                  <div className="mt-2 bg-red-50 border border-red-200 rounded-xl p-2.5">
-                    <p className="text-[12px] font-bold text-red-700">Why this failed</p>
-                    <p className="text-[12px] text-red-600 mt-0.5">{p.fail_reason}</p>
-                  </div>
-                )}
-                {(p.proof_link || p.proof_image) && (
-                  <div className="flex items-center gap-4 mt-2">
-                    {p.proof_link && <a href={p.proof_link} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-[#3cac3b] hover:underline">View transaction ↗</a>}
-                    {p.proof_image && <a href={p.proof_image} target="_blank" rel="noopener noreferrer" className="text-[12px] font-bold text-[#3cac3b] hover:underline">View screenshot ↗</a>}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+      <Link href="/partner/history" className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-gray-200 p-4 hover:border-[#3cac3b]/40 transition-colors">
+        <div>
+          <p className="text-[13px] font-black text-gray-700">Payment history</p>
+          <p className="text-[12px] text-gray-400">See every payout, status, address and proof in detail.</p>
         </div>
-      )}
+        <svg className="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </Link>
     </div>
   );
 }

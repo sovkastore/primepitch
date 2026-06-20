@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     let payouts: unknown[] = [];
     if (bal.partnerId) {
       const { data } = await getSupabaseAdmin().from("partner_payouts")
-        .select("id, amount, currency, from_address, to_address, status, proof_link, proof_image, note, created_at")
+        .select("id, amount, currency, from_address, to_address, status, proof_link, proof_image, note, fail_reason, created_at")
         .eq("partner_id", bal.partnerId)
         .order("created_at", { ascending: false });
       payouts = data ?? [];
