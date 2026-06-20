@@ -47,6 +47,7 @@ export default function Navbar() {
   const [sportsOpen, setSportsOpen] = useState(false);
   const [socials, setSocials] = useState<PublicSocial[]>([]);
   const [socialsLoaded, setSocialsLoaded] = useState(false);
+  const [affiliate, setAffiliate] = useState(false);
 
   // Fetch the admin-managed connect links the first time the menu opens —
   // no request on page load, only when someone actually opens the menu.
@@ -57,6 +58,10 @@ export default function Navbar() {
       .then((d) => setSocials(Array.isArray(d.links) ? d.links : []))
       .catch(() => {})
       .finally(() => setSocialsLoaded(true));
+    fetch("/api/partner-program/status", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setAffiliate(d?.open === true))
+      .catch(() => {});
   }, [mobileOpen, socialsLoaded]);
 
   return (
@@ -123,6 +128,23 @@ export default function Navbar() {
               </span>
               <svg className="shrink-0 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
             </Link>
+
+            {affiliate && (
+              <Link
+                href="/partner-program"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 p-3 rounded-2xl border border-[#3cac3b]/20 bg-[#3cac3b]/5 hover:bg-[#3cac3b]/10 transition-colors"
+              >
+                <span className="shrink-0 w-10 h-10 rounded-xl bg-white grid place-items-center text-[#3cac3b] shadow-sm">
+                  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[15px] font-bold text-gray-900 leading-tight">Affiliate Program</span>
+                  <span className="block text-[12px] text-[#3cac3b]/80">Earn from the traffic you send</span>
+                </span>
+                <svg className="shrink-0 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            )}
 
             <div className="h-px bg-gray-100 my-2.5" />
 

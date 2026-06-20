@@ -96,6 +96,7 @@ export default function PartnersAdmin() {
   const [amtMin, setAmtMin] = useState("");
   const [amtMax, setAmtMax] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -138,7 +139,7 @@ export default function PartnersAdmin() {
   async function createPartner() {
     if (busy) return;
     const ok = await post({ create: true, name, code, email, password, active: true }, `Added ${name || code}.`);
-    if (ok) { setName(""); setCode(""); setEmail(""); setPassword(""); }
+    if (ok) { setName(""); setCode(""); setEmail(""); setPassword(""); setShowAdd(false); }
   }
 
   // ---- master switches ----
@@ -421,32 +422,42 @@ export default function PartnersAdmin() {
       )}
 
       {/* Add new */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 mb-6">
-        <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider mb-3">Add a partner</p>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Name</label>
-            <input className={field} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Gims" />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Referral code (their link)</label>
-            <input className={field} value={code} onChange={(e) => setCode(e.target.value.toLowerCase())} placeholder="e.g. gims" />
-            {code && <p className="text-[11px] text-gray-400 mt-1 font-mono">{SITE}/{code}</p>}
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Login email</label>
-            <input className={field} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="partner@example.com" />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Login password</label>
-            <input className={field} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="at least 4 characters" />
-          </div>
-        </div>
-        <button onClick={createPartner} disabled={busy}
-          className="mt-4 px-5 py-2.5 rounded-xl bg-[#3cac3b] text-white text-sm font-bold hover:bg-[#2e8e2d] disabled:opacity-60 transition-colors">
-          {busy ? "Saving\u2026" : "Add partner"}
+      {!showAdd ? (
+        <button onClick={() => setShowAdd(true)}
+          className="mb-6 px-5 py-2.5 rounded-xl bg-[#3cac3b] text-white text-sm font-bold hover:bg-[#2e8e2d] transition-colors">
+          + Add a partner
         </button>
-      </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider">Add a partner</p>
+            <button onClick={() => setShowAdd(false)} className="text-[12px] font-bold text-gray-400 hover:text-gray-700">Cancel</button>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Name</label>
+              <input className={field} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Gims" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Referral code (their link)</label>
+              <input className={field} value={code} onChange={(e) => setCode(e.target.value.toLowerCase())} placeholder="e.g. gims" />
+              {code && <p className="text-[11px] text-gray-400 mt-1 font-mono">{SITE}/{code}</p>}
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Login email</label>
+              <input className={field} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="partner@example.com" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Login password</label>
+              <input className={field} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="at least 4 characters" />
+            </div>
+          </div>
+          <button onClick={createPartner} disabled={busy}
+            className="mt-4 px-5 py-2.5 rounded-xl bg-[#3cac3b] text-white text-sm font-bold hover:bg-[#2e8e2d] disabled:opacity-60 transition-colors">
+            {busy ? "Saving\u2026" : "Add partner"}
+          </button>
+        </div>
+      )}
 
       {/* Existing partners */}
       <div className="flex items-center justify-between mb-2">
