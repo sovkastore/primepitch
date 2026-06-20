@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
@@ -100,7 +100,7 @@ type Fmt = {
   [k: string]: unknown;
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const { data } = await getSupabaseAdmin()
       .from("site_settings")
@@ -134,6 +134,41 @@ export async function GET() {
         // no mode -> leave the stored enabled as-is
       }
     }
+
+    // ---- Partner popunder swap (manual switch: partner_ads) ----
+    // When ON, a referred visitor's popunder runs THAT partner's own Monetag
+    // zone instead of the house zone. Push + vignette stay house for everyone.
+    try {
+      const ref = request.cookies.get("pp_ref")?.value?.trim().toLowerCase();
+      if (cfg.master && ref) {
+        const sb = getSupabaseAdmin();
+        const { data: ad } = await sb
+          .from("site_settings").select("value").eq("key", "partner_ads").maybeSingle();
+        if (ad?.value === true || ad?.value === "true") {
+          const { data: partner } = await sb
+            .from("partners")
+            .select("id, active, banned, partner_zones(zone_id, full_tag, format)")
+            .eq("code", ref)
+            .maybeSingle();
+          const pr = partner as
+            | { id: string; active: boolean; banned: boolean; partner_zones?: Array<{ zone_id: string; full_tag: string | null; format: string }> }
+            | null;
+          if (pr && pr.active && !pr.banned) {
+            const zone = (pr.partner_zones || []).find((z) => z.format === "popunder");
+            const target = formats["monetag_popunder"] as ({ enabled?: boolean; zone?: string; src?: string } & Fmt) | undefined;
+            if (zone?.zone_id && target && target.enabled) {
+              target.zone = zone.zone_id;
+              if (zone.full_tag) {
+                const sm = String(zone.full_tag).match(/src=["']?([^"'\s>]+)/i);
+                const zm = String(zone.full_tag).match(/data-zone=["']?([^"'\s>]+)/i);
+                if (sm) target.src = sm[1];
+                if (zm) target.zone = zm[1];
+              }
+            }
+          }
+        }
+      }
+    } catch { /* swap is best-effort; fall back to house ad */ }
 
     return NextResponse.json(cfg);
   } catch {
