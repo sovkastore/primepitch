@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Analytics from "@/components/Analytics";
 
 interface PPVEvent { id: number; name: string; category: string; poster?: string }
 interface Embed { embedUrl: string; server: string }
@@ -112,6 +113,7 @@ export default function PpvPage() {
   return (
     <main style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" }}>
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "18px 14px 60px" }}>
+        <Analytics />
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "2px 0 4px" }}>Live Streams</h1>
         <p style={{ color: C.dim, fontSize: 14, margin: "0 0 16px" }}>
           Live football and more, from an independent source. Tap any event to watch.
