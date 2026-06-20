@@ -14,7 +14,10 @@ function domainOf(u: string): string {
   try { return new URL(u).hostname; } catch { return u; }
 }
 function isFootball(cat: string): boolean {
-  return /foot|soccer/i.test(cat || "");
+  // PPV labels real football "Football"; keep "American Football" and
+  // "Australian Football" out of this featured section (exact match only).
+  const c = (cat || "").trim().toLowerCase();
+  return c === "football" || c === "soccer";
 }
 
 function Card({ ev, active, onClick }: { ev: PPVEvent; active: boolean; onClick: () => void }) {
