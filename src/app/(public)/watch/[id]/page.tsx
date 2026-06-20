@@ -149,7 +149,6 @@ export default function WatchPage() {
   const [liveMatches, setLiveMatches] = useState<Match[]>([]);
   const [liveScore, setLiveScore] = useState<{ home: number; away: number; minute: number | null; period: string; league?: string | null } | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
-  const [showHint, setShowHint] = useState(true);
   const [gaveUp, setGaveUp] = useState(false);
   const [forceLive, setForceLive] = useState(false);
   const [autoLive, setAutoLive] = useState(false);
@@ -428,28 +427,10 @@ export default function WatchPage() {
   useEffect(() => {
     if (!currentStream?.embedUrl) return;
     setIframeLoaded(false);
-    setShowHint(true);
     const fallback = setTimeout(() => setIframeLoaded(true), 8000);
     return () => clearTimeout(fallback);
   }, [currentStream?.embedUrl]);
 
-  // Dismiss the "tap the player to start" cue once the user actually taps the
-  // player. We can't see inside the cross-origin iframe, but the first tap either
-  // focuses the iframe (desktop) or opens the source's ad pop-up which hides the
-  // tab (mobile) — both signal the user has engaged with the player.
-  useEffect(() => {
-    if (!iframeLoaded || !showHint) return;
-    const onBlur = () => {
-      if (document.activeElement?.tagName === "IFRAME") setShowHint(false);
-    };
-    const onVisibility = () => { if (document.hidden) setShowHint(false); };
-    window.addEventListener("blur", onBlur);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.removeEventListener("blur", onBlur);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [iframeLoaded, showHint]);
 
   // Live → streamable live matches of the same sport; upcoming → time-based related.
   const relatedToShow = isLive
@@ -521,6 +502,19 @@ export default function WatchPage() {
 
       {/* Video player (live) OR Match card (upcoming) */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
+        {!isEnded && !isUpcoming && (
+          <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
+            <svg className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clipRule="evenodd" />
+            </svg>
+            <div className="min-w-0">
+              <p className="text-[12.5px] font-bold text-gray-900 leading-snug">Give the stream a moment to load.</p>
+              <p className="text-[11.5px] text-gray-600 leading-snug mt-0.5">Depending on your region, the player can take a little time to appear. Please wait and don&apos;t tap anything until the video shows. Still blank after a while?{" "}
+                <Link href="/help" className="font-semibold text-emerald-700 underline underline-offset-2 whitespace-nowrap">Can&apos;t watch? →</Link>
+              </p>
+            </div>
+          </div>
+        )}
         {isEnded ? (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
@@ -645,23 +639,11 @@ export default function WatchPage() {
                   <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black px-6 text-center">
                     <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                     <div>
-                      <p className="text-sm font-semibold text-gray-200">Connecting to stream…</p>
-                      <p className="text-[11px] text-gray-500 mt-1">This only takes a moment</p>
+                      <p className="text-sm font-semibold text-gray-200">Please wait — don&apos;t tap until the player appears.</p>
                     </div>
                   </div>
                 )}
 
-                {/* "Tap to play" cue — non-blocking, auto-fades */}
-                {iframeLoaded && showHint && (
-                  <div className="absolute inset-x-0 top-3 z-10 flex justify-center pointer-events-none">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur text-[11px] font-semibold text-white shadow-lg">
-                      <svg className="w-3 h-3 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                      </svg>
-                      Tap the player to start
-                    </span>
-                  </div>
-                )}
                 <PreRollGate streamKey={currentStream.embedUrl} />
               </>
             ) : liveScore?.period === "HT" ? (

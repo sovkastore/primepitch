@@ -129,6 +129,22 @@ export default function Navbar() {
               <svg className="shrink-0 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
             </Link>
 
+            {/* Can't watch? — streaming help */}
+            <Link
+              href="/help"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 p-3 rounded-2xl border border-gray-100 bg-white hover:bg-gray-50 transition-colors"
+            >
+              <span className="shrink-0 w-10 h-10 rounded-xl bg-gray-50 grid place-items-center text-emerald-600 shadow-sm">
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></svg>
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[15px] font-bold text-gray-900 leading-tight">Can&apos;t watch?</span>
+                <span className="block text-[12px] text-gray-500">Stream not loading — get help</span>
+              </span>
+              <svg className="shrink-0 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+            </Link>
+
             {affiliate && (
               <Link
                 href="/partner-program"
