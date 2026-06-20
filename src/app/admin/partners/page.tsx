@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ChangeEvent } from "react";
 
 interface Zone { id: string; zone_id: string; label?: string | null; format: string; full_tag?: string | null }
 interface Partner {
@@ -138,7 +138,7 @@ export default function PartnersAdmin() {
   }
 
   // ---- CSV import ----
-  async function onCsv(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onCsv(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
