@@ -78,7 +78,7 @@ export default function HomePage() {
         const results = await Promise.all(
           SPORTS.map(async (sport) => {
             try {
-              const res = await fetch(`/api/matches?sport=${sport}`, { signal: AbortSignal.timeout(12000) });
+              const res = await fetch(`https://streamed.pk/api/matches/${sport}`);
               const data = await res.json();
               return data.map((m: Match) => ({ ...m, category: sport }));
             } catch {
