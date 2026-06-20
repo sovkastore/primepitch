@@ -65,80 +65,6 @@ export default function HelpPage() {
         </div>
       </div>
 
-      {/* What you might see */}
-      <section className="mt-9">
-        <h2 className="text-lg font-black text-gray-900">What you might be seeing</h2>
-        <p className="mt-1 text-[13.5px] text-gray-600">
-          Recognise either of these? Your connection is being blocked from the stream — the fix
-          below works.
-        </p>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <figure className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-            <img
-              src="/help-stuck-loading.jpg"
-              alt="Page stuck on Loading live matches"
-              loading="lazy"
-              className="w-full h-56 object-cover object-top bg-gray-50"
-            />
-            <figcaption className="p-3.5">
-              <p className="text-[13px] font-bold text-gray-900">Stuck on “Loading…”</p>
-              <p className="text-[12px] text-gray-500 mt-0.5">The page never finishes loading.</p>
-            </figcaption>
-          </figure>
-          <figure className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-            <img
-              src="/help-broken-player.jpg"
-              alt="Grey broken box where the video player should be"
-              loading="lazy"
-              className="w-full h-56 object-cover object-top bg-gray-50"
-            />
-            <figcaption className="p-3.5">
-              <p className="text-[13px] font-bold text-gray-900">A grey box, no video</p>
-              <p className="text-[12px] text-gray-500 mt-0.5">
-                Scores load, but the player can&apos;t.
-              </p>
-            </figcaption>
-          </figure>
-        </div>
-      </section>
-
-      {/* Why */}
-      <section className="mt-9">
-        <h2 className="text-lg font-black text-gray-900">Why this happens</h2>
-        <p className="mt-1.5 text-[13.5px] text-gray-700 leading-relaxed">
-          Some internet providers and countries block the servers that carry the live video.
-          Everything else on PrimePitch still works — which is exactly why you can see the match
-          list and scores, but the video won&apos;t play. The fix is to route your connection
-          through a region that isn&apos;t blocked.
-        </p>
-      </section>
-
-      {/* Quick fixes first */}
-      <section className="mt-9">
-        <h2 className="text-lg font-black text-gray-900">Quick things to try first</h2>
-        <ul className="mt-3 space-y-2.5">
-          {[
-            ["Try another source", "Tap a different option under “Choose stream”. Each one is a separate server — one may not be blocked."],
-            ["Refresh fully", "Wait a few seconds, then reload or reopen the match page."],
-            ["Switch network", "Flip between Wi-Fi and mobile data — one is sometimes less restricted."],
-            ["Change your DNS", "Set your phone’s DNS to 1.1.1.1 or 8.8.8.8."],
-          ].map(([t, d]) => (
-            <li key={t} className="flex items-start gap-3 rounded-xl border border-gray-100 bg-white p-3.5 shadow-sm">
-              <svg className="w-5 h-5 mt-0.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <div>
-                <p className="text-[13.5px] font-bold text-gray-900">{t}</p>
-                <p className="text-[12.5px] text-gray-600 mt-0.5">{d}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-[13px] text-gray-500">
-          Still stuck? The reliable fix is a VPN — set it up below. ↓
-        </p>
-      </section>
-
       {/* The reliable fix: VPN steps */}
       <section className="mt-9">
         <h2 className="text-lg font-black text-gray-900">The reliable fix: use a VPN</h2>
@@ -258,6 +184,80 @@ export default function HelpPage() {
             </div>
           </div>
         )}
+      </section>
+
+      {/* What you might see */}
+      <section className="mt-9">
+        <h2 className="text-lg font-black text-gray-900">What you might be seeing</h2>
+        <p className="mt-1 text-[13.5px] text-gray-600">
+          Recognise either of these? Your connection is being blocked from the stream — the fix
+          below works.
+        </p>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <figure className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+            <img
+              src="/help-stuck-loading.jpg"
+              alt="Page stuck on Loading live matches"
+              loading="lazy"
+              className="w-full h-56 object-cover object-top bg-gray-50"
+            />
+            <figcaption className="p-3.5">
+              <p className="text-[13px] font-bold text-gray-900">Stuck on “Loading…”</p>
+              <p className="text-[12px] text-gray-500 mt-0.5">The page never finishes loading.</p>
+            </figcaption>
+          </figure>
+          <figure className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+            <img
+              src="/help-broken-player.jpg"
+              alt="Grey broken box where the video player should be"
+              loading="lazy"
+              className="w-full h-56 object-cover object-top bg-gray-50"
+            />
+            <figcaption className="p-3.5">
+              <p className="text-[13px] font-bold text-gray-900">A grey box, no video</p>
+              <p className="text-[12px] text-gray-500 mt-0.5">
+                Scores load, but the player can&apos;t.
+              </p>
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      {/* Why */}
+      <section className="mt-9">
+        <h2 className="text-lg font-black text-gray-900">Why this happens</h2>
+        <p className="mt-1.5 text-[13.5px] text-gray-700 leading-relaxed">
+          Some internet providers and countries block the servers that carry the live video.
+          Everything else on PrimePitch still works — which is exactly why you can see the match
+          list and scores, but the video won&apos;t play. The fix is to route your connection
+          through a region that isn&apos;t blocked.
+        </p>
+      </section>
+
+      {/* Quick fixes first */}
+      <section className="mt-9">
+        <h2 className="text-lg font-black text-gray-900">Quick things to try first</h2>
+        <ul className="mt-3 space-y-2.5">
+          {[
+            ["Try another source", "Tap a different option under “Choose stream”. Each one is a separate server — one may not be blocked."],
+            ["Refresh fully", "Wait a few seconds, then reload or reopen the match page."],
+            ["Switch network", "Flip between Wi-Fi and mobile data — one is sometimes less restricted."],
+            ["Change your DNS", "Set your phone’s DNS to 1.1.1.1 or 8.8.8.8."],
+          ].map(([t, d]) => (
+            <li key={t} className="flex items-start gap-3 rounded-xl border border-gray-100 bg-white p-3.5 shadow-sm">
+              <svg className="w-5 h-5 mt-0.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <div>
+                <p className="text-[13.5px] font-bold text-gray-900">{t}</p>
+                <p className="text-[12.5px] text-gray-600 mt-0.5">{d}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-[13px] text-gray-500">
+          These are quick to try — but the VPN above is the fix that reliably works.
+        </p>
       </section>
 
       {/* Footer note */}
