@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   const [partnersRes, zonesRes, appsRes, settingsRes] = await Promise.all([
     sb.from("partners")
-      .select("id, code, name, email, active, suspended, banned, created_at, revenue_split, full_stats, earned_total, paid_total")
+      .select("id, code, name, email, active, suspended, banned, created_at, revenue_split, full_stats, earned_total, paid_total, payout_currency, payout_address")
       .order("created_at", { ascending: true }),
     sb.from("partner_zones").select("id, partner_id, zone_id, label, format, full_tag, gross_seen, last_impressions"),
     sb.from("partner_applications")
@@ -32,6 +32,23 @@ export async function GET(request: NextRequest) {
     sb.from("site_settings").select("key, value").in("key", ["partner_public_page", "partner_ads"]),
   ]);
 
+  const [balRes, payoutsRes] = await Promise.all([
+    sb.from("partner_balances").select("partner_id, earned, hold, paid, balance"),
+    sb.from("partner_payouts")
+      .select("id, partner_id, amount, currency, from_address, to_address, status, proof_link, proof_image, note, created_at")
+      .order("created_at", { ascending: false }),
+  ]);
+  const balByPartner: Record<string, { earned: number; hold: number; paid: number; balance: number }> = {};
+  for (const b of balRes.data ?? []) {
+    const r = b as { partner_id: string; earned: number; hold: number; paid: number; balance: number };
+    balByPartner[r.partner_id] = { earned: num(r.earned), hold: num(r.hold), paid: num(r.paid), balance: num(r.balance) };
+  }
+  const payoutsByPartner: Record<string, unknown[]> = {};
+  for (const po of payoutsRes.data ?? []) {
+    const pid = (po as { partner_id: string }).partner_id;
+    (payoutsByPartner[pid] ??= []).push(po);
+  }
+
   const zoneByPartner: Record<string, unknown[]> = {};
   for (const z of zonesRes.data ?? []) {
     const pid = (z as { partner_id: string }).partner_id;
@@ -39,10 +56,17 @@ export async function GET(request: NextRequest) {
   }
 
   const partners = (partnersRes.data ?? []).map((p) => {
-    const rec = p as { id: string; earned_total: number; paid_total: number };
-    const earned = num(rec.earned_total);
-    const paid = num(rec.paid_total);
-    return { ...p, earned_total: earned, paid_total: paid, balance: earned - paid, zones: zoneByPartner[rec.id] ?? [] };
+    const rec = p as { id: string; earned_total: number };
+    const bal = balByPartner[rec.id] ?? { earned: num(rec.earned_total), hold: 0, paid: 0, balance: num(rec.earned_total) };
+    return {
+      ...p,
+      earned_total: bal.earned,
+      hold: bal.hold,
+      paid_total: bal.paid,
+      balance: bal.balance,
+      zones: zoneByPartner[rec.id] ?? [],
+      payouts: payoutsByPartner[rec.id] ?? [],
+    };
   });
 
   const settings: Record<string, boolean> = { partner_public_page: false, partner_ads: false };
@@ -52,6 +76,7 @@ export async function GET(request: NextRequest) {
   }
 
   const totalBalance = partners.reduce((a, p) => a + (p.balance > 0 ? p.balance : 0), 0);
+  const totalHold = partners.reduce((a, p) => a + p.hold, 0);
   const totalPaid = partners.reduce((a, p) => a + p.paid_total, 0);
 
   return NextResponse.json({
@@ -62,6 +87,7 @@ export async function GET(request: NextRequest) {
       partnerCount: partners.length,
       pendingCount: (appsRes.data ?? []).length,
       totalBalance,
+      totalHold,
       totalPaid,
     },
   });
@@ -157,16 +183,58 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // ---- Record a BTC payout (Mark paid): balance -> paid ----
-    if (action === "markpaid") {
+    // ---- Record a payout. status drives the buckets (in_progress/sent = Hold, completed = Paid). ----
+    const PAYOUT_STATUSES = ["in_progress", "sent", "completed", "failed"];
+    if (action === "payout") {
       const partnerId = String(body.partner_id || "");
       const amount = num(body.amount);
       if (!partnerId) return NextResponse.json({ error: "partner required" }, { status: 400 });
       if (amount <= 0) return NextResponse.json({ error: "amount must be greater than 0" }, { status: 400 });
-      const { data, error } = await sb.rpc("partner_record_payout", { p_partner_id: partnerId, p_amount: amount, p_note: body.note ? String(body.note) : null });
+      const status = PAYOUT_STATUSES.includes(String(body.status)) ? String(body.status) : "in_progress";
+      let proofImage: string | null = null;
+      const img = typeof body.proof_image === "string" ? body.proof_image : "";
+      if (img.startsWith("data:image/")) {
+        try {
+          const m = img.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+          if (m) {
+            const mime = m[1];
+            const ext = mime.split("/")[1].replace("jpeg", "jpg").replace("svg+xml", "svg");
+            const bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0));
+            const path = `${partnerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+            const up = await sb.storage.from("payout-proofs").upload(path, bytes, { contentType: mime, upsert: false });
+            if (!up.error) proofImage = sb.storage.from("payout-proofs").getPublicUrl(path).data.publicUrl;
+          }
+        } catch { /* proof is optional — ignore upload failures */ }
+      }
+      const { error } = await sb.from("partner_payouts").insert({
+        partner_id: partnerId,
+        amount,
+        currency: body.currency ? String(body.currency) : null,
+        method: body.currency ? String(body.currency) : "crypto",
+        from_address: body.from_address ? String(body.from_address) : null,
+        to_address: body.to_address ? String(body.to_address) : null,
+        status,
+        note: body.note ? String(body.note) : null,
+        proof_link: body.proof_link ? String(body.proof_link) : null,
+        proof_image: proofImage,
+      });
       if (error) throw error;
-      const res = data as { error?: string } | null;
-      if (res?.error) return NextResponse.json({ error: res.error }, { status: 400 });
+      return NextResponse.json({ ok: true });
+    }
+    if (action === "payout_status") {
+      const id = String(body.payout_id || "");
+      const status = String(body.status || "");
+      if (!id) return NextResponse.json({ error: "payout id required" }, { status: 400 });
+      if (!PAYOUT_STATUSES.includes(status)) return NextResponse.json({ error: "invalid status" }, { status: 400 });
+      const { error } = await sb.from("partner_payouts").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
+      return NextResponse.json({ ok: true });
+    }
+    if (action === "payout_delete") {
+      const id = String(body.payout_id || "");
+      if (!id) return NextResponse.json({ error: "payout id required" }, { status: 400 });
+      const { error } = await sb.from("partner_payouts").delete().eq("id", id);
+      if (error) throw error;
       return NextResponse.json({ ok: true });
     }
 

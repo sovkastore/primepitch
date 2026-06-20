@@ -3,12 +3,17 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 
 interface Zone { id: string; zone_id: string; label?: string | null; format: string; full_tag?: string | null }
+interface Payout {
+  id: string; amount: number; currency: string | null; from_address: string | null; to_address: string | null;
+  status: string; proof_link: string | null; proof_image: string | null; note: string | null; created_at: string;
+}
 interface Partner {
   id: string; code: string; name: string; email: string;
   active: boolean; suspended: boolean; banned: boolean; created_at: string;
   revenue_split: number; full_stats: boolean;
-  earned_total: number; paid_total: number; balance: number;
-  zones: Zone[];
+  earned_total: number; paid_total: number; balance: number; hold: number;
+  payout_currency?: string | null; payout_address?: string | null;
+  zones: Zone[]; payouts: Payout[];
 }
 interface Application {
   id: string; name: string; email: string; country: string;
@@ -16,7 +21,7 @@ interface Application {
   status: string; created_at: string;
 }
 interface Settings { partner_public_page: boolean; partner_ads: boolean }
-interface Summary { partnerCount: number; pendingCount: number; totalBalance: number; totalPaid: number }
+interface Summary { partnerCount: number; pendingCount: number; totalBalance: number; totalHold: number; totalPaid: number }
 
 interface Confirm {
   title: string; body: string; confirmLabel: string; danger?: boolean;
@@ -26,6 +31,22 @@ interface Confirm {
 
 const SITE = "https://xellnetwork.xyz";
 const money = (n: number) => "$" + (Number(n) || 0).toFixed(2);
+
+const CRYPTO: { id: string; label: string }[] = [
+  { id: "usdt_trc20", label: "USDT · TRC20" },
+  { id: "usdt_erc20", label: "USDT · ERC20" },
+  { id: "usdt_bep20", label: "USDT · BEP20" },
+  { id: "ton", label: "Toncoin (TON)" },
+  { id: "btc", label: "Bitcoin (BTC)" },
+];
+const curLabel = (id?: string | null) => CRYPTO.find((c) => c.id === id)?.label || id || "—";
+const PSTATUS: Record<string, { label: string; cls: string }> = {
+  in_progress: { label: "In progress", cls: "bg-amber-50 text-amber-700" },
+  sent: { label: "Sent", cls: "bg-violet-50 text-violet-700" },
+  completed: { label: "Completed", cls: "bg-[#3cac3b]/10 text-[#3cac3b]" },
+  failed: { label: "Failed", cls: "bg-red-50 text-red-600" },
+};
+const pstatusMeta = (s?: string) => PSTATUS[s || ""] || { label: s || "—", cls: "bg-gray-100 text-gray-500" };
 
 function suggestCode(name: string) {
   return (name || "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 20) || "partner";
@@ -65,7 +86,7 @@ export default function PartnersAdmin() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [settings, setSettings] = useState<Settings>({ partner_public_page: false, partner_ads: false });
-  const [summary, setSummary] = useState<Summary>({ partnerCount: 0, pendingCount: 0, totalBalance: 0, totalPaid: 0 });
+  const [summary, setSummary] = useState<Summary>({ partnerCount: 0, pendingCount: 0, totalBalance: 0, totalHold: 0, totalPaid: 0 });
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -88,6 +109,17 @@ export default function PartnersAdmin() {
   const [apPw, setApPw] = useState("");
   const [apSplit, setApSplit] = useState("50");
 
+  // Record-a-payout modal
+  const [payoutFor, setPayoutFor] = useState<Partner | null>(null);
+  const [poAmount, setPoAmount] = useState("");
+  const [poCurrency, setPoCurrency] = useState("");
+  const [poFrom, setPoFrom] = useState("");
+  const [poTo, setPoTo] = useState("");
+  const [poStatus, setPoStatus] = useState("in_progress");
+  const [poLink, setPoLink] = useState("");
+  const [poImage, setPoImage] = useState<string | null>(null);
+  const [poNote, setPoNote] = useState("");
+
   // Filter / sort / expand state for the partner list
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended" | "banned">("all");
@@ -106,7 +138,7 @@ export default function PartnersAdmin() {
       setPartners(j.partners ?? []);
       setApplications(j.applications ?? []);
       setSettings(j.settings ?? { partner_public_page: false, partner_ads: false });
-      setSummary(j.summary ?? { partnerCount: 0, pendingCount: 0, totalBalance: 0, totalPaid: 0 });
+      setSummary(j.summary ?? { partnerCount: 0, pendingCount: 0, totalBalance: 0, totalHold: 0, totalPaid: 0 });
     } catch {
       setMsg({ type: "err", text: "Couldn't load partners." });
     } finally {
@@ -223,14 +255,47 @@ export default function PartnersAdmin() {
       run: () => post({ action: "removezone", zone_id: z.zone_id }, "Zone removed."),
     });
   }
-  function markPaid(p: Partner) {
+  function openPayout(p: Partner) {
+    setPayoutFor(p);
+    setPoAmount(p.balance > 0 ? p.balance.toFixed(2) : "");
+    setPoCurrency(p.payout_currency || "");
+    setPoFrom("");
+    setPoTo(p.payout_address || "");
+    setPoStatus("in_progress");
+    setPoLink("");
+    setPoImage(null);
+    setPoNote("");
+  }
+  function onPoImage(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) { setMsg({ type: "err", text: "Image too large (max 4MB)." }); return; }
+    const reader = new FileReader();
+    reader.onload = () => setPoImage(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(file);
+  }
+  async function doPayout() {
+    if (!payoutFor || busy) return;
+    const amount = Number(poAmount);
+    if (!Number.isFinite(amount) || amount <= 0) { setMsg({ type: "err", text: "Enter an amount greater than 0." }); return; }
+    const ok = await post({
+      action: "payout", partner_id: payoutFor.id, amount,
+      currency: poCurrency || null, from_address: poFrom.trim() || null, to_address: poTo.trim() || null,
+      status: poStatus, proof_link: poLink.trim() || null, proof_image: poImage || null, note: poNote.trim() || null,
+    }, `Payout recorded for ${payoutFor.name}.`);
+    if (ok) setPayoutFor(null);
+  }
+  function changeStatus(id: string, status: string) {
+    post({ action: "payout_status", payout_id: id, status }, "Payout status updated.");
+  }
+  function deletePayout(po: Payout) {
     ask({
-      title: `Mark a payout for ${p.name}`,
-      body: `Record a BTC payment. This moves the amount from Balance to Paid. Current balance: ${money(p.balance)}.`,
-      confirmLabel: "Record payout",
-      input: { label: "Amount paid (USD)", placeholder: p.balance.toFixed(2) },
-      run: (v) => { const n = Number(v); if (!Number.isFinite(n) || n <= 0) { setMsg({ type: "err", text: "Enter an amount > 0" }); return; } post({ action: "markpaid", partner_id: p.id, amount: n }, `Recorded ${money(n)} paid to ${p.name}.`); },
-    }, p.balance > 0 ? p.balance.toFixed(2) : "");
+      title: "Delete this payout?",
+      body: `Removes the ${money(po.amount)} record. This changes the partner's balance, hold and paid totals.`,
+      confirmLabel: "Delete", danger: true,
+      run: () => post({ action: "payout_delete", payout_id: po.id }, "Payout deleted."),
+    });
   }
   function toggleFullStats(p: Partner) {
     ask({
@@ -293,6 +358,7 @@ export default function PartnersAdmin() {
   const field = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#3cac3b]";
   const btn = "text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-60";
   const sel = "px-3 py-2 rounded-lg border border-gray-200 text-[13px] font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-[#3cac3b]";
+  const chip = (active: boolean) => `px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${active ? "bg-[#3cac3b] text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`;
 
   const fmtDate = (iso: string) => {
     try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
@@ -367,11 +433,12 @@ export default function PartnersAdmin() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mb-4">
         {[
           { label: "Partners", value: String(summary.partnerCount) },
           { label: "Pending apps", value: String(summary.pendingCount) },
           { label: "Balance owed", value: money(summary.totalBalance) },
+          { label: "On hold", value: money(summary.totalHold) },
           { label: "Paid to date", value: money(summary.totalPaid) },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-2xl border border-gray-200 p-3">
@@ -538,13 +605,27 @@ export default function PartnersAdmin() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-[17px] font-black text-gray-900 leading-none tabular-nums">{money(p.balance)}</p>
-                    <p className="text-[10px] text-gray-400 mt-1 tabular-nums">earned {money(p.earned_total)} · paid {money(p.paid_total)}</p>
+                    <p className="text-[10px] text-gray-400 mt-1 tabular-nums">earned {money(p.earned_total)} · hold {money(p.hold)}</p>
                   </div>
                 </button>
 
                 {open && (
                   <div className="px-4 pb-4 pt-3 border-t border-gray-100">
                     <p className="text-[12px] text-gray-400 font-mono mb-3">{SITE}/{p.code}</p>
+
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      {[
+                        { l: "Balance", v: p.balance },
+                        { l: "On hold", v: p.hold },
+                        { l: "Earned", v: p.earned_total },
+                        { l: "Paid", v: p.paid_total, muted: true },
+                      ].map((m) => (
+                        <div key={m.l} className="bg-gray-50 rounded-xl p-2 text-center">
+                          <p className={`text-[14px] font-black tabular-nums ${m.muted ? "text-gray-400" : "text-gray-900"}`}>{money(m.v)}</p>
+                          <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider">{m.l}</p>
+                        </div>
+                      ))}
+                    </div>
                     <div className="grid sm:grid-cols-2 gap-3">
                       <div className="bg-gray-50 rounded-xl p-3">
                         <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Popunder zone (shared)</p>
@@ -561,14 +642,50 @@ export default function PartnersAdmin() {
                         )}
                       </div>
                       <div className="bg-gray-50 rounded-xl p-3">
-                        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Earnings · split {p.revenue_split}% <button onClick={() => editSplit(p)} className="text-[#3cac3b] normal-case">edit</button></p>
-                        <div className="flex gap-4 text-[12px]">
-                          <span className="text-gray-500">Earned <b className="text-gray-800">{money(p.earned_total)}</b></span>
-                          <span className="text-gray-500">Paid <b className="text-gray-800">{money(p.paid_total)}</b></span>
-                        </div>
-                        <button onClick={() => markPaid(p)} disabled={busy} className="mt-2 text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-60">Mark paid</button>
+                        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Payout · split {p.revenue_split}% <button onClick={() => editSplit(p)} className="text-[#3cac3b] normal-case">edit</button></p>
+                        <p className="text-[12px] text-gray-600 mt-1 break-all">
+                          {p.payout_address
+                            ? <>Wallet <b className="text-gray-800">{curLabel(p.payout_currency)}</b> <span className="font-mono text-gray-500">{p.payout_address}</span></>
+                            : <span className="text-gray-400">Partner hasn’t saved a wallet yet.</span>}
+                        </p>
+                        <button onClick={() => openPayout(p)} disabled={busy} className="mt-2 text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-60">Record a payout</button>
                       </div>
                     </div>
+
+                    {p.payouts.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Payment history</p>
+                        <div className="space-y-1.5">
+                          {p.payouts.map((po) => {
+                            const st = pstatusMeta(po.status);
+                            return (
+                              <div key={po.id} className="bg-gray-50 rounded-xl p-2.5">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className="font-black text-gray-900 tabular-nums">{money(po.amount)}</span>
+                                  <span className="text-[11px] text-gray-400">{curLabel(po.currency)} · {fmtDate(po.created_at)}</span>
+                                  <select value={po.status} onChange={(e) => changeStatus(po.id, e.target.value)} disabled={busy}
+                                    className={`text-[10px] font-bold uppercase px-1.5 py-1 rounded ${st.cls}`}>
+                                    <option value="in_progress">In progress</option>
+                                    <option value="sent">Sent</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="failed">Failed</option>
+                                  </select>
+                                </div>
+                                {(po.from_address || po.to_address) && (
+                                  <p className="text-[10px] text-gray-400 font-mono mt-1 break-all">{po.from_address || "—"} → {po.to_address || "—"}</p>
+                                )}
+                                <div className="flex items-center gap-3 mt-1">
+                                  {po.proof_link && <a href={po.proof_link} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-[#3cac3b]">link ↗</a>}
+                                  {po.proof_image && <a href={po.proof_image} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-[#3cac3b]">screenshot ↗</a>}
+                                  {po.note && <span className="text-[11px] text-gray-400 truncate">{po.note}</span>}
+                                  <button onClick={() => deletePayout(po)} disabled={busy} className="text-[11px] font-bold text-red-500 hover:text-red-700 ml-auto shrink-0">delete</button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       {!p.banned && (
@@ -648,6 +765,64 @@ export default function PartnersAdmin() {
                 className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60">
                 {busy ? "Creating\u2026" : "Create partner"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payout modal */}
+      {payoutFor && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/40 overflow-y-auto" onClick={() => setPayoutFor(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 my-8" onClick={(e) => e.stopPropagation()}>
+            <p className="text-base font-black text-gray-900">Record a payout · {payoutFor.name}</p>
+            <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">Balance available: {money(payoutFor.balance)}. While it’s In progress or Sent it sits in Hold; mark it Completed when it’s done.</p>
+            <div className="mt-3 space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Amount (USD)</label>
+                <input className={field} value={poAmount} onChange={(e) => setPoAmount(e.target.value)} inputMode="decimal" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Currency</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {CRYPTO.map((c) => (
+                    <button key={c.id} onClick={() => setPoCurrency(c.id)} className={chip(poCurrency === c.id)}>{c.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">From address (your wallet)</label>
+                <input className={field} value={poFrom} onChange={(e) => setPoFrom(e.target.value)} placeholder="optional" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">To address (their wallet)</label>
+                <input className={field} value={poTo} onChange={(e) => setPoTo(e.target.value)} placeholder="optional" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</label>
+                <select className={field} value={poStatus} onChange={(e) => setPoStatus(e.target.value)}>
+                  <option value="in_progress">In progress</option>
+                  <option value="sent">Sent</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Proof link (optional)</label>
+                <input className={field} value={poLink} onChange={(e) => setPoLink(e.target.value)} placeholder="transaction / explorer URL" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Screenshot (optional)</label>
+                <input type="file" accept="image/*" onChange={onPoImage} className="block text-[12px] text-gray-500" />
+                {poImage && <p className="text-[11px] text-[#3cac3b] font-bold mt-1">Image attached ✓ <button onClick={() => setPoImage(null)} className="text-gray-400 ml-1 normal-case">remove</button></p>}
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Note (optional)</label>
+                <input className={field} value={poNote} onChange={(e) => setPoNote(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setPayoutFor(null)} className="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200">Cancel</button>
+              <button onClick={doPayout} disabled={busy} className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-[#3cac3b] hover:bg-[#2e8e2d] disabled:opacity-60">{busy ? "Saving…" : "Record payout"}</button>
             </div>
           </div>
         </div>

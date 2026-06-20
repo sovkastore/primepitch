@@ -38,7 +38,7 @@ const ENTRIES_SOLO: Entry[] = [
   { term: "Peak", desc: "The most of your people watching a single match at the same moment." },
   { term: "Match filters", desc: "On the Matches page you can filter by status (All / Live / Played / Upcoming), sort by most-watched or most-recent, and narrow to a single sport." },
   { term: "Pages people are on now", desc: "On Pulse, the live list of which pages your people are currently sitting on." },
-  { term: "Your earnings", desc: "What you've made from the traffic you bring. Payouts go out twice a month in Bitcoin, with a $5 minimum that rolls over if you're under." },
+  { term: "Your earnings", desc: "What you've made from the traffic you bring. Payouts go out twice a month in cryptocurrency, with a $5 minimum that rolls over if you're under." },
   { term: "Total members (all time)", desc: "Everyone who has ever joined the site through your link." },
 ];
 

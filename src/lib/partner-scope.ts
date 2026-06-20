@@ -65,3 +65,34 @@ export function scopeToOwn<T>(value: T): T {
   }
   return value;
 }
+
+// Full money picture for a partner: the four buckets from the live view
+// (Earned = Balance + Hold + Paid), plus their saved payout method.
+export async function partnerBalances(code: string): Promise<{
+  partnerId: string | null; fullStats: boolean;
+  earned: number; hold: number; paid: number; balance: number;
+  payoutCurrency: string | null; payoutAddress: string | null;
+}> {
+  const sb = getSupabaseAdmin();
+  const { data: p } = await sb
+    .from("partners")
+    .select("id, full_stats, payout_currency, payout_address")
+    .eq("code", code)
+    .maybeSingle();
+  const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  if (!p) return { partnerId: null, fullStats: false, earned: 0, hold: 0, paid: 0, balance: 0, payoutCurrency: null, payoutAddress: null };
+  const rec = p as { id: string; full_stats: boolean; payout_currency: string | null; payout_address: string | null };
+  const { data: b } = await sb
+    .from("partner_balances")
+    .select("earned, hold, paid, balance")
+    .eq("partner_id", rec.id)
+    .maybeSingle();
+  const bb = (b ?? {}) as { earned?: unknown; hold?: unknown; paid?: unknown; balance?: unknown };
+  return {
+    partnerId: rec.id,
+    fullStats: rec.full_stats === true,
+    earned: num(bb.earned), hold: num(bb.hold), paid: num(bb.paid), balance: num(bb.balance),
+    payoutCurrency: rec.payout_currency ?? null,
+    payoutAddress: rec.payout_address ?? null,
+  };
+}

@@ -23,12 +23,13 @@ export default function PartnerOverview() {
               <p className="text-[11px] text-gray-400 font-semibold">available to be paid</p>
             </div>
             <div className="text-[13px] leading-relaxed">
+              <p className="text-gray-500">On hold (being paid) <b className="text-gray-800">{money(e.hold)}</b></p>
               <p className="text-gray-500">Earned all-time <b className="text-gray-800">{money(e.earned)}</b></p>
-              <p className="text-gray-500">Paid out <b className="text-gray-800">{money(e.paid)}</b></p>
+              <p className="text-gray-400">Paid out <b className="text-gray-600">{money(e.paid)}</b></p>
             </div>
           </div>
           <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
-            Payouts go out twice a month (around the 15th and the end of the month) in Bitcoin. There’s a $5 minimum — anything under simply rolls into your next payout.
+            Payouts go out twice a month (around the 15th and the end of the month) in cryptocurrency to the wallet you set on the Payouts page. There’s a $5 minimum — anything under simply rolls into your next payout.
           </p>
         </div>
       )}

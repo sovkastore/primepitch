@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Partner Program",
-  description: "Bring your football audience to PrimePitch and earn from every viewer. Free live streams, World Cup 2026, twice-monthly Bitcoin payouts.",
+  description: "Bring your football audience to PrimePitch and earn from every viewer. Free live streams, World Cup 2026, twice-monthly cryptocurrency payouts.",
 };
 
 async function programOpen(): Promise<boolean> {
@@ -108,7 +108,7 @@ export default async function PartnerProgramPage() {
             {[
               "Your own live dashboard.",
               "A real-time view of who’s watching.",
-              "Twice-monthly payouts in Bitcoin.",
+              "Twice-monthly payouts in cryptocurrency.",
             ].map((t) => (
               <li key={t} className="flex items-start gap-3 text-[15px] text-gray-700">
                 <span className="mt-1 text-[#3cac3b] font-black">✓</span><span>{t}</span>

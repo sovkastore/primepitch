@@ -9,7 +9,7 @@ export interface OverviewData {
   onlineNow?: Split; liveNow?: Split; newToday?: Split; returnsToday?: Split;
   totalVisitors?: Split; pageViewsToday?: Split; matchViewsToday?: Split; activeMatches?: ActiveMatch[];
   full_stats?: boolean;
-  earnings?: { earned: number; paid: number; balance: number };
+  earnings?: { earned: number; hold: number; paid: number; balance: number };
 }
 
 export default function OverviewPanel({ data, mine, solo }: { data: OverviewData | null; mine?: boolean; solo?: boolean }) {
@@ -39,3 +39,4 @@ export default function OverviewPanel({ data, mine, solo }: { data: OverviewData
     </>
   );
 }
+
