@@ -15,8 +15,9 @@ export async function GET(request: NextRequest) {
   if (status && status !== "all") q = q.eq("status", status);
   const { data: tickets, error } = await q;
   if (error) return NextResponse.json({ error: "Could not load tickets." }, { status: 500 });
-  const rows = (tickets ?? []) as Record<string, unknown>[];
-  const ids = Array.from(new Set(rows.map((t) => String(t.partner_id))));
+  type Row = { id: string; partner_id: string; subject: string; status: string; assignee: string | null; created_at: string; updated_at: string; last_message_at: string; admin_unread: boolean };
+  const rows = (tickets ?? []) as Row[];
+  const ids = Array.from(new Set(rows.map((t) => t.partner_id)));
   const nameById: Record<string, { name: string; code: string }> = {};
   if (ids.length) {
     const { data: parts } = await sb.from("partners").select("id, name, code").in("id", ids);
