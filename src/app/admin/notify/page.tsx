@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, useCallback, type CSSProperties, type ReactNode } from "react";
 
 type Match = {
   id?: string | number;
@@ -10,6 +10,7 @@ type Match = {
 };
 
 type Picked = { home: string; away: string; label: string };
+type Filter = "all" | "live" | "upcoming";
 
 function teamsOf(m: Match): { home: string; away: string } {
   let home = m.teams?.home?.name || "";
@@ -46,41 +47,50 @@ export default function AdminNotifyPage() {
   const [live, setLive] = useState<Match[]>([]);
   const [upcoming, setUpcoming] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<Filter>("all");
   const [picked, setPicked] = useState<Picked | null>(null);
   const [manualHome, setManualHome] = useState("");
   const [manualAway, setManualAway] = useState("");
   const [sending, setSending] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const [lr, ur] = await Promise.all([
-          fetch("/api/live-matches").then((r) => (r.ok ? r.json() : [])).catch(() => []),
-          fetch("/api/matches?sport=football").then((r) => (r.ok ? r.json() : [])).catch(() => []),
-        ]);
-        if (!alive) return;
-        const liveArr: Match[] = Array.isArray(lr) ? lr : Array.isArray(lr?.matches) ? lr.matches : [];
-        const upArr: Match[] = Array.isArray(ur) ? ur : [];
-        setLive(liveArr);
-        const now = Date.now();
-        const sorted = upArr
-          .filter((m) => !m.date || m.date >= now - 3 * 3600000)
-          .sort((a, b) => (a.date || 0) - (b.date || 0))
-          .slice(0, 80);
-        setUpcoming(sorted);
-      } catch {
-        /* ignore — sections just show empty */
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [lr, ur] = await Promise.all([
+        fetch("/api/live-matches").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+        fetch("/api/matches?sport=football").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+      ]);
+      const liveArr: Match[] = Array.isArray(lr) ? lr : Array.isArray(lr?.matches) ? lr.matches : [];
+      const upArr: Match[] = Array.isArray(ur) ? ur : [];
+      setLive(liveArr);
+      const now = Date.now();
+      const liveKeys = new Set(
+        liveArr.map((m) => {
+          const t = teamsOf(m);
+          return `${t.home}|${t.away}`.toLowerCase();
+        })
+      );
+      const up = upArr
+        .filter((m) => {
+          const t = teamsOf(m);
+          const k = `${t.home}|${t.away}`.toLowerCase();
+          if (liveKeys.has(k)) return false; // don't repeat live ones under upcoming
+          return !m.date || m.date >= now - 30 * 60000;
+        })
+        .sort((a, b) => (a.date || 0) - (b.date || 0))
+        .slice(0, 100);
+      setUpcoming(up);
+    } catch {
+      /* ignore — sections just show empty */
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   function pick(m: Match) {
     const { home, away } = teamsOf(m);
@@ -131,11 +141,28 @@ export default function AdminNotifyPage() {
     flex: 1, padding: "14px 8px", borderRadius: 12, border: "none", color: "#fff",
     background: bg, fontSize: 15, fontWeight: 700, cursor: "pointer",
   });
-  const row: CSSProperties = {
+  const rowStyle: CSSProperties = {
     display: "flex", justifyContent: "space-between", alignItems: "center",
     gap: 10, padding: "12px 14px", background: C.card, border: `1px solid ${C.line}`,
     borderRadius: 12, marginBottom: 8,
   };
+
+  const tab = (f: Filter, label: string): ReactNode => (
+    <button
+      onClick={() => setFilter(f)}
+      style={{
+        flex: 1, padding: "9px 8px", borderRadius: 9, border: "none", cursor: "pointer",
+        fontSize: 14, fontWeight: 700,
+        background: filter === f ? C.accent : "transparent",
+        color: filter === f ? "#062019" : C.dim,
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const showLive = filter === "all" || filter === "live";
+  const showUpcoming = filter === "all" || filter === "upcoming";
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", padding: "16px 14px 60px" }}>
@@ -166,7 +193,7 @@ export default function AdminNotifyPage() {
           )}
         </div>
 
-        <div style={{ marginBottom: 22 }}>
+        <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 13, color: C.dim, marginBottom: 8 }}>Or type a match</div>
           <div style={{ display: "flex", gap: 8 }}>
             <input value={manualHome} onChange={(e) => setManualHome(e.target.value)} placeholder="Home team" style={{ flex: 1, minWidth: 0, padding: "12px 12px", borderRadius: 10, border: `1px solid ${C.line}`, background: C.card, color: C.text, fontSize: 15 }} />
@@ -175,39 +202,54 @@ export default function AdminNotifyPage() {
           </div>
         </div>
 
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
+          <div style={{ display: "flex", flex: 1, gap: 4, background: C.card, border: `1px solid ${C.line}`, borderRadius: 11, padding: 4 }}>
+            {tab("all", "All")}
+            {tab("live", live.length ? `Live (${live.length})` : "Live")}
+            {tab("upcoming", "Upcoming")}
+          </div>
+          <button onClick={load} disabled={loading} title="Refresh" style={{ padding: "10px 14px", borderRadius: 10, border: `1px solid ${C.line}`, background: C.card, color: C.text, fontSize: 16, fontWeight: 600, cursor: "pointer" }}>
+            {loading ? "…" : "↻"}
+          </button>
+        </div>
+
         {loading ? (
           <div style={{ color: C.dim, fontSize: 14, padding: "20px 0" }}>Loading matches…</div>
         ) : (
           <>
-            <Section title={`Live now (${live.length})`} empty="No live matches right now.">
-              {live.map((m, i) => {
-                const t = teamsOf(m);
-                return (
-                  <div key={`l${i}`} style={row}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.home && t.away ? `${t.home} vs ${t.away}` : m.title || "Match"}</div>
-                      <div style={{ fontSize: 12, color: C.red, marginTop: 2 }}>● Live</div>
+            {showLive && (
+              <Section title={`Live now (${live.length})`} empty="No live matches right now.">
+                {live.map((m, i) => {
+                  const t = teamsOf(m);
+                  return (
+                    <div key={`l${i}`} style={rowStyle}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.home && t.away ? `${t.home} vs ${t.away}` : m.title || "Match"}</div>
+                        <div style={{ fontSize: 12, color: C.red, marginTop: 2 }}>● Live</div>
+                      </div>
+                      <button onClick={() => pick(m)} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 9, border: `1px solid ${C.accent}`, background: "transparent", color: C.accent, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Select</button>
                     </div>
-                    <button onClick={() => pick(m)} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 9, border: `1px solid ${C.accent}`, background: "transparent", color: C.accent, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Select</button>
-                  </div>
-                );
-              })}
-            </Section>
+                  );
+                })}
+              </Section>
+            )}
 
-            <Section title={`Upcoming football (${upcoming.length})`} empty="No upcoming football fixtures found.">
-              {upcoming.map((m, i) => {
-                const t = teamsOf(m);
-                return (
-                  <div key={`u${i}`} style={row}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.home && t.away ? `${t.home} vs ${t.away}` : m.title || "Match"}</div>
-                      {timeOf(m) && <div style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>{timeOf(m)}</div>}
+            {showUpcoming && (
+              <Section title={`Upcoming football (${upcoming.length})`} empty="No upcoming football fixtures found.">
+                {upcoming.map((m, i) => {
+                  const t = teamsOf(m);
+                  return (
+                    <div key={`u${i}`} style={rowStyle}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.home && t.away ? `${t.home} vs ${t.away}` : m.title || "Match"}</div>
+                        {timeOf(m) && <div style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>{timeOf(m)}</div>}
+                      </div>
+                      <button onClick={() => pick(m)} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 9, border: `1px solid ${C.line}`, background: "transparent", color: C.text, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Select</button>
                     </div>
-                    <button onClick={() => pick(m)} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 9, border: `1px solid ${C.line}`, background: "transparent", color: C.text, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Select</button>
-                  </div>
-                );
-              })}
-            </Section>
+                  );
+                })}
+              </Section>
+            )}
           </>
         )}
       </div>
