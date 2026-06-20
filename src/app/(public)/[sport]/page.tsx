@@ -33,7 +33,7 @@ export default function SportPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`https://streamed.pk/api/matches/${apiSport}`);
+        const res = await fetch(`/api/matches?sport=${apiSport}`, { signal: AbortSignal.timeout(12000) });
         let data: Match[] = await res.json();
         data = data.map((m) => ({ ...m, category: apiSport }));
         if (fightSub) {
