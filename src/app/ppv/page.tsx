@@ -94,6 +94,8 @@ export default function PpvPage() {
   const [resolving, setResolving] = useState(false);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "live" | "upcoming">("all");
+  const [sport, setSport] = useState("Football");
+  const [sportTouched, setSportTouched] = useState(false);
 
   useEffect(() => {
     fetch("/api/ppv")
@@ -119,6 +121,21 @@ export default function PpvPage() {
   function close() {
     setSelected(null); setEmbeds([]); setEmbedUrl("");
   }
+
+  useEffect(() => {
+    if (sportTouched || events.length === 0) return;
+    const fb = events.find((e) => isFootball(e.category))?.category;
+    setSport(fb ?? "all");
+  }, [events, sportTouched]);
+
+  const sports = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of events) if (e.category) set.add(e.category);
+    return [...set].sort((a, b) => {
+      const fa = isFootball(a) ? 0 : 1, fb = isFootball(b) ? 0 : 1;
+      return fa !== fb ? fa - fb : a.localeCompare(b);
+    });
+  }, [events]);
 
   const filtered = useMemo(
     () => (q ? events.filter((e) => e.name.toLowerCase().includes(q.toLowerCase())) : events),
@@ -151,6 +168,10 @@ export default function PpvPage() {
     }
     return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
   }, [visible]);
+  const sportList = useMemo(
+    () => (sport === "all" ? visible : visible.filter((e) => e.category === sport)),
+    [visible, sport]
+  );
 
   const selectedId = selected?.id ?? null;
 
@@ -203,7 +224,12 @@ export default function PpvPage() {
           style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: `1px solid ${C.line}`, background: C.card, color: C.text, fontSize: 15, marginBottom: 12, boxSizing: "border-box" }}
         />
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
+          <select value={sport} onChange={(e) => { setSport(e.target.value); setSportTouched(true); }}
+            style={{ padding: "8px 12px", borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${C.line}`, background: C.card, color: C.text, cursor: "pointer", maxWidth: 220 }}>
+            <option value="all">All sports</option>
+            {sports.map((c) => (<option key={c} value={c}>{c}</option>))}
+          </select>
           {([["all", "All", counts.all], ["live", "Live", counts.live], ["upcoming", "Upcoming", counts.upcoming]] as const).map(([key, label, count]) => (
             <button key={key} onClick={() => setFilter(key)}
               style={{ padding: "8px 14px", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 700,
@@ -217,9 +243,12 @@ export default function PpvPage() {
 
         {loading ? (
           <div style={{ color: C.dim, fontSize: 14, padding: "30px 0", textAlign: "center" }}>Loading live events…</div>
-        ) : visible.length === 0 ? (
-          <div style={{ color: C.dim, fontSize: 14, padding: "30px 0", textAlign: "center" }}>{filter === "upcoming" ? "No upcoming events scheduled." : filter === "live" ? "No live events right now. Check back near kickoff." : "No events right now. Check back soon."}</div>
-        ) : (
+        ) : sportList.length === 0 ? (
+          <div style={{ color: C.dim, fontSize: 14, padding: "30px 0", textAlign: "center" }}>{(() => {
+            const noun = sport === "all" ? "events" : `${sport} events`;
+            return filter === "upcoming" ? `No upcoming ${noun}.` : filter === "live" ? `No live ${noun} right now.` : `No ${noun} right now.`;
+          })()}</div>
+        ) : sport === "all" ? (
           <>
             {football.length > 0 && (
               <section style={{ marginBottom: 26 }}>
@@ -238,6 +267,14 @@ export default function PpvPage() {
               </section>
             ))}
           </>
+        ) : (
+          <section style={{ marginBottom: 26 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
+              <span>{isFootball(sport) ? "⚽ " : ""}{sport}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.dim }}>({sportList.length})</span>
+            </h2>
+            <Grid list={sportList} selectedId={selectedId} onPick={openEvent} />
+          </section>
         )}
       </div>
     </main>
