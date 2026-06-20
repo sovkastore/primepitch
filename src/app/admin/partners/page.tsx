@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 
 interface Zone { id: string; zone_id: string; label?: string | null; format: string; full_tag?: string | null }
 interface Partner {
@@ -87,6 +87,15 @@ export default function PartnersAdmin() {
   const [apCode, setApCode] = useState("");
   const [apPw, setApPw] = useState("");
   const [apSplit, setApSplit] = useState("50");
+
+  // Filter / sort / expand state for the partner list
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended" | "banned">("all");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "balance" | "earned" | "paid">("newest");
+  const [amtMetric, setAmtMetric] = useState<"balance" | "earned" | "paid">("balance");
+  const [amtMin, setAmtMin] = useState("");
+  const [amtMax, setAmtMax] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -280,8 +289,41 @@ export default function PartnersAdmin() {
     });
   }
 
-  const field = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const field = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#3cac3b]";
   const btn = "text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-60";
+  const sel = "px-3 py-2 rounded-lg border border-gray-200 text-[13px] font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-[#3cac3b]";
+
+  const fmtDate = (iso: string) => {
+    try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+    catch { return ""; }
+  };
+  function clearFilters() { setQuery(""); setStatusFilter("all"); setAmtMin(""); setAmtMax(""); }
+
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const mn = amtMin === "" ? null : Number(amtMin);
+    const mx = amtMax === "" ? null : Number(amtMax);
+    const metricVal = (p: Partner) => (amtMetric === "earned" ? p.earned_total : amtMetric === "paid" ? p.paid_total : p.balance);
+    const out = partners.filter((p) => {
+      if (q && !`${p.name} ${p.code} ${p.email}`.toLowerCase().includes(q)) return false;
+      if (statusFilter === "active" && !(p.active && !p.banned && !p.suspended)) return false;
+      if (statusFilter === "suspended" && !p.suspended) return false;
+      if (statusFilter === "banned" && !p.banned) return false;
+      const v = metricVal(p);
+      if (mn !== null && Number.isFinite(mn) && v < mn) return false;
+      if (mx !== null && Number.isFinite(mx) && v > mx) return false;
+      return true;
+    });
+    return out.sort((a, b) => {
+      switch (sortBy) {
+        case "oldest": return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case "balance": return b.balance - a.balance;
+        case "earned": return b.earned_total - a.earned_total;
+        case "paid": return b.paid_total - a.paid_total;
+        default: return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+  }, [partners, query, statusFilter, sortBy, amtMetric, amtMin, amtMax]);
 
   function Switch({ on, onClick, label, hint }: { on: boolean; onClick: () => void; label: string; hint: string }) {
     return (
@@ -401,102 +443,147 @@ export default function PartnersAdmin() {
           </div>
         </div>
         <button onClick={createPartner} disabled={busy}
-          className="mt-4 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60 transition-colors">
+          className="mt-4 px-5 py-2.5 rounded-xl bg-[#3cac3b] text-white text-sm font-bold hover:bg-[#2e8e2d] disabled:opacity-60 transition-colors">
           {busy ? "Saving\u2026" : "Add partner"}
         </button>
       </div>
 
-      {/* Existing */}
-      <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider mb-2">Existing partners</p>
+      {/* Existing partners */}
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider">Existing partners</p>
+        <p className="text-[11px] text-gray-400 font-semibold">{shown.length} of {partners.length}</p>
+      </div>
+
+      {/* Filter / sort bar */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-3 mb-3">
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, code or email"
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#3cac3b] mb-2" />
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} className={sel}>
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="banned">Banned</option>
+          </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className={sel}>
+            <option value="newest">Newest joined</option>
+            <option value="oldest">Oldest joined</option>
+            <option value="balance">Balance: high to low</option>
+            <option value="earned">Earned: high to low</option>
+            <option value="paid">Paid: high to low</option>
+          </select>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Amount</span>
+          <select value={amtMetric} onChange={(e) => setAmtMetric(e.target.value as typeof amtMetric)} className={sel}>
+            <option value="balance">Balance</option>
+            <option value="earned">Earned</option>
+            <option value="paid">Paid</option>
+          </select>
+          <input type="number" inputMode="decimal" value={amtMin} onChange={(e) => setAmtMin(e.target.value)} placeholder="min $"
+            className="w-24 px-2.5 py-2 rounded-lg border border-gray-200 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#3cac3b]" />
+          <span className="text-gray-300">to</span>
+          <input type="number" inputMode="decimal" value={amtMax} onChange={(e) => setAmtMax(e.target.value)} placeholder="max $"
+            className="w-24 px-2.5 py-2 rounded-lg border border-gray-200 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#3cac3b]" />
+          {(query || statusFilter !== "all" || amtMin || amtMax) && (
+            <button onClick={clearFilters} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">Clear</button>
+          )}
+        </div>
+      </div>
+
       {loading ? (
         <p className="text-sm text-gray-400">Loading…</p>
       ) : partners.length === 0 ? (
         <p className="text-sm text-gray-400">No partners yet.</p>
+      ) : shown.length === 0 ? (
+        <p className="text-sm text-gray-400">No partners match these filters.</p>
       ) : (
-        <div className="space-y-2.5">
-          {partners.map((p) => {
+        <div className="space-y-2">
+          {shown.map((p) => {
+            const open = openId === p.id;
             const zone = p.zones.find((z) => z.format === "popunder");
+            const pill = p.banned
+              ? { t: "Banned", c: "bg-red-50 text-red-600" }
+              : !p.active
+              ? { t: "Referral off", c: "bg-gray-100 text-gray-500" }
+              : p.suspended
+              ? { t: "Suspended", c: "bg-amber-50 text-amber-600" }
+              : { t: "Active", c: "bg-[#3cac3b]/10 text-[#3cac3b]" };
             return (
-              <div key={p.id} className={`bg-white rounded-2xl border p-4 ${p.banned ? "border-red-200" : "border-gray-200"}`}>
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0">
+              <div key={p.id} className={`bg-white rounded-2xl border overflow-hidden ${p.banned ? "border-red-200" : "border-gray-200"}`}>
+                <button onClick={() => setOpenId(open ? null : p.id)}
+                  className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors">
+                  <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
+                  </svg>
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-black text-gray-900">{p.name}</span>
-                      <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">/{p.code}</span>
-                      {p.banned ? (
-                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">Banned</span>
-                      ) : (
-                        <>
-                          <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${p.active ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-500"}`}>
-                            {p.active ? "Referral on" : "Referral off"}
-                          </span>
-                          {p.suspended && (
-                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">Login suspended</span>
-                          )}
-                          {p.full_stats && (
-                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">Platform-wide stats</span>
-                          )}
-                        </>
-                      )}
+                      <span className="font-black text-gray-900 truncate">{p.name}</span>
+                      <span className="text-[10px] font-mono font-bold text-[#3cac3b] bg-[#3cac3b]/10 px-1.5 py-0.5 rounded">/{p.code}</span>
+                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${pill.c}`}>{pill.t}</span>
+                      {p.full_stats && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#3cac3b]/10 text-[#3cac3b]">Full stats</span>}
                     </div>
-                    <p className="text-[12px] text-gray-500 mt-1">{p.email}</p>
-                    <p className="text-[12px] text-gray-400 font-mono mt-0.5">{SITE}/{p.code}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5 truncate">{p.email} · joined {fmtDate(p.created_at)}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-[11px] text-gray-400 font-semibold uppercase">Balance</p>
-                    <p className="text-[18px] font-black text-gray-900">{money(p.balance)}</p>
+                    <p className="text-[17px] font-black text-gray-900 leading-none tabular-nums">{money(p.balance)}</p>
+                    <p className="text-[10px] text-gray-400 mt-1 tabular-nums">earned {money(p.earned_total)} · paid {money(p.paid_total)}</p>
                   </div>
-                </div>
+                </button>
 
-                {/* zone + earnings */}
-                <div className="mt-3 grid sm:grid-cols-2 gap-3">
-                  <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Popunder zone (shared)</p>
-                    {zone ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[13px] text-gray-800">{zone.zone_id}{zone.label ? <span className="text-gray-400"> · {zone.label}</span> : null}</span>
-                        <div className="flex gap-1">
-                          <button onClick={() => setZone(p)} disabled={busy} className={btn}>Edit</button>
-                          <button onClick={() => removeZone(p, zone)} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-60">Remove</button>
-                        </div>
+                {open && (
+                  <div className="px-4 pb-4 pt-3 border-t border-gray-100">
+                    <p className="text-[12px] text-gray-400 font-mono mb-3">{SITE}/{p.code}</p>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Popunder zone (shared)</p>
+                        {zone ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-[13px] text-gray-800">{zone.zone_id}{zone.label ? <span className="text-gray-400"> · {zone.label}</span> : null}</span>
+                            <div className="flex gap-1">
+                              <button onClick={() => setZone(p)} disabled={busy} className={btn}>Edit</button>
+                              <button onClick={() => removeZone(p, zone)} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-60">Remove</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button onClick={() => setZone(p)} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-[#3cac3b]/10 text-[#2e8e2d] hover:bg-[#3cac3b]/20 disabled:opacity-60">Add zone ID</button>
+                        )}
                       </div>
-                    ) : (
-                      <button onClick={() => setZone(p)} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-60">Add zone ID</button>
-                    )}
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Earnings · split {p.revenue_split}% <button onClick={() => editSplit(p)} className="text-blue-600 normal-case">edit</button></p>
-                    <div className="flex gap-4 text-[12px]">
-                      <span className="text-gray-500">Earned <b className="text-gray-800">{money(p.earned_total)}</b></span>
-                      <span className="text-gray-500">Paid <b className="text-gray-800">{money(p.paid_total)}</b></span>
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Earnings · split {p.revenue_split}% <button onClick={() => editSplit(p)} className="text-[#3cac3b] normal-case">edit</button></p>
+                        <div className="flex gap-4 text-[12px]">
+                          <span className="text-gray-500">Earned <b className="text-gray-800">{money(p.earned_total)}</b></span>
+                          <span className="text-gray-500">Paid <b className="text-gray-800">{money(p.paid_total)}</b></span>
+                        </div>
+                        <button onClick={() => markPaid(p)} disabled={busy} className="mt-2 text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-60">Mark paid</button>
+                      </div>
                     </div>
-                    <button onClick={() => markPaid(p)} disabled={busy} className="mt-2 text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-60">Mark paid</button>
-                  </div>
-                </div>
 
-                {/* actions */}
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {!p.banned && (
-                    <>
-                      <button onClick={() => toggleReferral(p)} disabled={busy} className={btn}>{p.active ? "Turn off" : "Turn on"}</button>
-                      <button onClick={() => toggleSuspend(p)} disabled={busy} className={btn}>{p.suspended ? "Restore login" : "Suspend"}</button>
-                    </>
-                  )}
-                  <button onClick={() => toggleFullStats(p)} disabled={busy} className={btn}>{p.full_stats ? "Limit stats" : "Platform stats"}</button>
-                  <button onClick={() => toggleBan(p)} disabled={busy}
-                    className={`text-[12px] font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-60 ${p.banned ? "bg-gray-100 text-gray-700 hover:bg-gray-200" : "bg-red-50 text-red-600 hover:bg-red-100"}`}>
-                    {p.banned ? "Unban" : "Ban"}
-                  </button>
-                  <button onClick={() => rename(p)} disabled={busy} className={btn}>Rename</button>
-                  <button onClick={() => resetPw(p)} disabled={busy} className={btn}>Reset password</button>
-                </div>
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {!p.banned && (
+                        <>
+                          <button onClick={() => toggleReferral(p)} disabled={busy} className={btn}>{p.active ? "Turn off" : "Turn on"}</button>
+                          <button onClick={() => toggleSuspend(p)} disabled={busy} className={btn}>{p.suspended ? "Restore login" : "Suspend"}</button>
+                        </>
+                      )}
+                      <button onClick={() => toggleFullStats(p)} disabled={busy} className={btn}>{p.full_stats ? "Limit stats" : "Platform stats"}</button>
+                      <button onClick={() => toggleBan(p)} disabled={busy}
+                        className={`text-[12px] font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-60 ${p.banned ? "bg-gray-100 text-gray-700 hover:bg-gray-200" : "bg-red-50 text-red-600 hover:bg-red-100"}`}>
+                        {p.banned ? "Unban" : "Ban"}
+                      </button>
+                      <button onClick={() => rename(p)} disabled={busy} className={btn}>Rename</button>
+                      <button onClick={() => resetPw(p)} disabled={busy} className={btn}>Reset password</button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Confirmation modal */}
+      
+{/* Confirmation modal */}
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setConfirm(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
@@ -513,7 +600,7 @@ export default function PartnersAdmin() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setConfirm(null)} className="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200">Cancel</button>
               <button onClick={() => { const fn = confirm.run; const v = modalInput; setConfirm(null); fn(v); }}
-                className={`px-4 py-2 rounded-xl text-sm font-bold text-white ${confirm.danger ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}>
+                className={`px-4 py-2 rounded-xl text-sm font-bold text-white ${confirm.danger ? "bg-red-600 hover:bg-red-700" : "bg-[#3cac3b] hover:bg-[#2e8e2d]"}`}>
                 {confirm.confirmLabel}
               </button>
             </div>
