@@ -2,27 +2,74 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+interface Zone { id: string; zone_id: string; label?: string | null; format: string; full_tag?: string | null }
 interface Partner {
   id: string; code: string; name: string; email: string;
   active: boolean; suspended: boolean; banned: boolean; created_at: string;
+  revenue_split: number; full_stats: boolean;
+  earned_total: number; paid_total: number; balance: number;
+  zones: Zone[];
 }
+interface Application {
+  id: string; name: string; email: string; country: string;
+  platform: string; audience_size: string; contact_handle: string;
+  status: string; created_at: string;
+}
+interface Settings { partner_public_page: boolean; partner_ads: boolean }
+interface Summary { partnerCount: number; pendingCount: number; totalBalance: number; totalPaid: number }
 
 interface Confirm {
-  title: string;
-  body: string;
-  confirmLabel: string;
-  danger?: boolean;
+  title: string; body: string; confirmLabel: string; danger?: boolean;
   input?: { label: string; placeholder?: string };
   run: (value: string) => void;
 }
 
 const SITE = "https://xellnetwork.xyz";
+const money = (n: number) => "$" + (Number(n) || 0).toFixed(2);
+
+function suggestCode(name: string) {
+  return (name || "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 20) || "partner";
+}
+function suggestPw() {
+  return Math.random().toString(36).slice(2, 8) + String(Math.floor(Math.random() * 90 + 10));
+}
+
+// Parse a Monetag by-zone CSV (semicolon-separated). Returns null if it has no Zone ID column.
+function parseCsv(text: string): { zone_id: string; label: string; impressions: string; profit: string }[] | null {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+  if (lines.length < 2) return [];
+  const delim = lines[0].includes(";") ? ";" : ",";
+  const clean = (s: string) => s.replace(/^"|"$/g, "").replace(/"$/, "").trim();
+  const header = lines[0].split(delim).map((h) => clean(h).toLowerCase());
+  const zi = header.findIndex((h) => h.includes("zone") && h.includes("id"));
+  const zn = header.findIndex((h) => h === "zone" || (h.includes("zone") && !h.includes("id")));
+  const pi = header.findIndex((h) => h.includes("profit") || h.includes("revenue") || h.includes("earning"));
+  const ii = header.findIndex((h) => h.includes("impression"));
+  if (zi === -1 || pi === -1) return null;
+  const rows: { zone_id: string; label: string; impressions: string; profit: string }[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(delim).map(clean);
+    const zone_id = cols[zi] || "";
+    if (!zone_id) continue;
+    rows.push({
+      zone_id,
+      label: zn >= 0 ? (cols[zn] || "") : "",
+      impressions: ii >= 0 ? (cols[ii] || "") : "",
+      profit: cols[pi] || "0",
+    });
+  }
+  return rows;
+}
 
 export default function PartnersAdmin() {
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [settings, setSettings] = useState<Settings>({ partner_public_page: false, partner_ads: false });
+  const [summary, setSummary] = useState<Summary>({ partnerCount: 0, pendingCount: 0, totalBalance: 0, totalPaid: 0 });
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [importInfo, setImportInfo] = useState<string | null>(null);
 
   // New-partner form
   const [name, setName] = useState("");
@@ -30,11 +77,16 @@ export default function PartnersAdmin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Confirmation modal
+  // Confirmation modal (single input / confirmations)
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [modalInput, setModalInput] = useState("");
-
   const ask = (c: Confirm, initial = "") => { setModalInput(initial); setConfirm(c); };
+
+  // Approve modal (needs code + password + split)
+  const [approve, setApprove] = useState<Application | null>(null);
+  const [apCode, setApCode] = useState("");
+  const [apPw, setApPw] = useState("");
+  const [apSplit, setApSplit] = useState("50");
 
   const load = useCallback(async () => {
     try {
@@ -42,6 +94,9 @@ export default function PartnersAdmin() {
       if (!r.ok) throw new Error();
       const j = await r.json();
       setPartners(j.partners ?? []);
+      setApplications(j.applications ?? []);
+      setSettings(j.settings ?? { partner_public_page: false, partner_ads: false });
+      setSummary(j.summary ?? { partnerCount: 0, pendingCount: 0, totalBalance: 0, totalPaid: 0 });
     } catch {
       setMsg({ type: "err", text: "Couldn't load partners." });
     } finally {
@@ -77,12 +132,113 @@ export default function PartnersAdmin() {
     if (ok) { setName(""); setCode(""); setEmail(""); setPassword(""); }
   }
 
-  // ---- actions (each goes through the confirm modal) ----
+  // ---- master switches ----
+  function flipSetting(key: "partner_public_page" | "partner_ads", to: boolean, label: string) {
+    post({ action: "settings", key, value: to }, `${label} turned ${to ? "ON" : "OFF"}.`);
+  }
+
+  // ---- CSV import ----
+  async function onCsv(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true); setMsg(null); setImportInfo(null);
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      if (rows === null) {
+        setMsg({ type: "err", text: "That file has no \u201CZone ID\u201D column. In Monetag, group the report by Zone (not Date) and export again." });
+        return;
+      }
+      if (rows.length === 0) { setMsg({ type: "err", text: "No zone rows found in that file." }); return; }
+      const r = await fetch("/api/admin/partners", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "import", rows }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg({ type: "err", text: j.error || "Import failed" }); return; }
+      const res = j.result || {};
+      setImportInfo(`Matched ${res.rows_matched ?? 0} of ${res.rows_total ?? 0} zones · total profit ${money(res.total_profit ?? 0)}.`);
+      setMsg({ type: "ok", text: "Earnings updated from your CSV." });
+      await load();
+    } catch {
+      setMsg({ type: "err", text: "Couldn't read that file." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ---- applications ----
+  function openApprove(a: Application) {
+    setApCode(suggestCode(a.name)); setApPw(suggestPw()); setApSplit("50"); setApprove(a);
+  }
+  async function doApprove() {
+    if (!approve) return;
+    const ok = await post({ action: "approve", app_id: approve.id, code: apCode.trim().toLowerCase(), password: apPw, split: Number(apSplit) || 50 }, `Approved ${approve.name || apCode}. Their login is ready.`);
+    if (ok) setApprove(null);
+  }
+  function rejectApp(a: Application) {
+    ask({
+      title: `Reject ${a.name || "this application"}?`,
+      body: "It moves to rejected and disappears from this list. The same email can't be re-submitted.",
+      confirmLabel: "Reject", danger: true,
+      run: () => post({ action: "reject", app_id: a.id }, "Application rejected."),
+    });
+  }
+
+  // ---- per-partner: split / zone / payout / stats ----
+  function editSplit(p: Partner) {
+    ask({
+      title: `Set ${p.name}'s split`,
+      body: "Internal only \u2014 the partner never sees this number. Changing it affects only earnings from future uploads; past earnings stay at the old rate.",
+      confirmLabel: "Save split",
+      input: { label: "Their share (%)", placeholder: "50" },
+      run: (v) => { const n = Number(v); if (!Number.isFinite(n) || n < 0 || n > 100) { setMsg({ type: "err", text: "Enter 0\u2013100" }); return; } post({ action: "split", code: p.code, split: n }, `${p.name}: split set to ${n}%.`); },
+    }, String(p.revenue_split ?? 50));
+  }
+  function setZone(p: Partner) {
+    const existing = p.zones.find((z) => z.format === "popunder");
+    ask({
+      title: existing ? `Update ${p.name}'s popunder zone` : `Add ${p.name}'s popunder zone`,
+      body: "Paste the Monetag Zone ID you created for this partner. Their referred traffic's popunder will run this zone, and its earnings flow in through your CSV.",
+      confirmLabel: "Save zone",
+      input: { label: "Monetag Zone ID", placeholder: "e.g. 11157914" },
+      run: (v) => { const z = v.trim(); if (!z) { setConfirm(null); return; } post({ action: "addzone", partner_id: p.id, zone_id: z, format: "popunder" }, `${p.name}: zone saved.`); },
+    }, existing?.zone_id || "");
+  }
+  function removeZone(p: Partner, z: Zone) {
+    ask({
+      title: `Remove zone ${z.zone_id}?`,
+      body: `${p.name}'s referred traffic will fall back to the house popunder until you add a new zone.`,
+      confirmLabel: "Remove", danger: true,
+      run: () => post({ action: "removezone", zone_id: z.zone_id }, "Zone removed."),
+    });
+  }
+  function markPaid(p: Partner) {
+    ask({
+      title: `Mark a payout for ${p.name}`,
+      body: `Record a BTC payment. This moves the amount from Balance to Paid. Current balance: ${money(p.balance)}.`,
+      confirmLabel: "Record payout",
+      input: { label: "Amount paid (USD)", placeholder: p.balance.toFixed(2) },
+      run: (v) => { const n = Number(v); if (!Number.isFinite(n) || n <= 0) { setMsg({ type: "err", text: "Enter an amount > 0" }); return; } post({ action: "markpaid", partner_id: p.id, amount: n }, `Recorded ${money(n)} paid to ${p.name}.`); },
+    }, p.balance > 0 ? p.balance.toFixed(2) : "");
+  }
+  function toggleFullStats(p: Partner) {
+    ask({
+      title: p.full_stats ? `Limit ${p.name} to own people?` : `Show ${p.name} platform-wide stats?`,
+      body: p.full_stats
+        ? `${p.name} will only see THEIR OWN referred visitors \u2014 not the whole platform's numbers.`
+        : `${p.name} will see whole-platform totals next to their own. (Default for new partners is own-people-only.)`,
+      confirmLabel: p.full_stats ? "Limit to own" : "Show platform-wide",
+      run: () => post({ action: "fullstats", code: p.code, full_stats: !p.full_stats }, `${p.name}: stats view updated.`),
+    });
+  }
+
+  // ---- existing partner actions ----
   function toggleReferral(p: Partner) {
     ask({
       title: p.active ? "Turn referral link off?" : "Turn referral link on?",
       body: p.active
-        ? `${p.name}'s link ${SITE}/${p.code} will stop tagging new visitors. They can still log in to their dashboard.`
+        ? `${p.name}'s link ${SITE}/${p.code} will stop tagging new visitors. They can still log in.`
         : `${p.name}'s link ${SITE}/${p.code} will start working again.`,
       confirmLabel: p.active ? "Turn off" : "Turn on",
       run: () => post({ action: "state", code: p.code, active: !p.active }, `${p.name}: referral turned ${p.active ? "off" : "on"}.`),
@@ -91,9 +247,7 @@ export default function PartnersAdmin() {
   function toggleSuspend(p: Partner) {
     ask({
       title: p.suspended ? "Restore login?" : "Suspend login?",
-      body: p.suspended
-        ? `${p.name} will be able to log into their dashboard again.`
-        : `${p.name} won't be able to log into their dashboard. Their referral link keeps working.`,
+      body: p.suspended ? `${p.name} will be able to log in again.` : `${p.name} won't be able to log in. Their referral link keeps working.`,
       confirmLabel: p.suspended ? "Restore login" : "Suspend",
       run: () => post({ action: "state", code: p.code, suspended: !p.suspended }, `${p.name}: ${p.suspended ? "login restored" : "login suspended"}.`),
     });
@@ -102,28 +256,25 @@ export default function PartnersAdmin() {
     ask({
       title: p.banned ? "Unban partner?" : "Ban partner?",
       body: p.banned
-        ? `${p.name} will be restored. Their referral link returns to ${p.active ? "on" : "off"} and they can log in again${p.suspended ? " (still suspended)" : ""}.`
-        : `Full cutoff: ${p.name}'s referral link stops working AND they can't log in. This is reversible.`,
-      confirmLabel: p.banned ? "Unban" : "Ban",
-      danger: true,
+        ? `${p.name} will be restored. Referral returns to ${p.active ? "on" : "off"} and they can log in${p.suspended ? " (still suspended)" : ""}.`
+        : `Full cutoff: ${p.name}'s referral link stops AND they can't log in. Reversible.`,
+      confirmLabel: p.banned ? "Unban" : "Ban", danger: true,
       run: () => post({ action: "state", code: p.code, banned: !p.banned }, `${p.name}: ${p.banned ? "unbanned" : "banned"}.`),
     });
   }
   function rename(p: Partner) {
     ask({
       title: `Rename ${p.name}?`,
-      body: "This changes their display name only — their code and login stay the same.",
-      confirmLabel: "Save name",
-      input: { label: "New display name" },
+      body: "Changes their display name only \u2014 code and login stay the same.",
+      confirmLabel: "Save name", input: { label: "New display name" },
       run: (v) => { const nn = v.trim(); if (!nn || nn === p.name) { setConfirm(null); return; } post({ code: p.code, name: nn, email: p.email, active: p.active }, `Renamed to ${nn}.`); },
     }, p.name);
   }
   function resetPw(p: Partner) {
     ask({
       title: `Reset password for ${p.name}?`,
-      body: "They'll need the new password to log in. Their current password stops working immediately.",
-      confirmLabel: "Reset password",
-      danger: true,
+      body: "They'll need the new password to log in. The current one stops working immediately.",
+      confirmLabel: "Reset password", danger: true,
       input: { label: "New password", placeholder: "at least 4 characters" },
       run: (v) => { if (!v || v.length < 4) { setMsg({ type: "err", text: "Password must be at least 4 characters" }); return; } post({ code: p.code, name: p.name, email: p.email, active: p.active, password: v }, `Password updated for ${p.name}.`); },
     });
@@ -132,16 +283,98 @@ export default function PartnersAdmin() {
   const field = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
   const btn = "text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-60";
 
+  function Switch({ on, onClick, label, hint }: { on: boolean; onClick: () => void; label: string; hint: string }) {
+    return (
+      <div className="flex items-center justify-between gap-3 py-2">
+        <div className="min-w-0">
+          <p className="text-[13px] font-bold text-gray-800">{label}</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">{hint}</p>
+        </div>
+        <button onClick={onClick} disabled={busy}
+          className={`shrink-0 w-12 h-7 rounded-full p-0.5 transition-colors disabled:opacity-60 ${on ? "bg-emerald-500" : "bg-gray-300"}`}>
+          <span className={`block w-6 h-6 rounded-full bg-white shadow transition-transform ${on ? "translate-x-5" : ""}`} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl">
       <h1 className="text-xl font-black text-gray-900">Partners</h1>
       <p className="text-[13px] text-gray-400 font-medium mt-0.5 mb-5">
-        Add and manage referral partners. Each gets a link <span className="font-mono text-gray-600">/their-code</span> and a login at <span className="font-mono text-gray-600">/partner/login</span>.
+        Manage partners, the public program, applications and payouts.
       </p>
 
       {msg && (
         <div className={`mb-4 text-[13px] font-semibold px-3 py-2 rounded-xl ${msg.type === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
           {msg.text}
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 mb-4">
+        <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider mb-1">Partner controls</p>
+        <Switch on={settings.partner_public_page} label="Public program page"
+          hint="When ON, visitors can reach /partner-program and apply. OFF = hidden (404)."
+          onClick={() => flipSetting("partner_public_page", !settings.partner_public_page, "Public program page")} />
+        <div className="border-t border-gray-100" />
+        <Switch on={settings.partner_ads} label="Partner ads (popunder)"
+          hint="ON during live matches: referred traffic's popunder runs the partner's zone. OFF = everyone gets house ads."
+          onClick={() => flipSetting("partner_ads", !settings.partner_ads, "Partner ads")} />
+      </div>
+
+      {/* Summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+        {[
+          { label: "Partners", value: String(summary.partnerCount) },
+          { label: "Pending apps", value: String(summary.pendingCount) },
+          { label: "Balance owed", value: money(summary.totalBalance) },
+          { label: "Paid to date", value: money(summary.totalPaid) },
+        ].map((s) => (
+          <div key={s.label} className="bg-white rounded-2xl border border-gray-200 p-3">
+            <p className="text-[18px] font-black text-gray-900">{s.value}</p>
+            <p className="text-[11px] text-gray-400 font-semibold">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Earnings import */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 mb-6">
+        <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider mb-1">Earnings upload</p>
+        <p className="text-[12px] text-gray-400 mb-3">
+          Upload your Monetag <span className="font-semibold">by-zone</span> CSV (all-time). Each zone is matched to its partner and the split is applied to only the new amount since last time.
+        </p>
+        <label className={`inline-block cursor-pointer ${busy ? "opacity-60 pointer-events-none" : ""}`}>
+          <span className="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold inline-block">Upload Monetag CSV</span>
+          <input type="file" accept=".csv,text/csv" className="hidden" onChange={onCsv} />
+        </label>
+        {importInfo && <p className="text-[12px] text-emerald-700 font-semibold mt-2">{importInfo}</p>}
+      </div>
+
+      {/* Applications */}
+      {applications.length > 0 && (
+        <div className="mb-6">
+          <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider mb-2">Applications · {applications.length} pending</p>
+          <div className="space-y-2.5">
+            {applications.map((a) => (
+              <div key={a.id} className="bg-white rounded-2xl border border-gray-200 p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="font-black text-gray-900">{a.name || "(no name)"}</p>
+                    <p className="text-[12px] text-gray-500 mt-0.5">{a.email}{a.country ? ` · ${a.country}` : ""}</p>
+                    <p className="text-[12px] text-gray-500">{a.platform}{a.audience_size ? ` · ${a.audience_size}` : ""}</p>
+                    {a.contact_handle && <p className="text-[12px] text-gray-400 mt-0.5">Contact: {a.contact_handle}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button onClick={() => openApprove(a)} disabled={busy}
+                      className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60">Approve</button>
+                    <button onClick={() => rejectApp(a)} disabled={busy}
+                      className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-60">Reject</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -169,7 +402,7 @@ export default function PartnersAdmin() {
         </div>
         <button onClick={createPartner} disabled={busy}
           className="mt-4 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60 transition-colors">
-          {busy ? "Saving…" : "Add partner"}
+          {busy ? "Saving\u2026" : "Add partner"}
         </button>
       </div>
 
@@ -181,40 +414,75 @@ export default function PartnersAdmin() {
         <p className="text-sm text-gray-400">No partners yet.</p>
       ) : (
         <div className="space-y-2.5">
-          {partners.map((p) => (
-            <div key={p.id} className={`bg-white rounded-2xl border p-4 ${p.banned ? "border-red-200" : "border-gray-200"}`}>
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-black text-gray-900">{p.name}</span>
-                    <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">/{p.code}</span>
-                    {p.banned ? (
-                      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">Banned</span>
+          {partners.map((p) => {
+            const zone = p.zones.find((z) => z.format === "popunder");
+            return (
+              <div key={p.id} className={`bg-white rounded-2xl border p-4 ${p.banned ? "border-red-200" : "border-gray-200"}`}>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-gray-900">{p.name}</span>
+                      <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">/{p.code}</span>
+                      {p.banned ? (
+                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">Banned</span>
+                      ) : (
+                        <>
+                          <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${p.active ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-500"}`}>
+                            {p.active ? "Referral on" : "Referral off"}
+                          </span>
+                          {p.suspended && (
+                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">Login suspended</span>
+                          )}
+                          {p.full_stats && (
+                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">Platform-wide stats</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <p className="text-[12px] text-gray-500 mt-1">{p.email}</p>
+                    <p className="text-[12px] text-gray-400 font-mono mt-0.5">{SITE}/{p.code}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[11px] text-gray-400 font-semibold uppercase">Balance</p>
+                    <p className="text-[18px] font-black text-gray-900">{money(p.balance)}</p>
+                  </div>
+                </div>
+
+                {/* zone + earnings */}
+                <div className="mt-3 grid sm:grid-cols-2 gap-3">
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Popunder zone (shared)</p>
+                    {zone ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[13px] text-gray-800">{zone.zone_id}{zone.label ? <span className="text-gray-400"> · {zone.label}</span> : null}</span>
+                        <div className="flex gap-1">
+                          <button onClick={() => setZone(p)} disabled={busy} className={btn}>Edit</button>
+                          <button onClick={() => removeZone(p, zone)} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-60">Remove</button>
+                        </div>
+                      </div>
                     ) : (
-                      <>
-                        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${p.active ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-500"}`}>
-                          {p.active ? "Referral on" : "Referral off"}
-                        </span>
-                        {p.suspended && (
-                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">Login suspended</span>
-                        )}
-                      </>
+                      <button onClick={() => setZone(p)} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-60">Add zone ID</button>
                     )}
                   </div>
-                  <p className="text-[12px] text-gray-500 mt-1">{p.email}</p>
-                  <p className="text-[12px] text-gray-400 font-mono mt-1">{SITE}/{p.code}</p>
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Earnings · split {p.revenue_split}% <button onClick={() => editSplit(p)} className="text-blue-600 normal-case">edit</button></p>
+                    <div className="flex gap-4 text-[12px]">
+                      <span className="text-gray-500">Earned <b className="text-gray-800">{money(p.earned_total)}</b></span>
+                      <span className="text-gray-500">Paid <b className="text-gray-800">{money(p.paid_total)}</b></span>
+                    </div>
+                    <button onClick={() => markPaid(p)} disabled={busy} className="mt-2 text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-60">Mark paid</button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+
+                {/* actions */}
+                <div className="flex flex-wrap gap-1.5 mt-3">
                   {!p.banned && (
                     <>
-                      <button onClick={() => toggleReferral(p)} disabled={busy} className={btn}>
-                        {p.active ? "Turn off" : "Turn on"}
-                      </button>
-                      <button onClick={() => toggleSuspend(p)} disabled={busy} className={btn}>
-                        {p.suspended ? "Restore login" : "Suspend"}
-                      </button>
+                      <button onClick={() => toggleReferral(p)} disabled={busy} className={btn}>{p.active ? "Turn off" : "Turn on"}</button>
+                      <button onClick={() => toggleSuspend(p)} disabled={busy} className={btn}>{p.suspended ? "Restore login" : "Suspend"}</button>
                     </>
                   )}
+                  <button onClick={() => toggleFullStats(p)} disabled={busy} className={btn}>{p.full_stats ? "Limit stats" : "Platform stats"}</button>
                   <button onClick={() => toggleBan(p)} disabled={busy}
                     className={`text-[12px] font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-60 ${p.banned ? "bg-gray-100 text-gray-700 hover:bg-gray-200" : "bg-red-50 text-red-600 hover:bg-red-100"}`}>
                     {p.banned ? "Unban" : "Ban"}
@@ -223,8 +491,8 @@ export default function PartnersAdmin() {
                   <button onClick={() => resetPw(p)} disabled={busy} className={btn}>Reset password</button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -237,20 +505,50 @@ export default function PartnersAdmin() {
             {confirm.input && (
               <div className="mt-3">
                 <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">{confirm.input.label}</label>
-                <input className={field} value={modalInput} autoFocus
-                  placeholder={confirm.input.placeholder}
+                <input className={field} value={modalInput} autoFocus placeholder={confirm.input.placeholder}
                   onChange={(e) => setModalInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { const fn = confirm.run; const v = modalInput; setConfirm(null); fn(v); } }} />
               </div>
             )}
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setConfirm(null)}
-                className="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200">
-                Cancel
-              </button>
+              <button onClick={() => setConfirm(null)} className="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200">Cancel</button>
               <button onClick={() => { const fn = confirm.run; const v = modalInput; setConfirm(null); fn(v); }}
                 className={`px-4 py-2 rounded-xl text-sm font-bold text-white ${confirm.danger ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}>
                 {confirm.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve modal */}
+      {approve && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setApprove(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+            <p className="text-base font-black text-gray-900">Approve {approve.name || "applicant"}</p>
+            <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">
+              This creates their partner login. Give them the code and password ({approve.contact_handle ? `via ${approve.contact_handle}` : "via their contact"}).
+            </p>
+            <div className="mt-3 space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Referral code (their link)</label>
+                <input className={field} value={apCode} onChange={(e) => setApCode(e.target.value.toLowerCase())} />
+                {apCode && <p className="text-[11px] text-gray-400 mt-1 font-mono">{SITE}/{apCode}</p>}
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Login password</label>
+                <input className={field} value={apPw} onChange={(e) => setApPw(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Their split % (internal)</label>
+                <input className={field} value={apSplit} onChange={(e) => setApSplit(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setApprove(null)} className="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200">Cancel</button>
+              <button onClick={doApprove} disabled={busy}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60">
+                {busy ? "Creating\u2026" : "Create partner"}
               </button>
             </div>
           </div>
