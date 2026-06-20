@@ -3,12 +3,33 @@
 import { useEffect, useMemo, useState } from "react";
 import Analytics from "@/components/Analytics";
 
-interface PPVEvent { id: number; name: string; category: string; poster?: string }
+interface PPVEvent { id: number; name: string; category: string; poster?: string; startsAt?: number | null; endsAt?: number | null; alwaysLive?: boolean }
+type PStatus = "live" | "upcoming" | "ended";
+function statusOf(ev: PPVEvent): PStatus {
+  if (ev.alwaysLive) return "live";
+  const now = Date.now() / 1000;
+  const s = ev.startsAt ?? null;
+  const e = ev.endsAt ?? null;
+  if (s != null && s > now + 60) return "upcoming";
+  if (e != null && e > 0 && e < now - 600) return "ended";
+  return "live";
+}
+function startLabel(ev: PPVEvent): string {
+  const s = ev.startsAt;
+  if (s == null) return "";
+  const diff = s - Date.now() / 1000;
+  if (diff > 0 && diff < 86400) {
+    const h = Math.floor(diff / 3600);
+    const m = Math.floor((diff % 3600) / 60);
+    return h > 0 ? `Starts in ${h}h ${m}m` : `Starts in ${Math.max(m, 1)}m`;
+  }
+  return "Starts " + new Date(s * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
 interface Embed { embedUrl: string; server: string }
 
 const C = {
   bg: "#0b0f14", card: "#141a22", card2: "#1b232e", line: "#26303c",
-  text: "#e5e7eb", dim: "#9ca3af", accent: "#10b981", red: "#ef4444",
+  text: "#e5e7eb", dim: "#9ca3af", accent: "#10b981", red: "#ef4444", amber: "#f59e0b",
 };
 
 function domainOf(u: string): string {
@@ -22,6 +43,7 @@ function isFootball(cat: string): boolean {
 }
 
 function Card({ ev, active, onClick }: { ev: PPVEvent; active: boolean; onClick: () => void }) {
+  const st = statusOf(ev);
   return (
     <button
       onClick={onClick}
@@ -38,11 +60,16 @@ function Card({ ev, active, onClick }: { ev: PPVEvent; active: boolean; onClick:
         ) : (
           <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: C.dim, fontSize: 13, padding: 8, textAlign: "center" }}>{ev.category}</div>
         )}
-        <span style={{ position: "absolute", top: 8, left: 8, background: C.red, color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 7px", borderRadius: 6, letterSpacing: 0.3 }}>● LIVE</span>
+        {st === "upcoming" ? (
+          <span style={{ position: "absolute", top: 8, left: 8, background: C.amber, color: "#1a1206", fontSize: 11, fontWeight: 800, padding: "3px 7px", borderRadius: 6, letterSpacing: 0.3 }}>UPCOMING</span>
+        ) : st === "live" ? (
+          <span style={{ position: "absolute", top: 8, left: 8, background: C.red, color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 7px", borderRadius: 6, letterSpacing: 0.3 }}>● LIVE</span>
+        ) : null}
       </div>
       <div style={{ padding: "10px 12px" }}>
         <div style={{ fontWeight: 600, fontSize: 14, color: C.text, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ev.name}</div>
         <div style={{ fontSize: 12, color: C.dim, marginTop: 3 }}>{ev.category}</div>
+        {st === "upcoming" && <div style={{ fontSize: 11, color: C.amber, marginTop: 3, fontWeight: 600 }}>{startLabel(ev)}</div>}
       </div>
     </button>
   );
@@ -66,6 +93,7 @@ export default function PpvPage() {
   const [embedUrl, setEmbedUrl] = useState("");
   const [resolving, setResolving] = useState(false);
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"all" | "live" | "upcoming">("all");
 
   useEffect(() => {
     fetch("/api/ppv")
@@ -96,17 +124,33 @@ export default function PpvPage() {
     () => (q ? events.filter((e) => e.name.toLowerCase().includes(q.toLowerCase())) : events),
     [q, events]
   );
-  const football = useMemo(() => filtered.filter((e) => isFootball(e.category)), [filtered]);
+  const counts = useMemo(() => {
+    let live = 0, upcoming = 0;
+    for (const e of filtered) {
+      const st = statusOf(e);
+      if (st === "live") live++; else if (st === "upcoming") upcoming++;
+    }
+    return { live, upcoming, all: live + upcoming };
+  }, [filtered]);
+  const visible = useMemo(
+    () => filtered.filter((e) => {
+      const st = statusOf(e);
+      if (st === "ended") return false;
+      return filter === "all" ? true : st === filter;
+    }),
+    [filtered, filter]
+  );
+  const football = useMemo(() => visible.filter((e) => isFootball(e.category)), [visible]);
   const groups = useMemo(() => {
     const m = new Map<string, PPVEvent[]>();
-    for (const e of filtered) {
+    for (const e of visible) {
       if (isFootball(e.category)) continue;
       const k = e.category || "Live";
       const arr = m.get(k);
       if (arr) arr.push(e); else m.set(k, [e]);
     }
     return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
-  }, [filtered]);
+  }, [visible]);
 
   const selectedId = selected?.id ?? null;
 
@@ -156,20 +200,32 @@ export default function PpvPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search events…"
-          style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: `1px solid ${C.line}`, background: C.card, color: C.text, fontSize: 15, marginBottom: 18, boxSizing: "border-box" }}
+          style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: `1px solid ${C.line}`, background: C.card, color: C.text, fontSize: 15, marginBottom: 12, boxSizing: "border-box" }}
         />
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+          {([["all", "All", counts.all], ["live", "Live", counts.live], ["upcoming", "Upcoming", counts.upcoming]] as const).map(([key, label, count]) => (
+            <button key={key} onClick={() => setFilter(key)}
+              style={{ padding: "8px 14px", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 700,
+                border: `1px solid ${filter === key ? C.accent : C.line}`,
+                background: filter === key ? C.accent : "transparent",
+                color: filter === key ? "#062019" : C.dim }}>
+              {label}{count > 0 ? ` (${count})` : ""}
+            </button>
+          ))}
+        </div>
 
         {loading ? (
           <div style={{ color: C.dim, fontSize: 14, padding: "30px 0", textAlign: "center" }}>Loading live events…</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ color: C.dim, fontSize: 14, padding: "30px 0", textAlign: "center" }}>No live events right now. Check back near kickoff.</div>
+        ) : visible.length === 0 ? (
+          <div style={{ color: C.dim, fontSize: 14, padding: "30px 0", textAlign: "center" }}>{filter === "upcoming" ? "No upcoming events scheduled." : filter === "live" ? "No live events right now. Check back near kickoff." : "No events right now. Check back soon."}</div>
         ) : (
           <>
             {football.length > 0 && (
               <section style={{ marginBottom: 26 }}>
                 <h2 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
                   <span>⚽ Football</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.red }}>● {football.length} live</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.dim }}>({football.length})</span>
                 </h2>
                 <Grid list={football} selectedId={selectedId} onPick={openEvent} />
               </section>
