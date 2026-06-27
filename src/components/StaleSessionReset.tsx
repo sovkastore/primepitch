@@ -29,7 +29,8 @@ export default function StaleSessionReset() {
       } catch {}
       touch(); // mark fresh so the reloaded page isn't treated as stale again
       const onHome = window.location.pathname === "/";
-      if (!onHome || hadSport) window.location.replace("/");
+      const onCricket = window.location.pathname.startsWith("/cricket");
+      if ((!onHome && !onCricket) || hadSport) window.location.replace("/");
     };
 
     // Returned to a stale tab, or reopened the browser after >1 min away.
