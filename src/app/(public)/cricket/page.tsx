@@ -62,7 +62,7 @@ export default function CricketPage() {
         <div className="lg:col-span-8 space-y-6">
           <div className="relative w-full bg-black rounded-2xl overflow-hidden shadow-2xl border border-gray-200 aspect-video">
             <iframe
-              src={`https://streamcrichd.com/update/fetch.php?hd=${activeChannelId}`}
+              src={`https://crichd.vip/update/fetch.php?hd=${activeChannelId}`}
               width="100%"
               height="100%"
               marginWidth={0}
