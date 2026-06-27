@@ -1,4 +1,4 @@
-const WRESTLING_KEYWORDS = ["WWE", "AEW", "TNA", "SmackDown", "NXT", "RAW", "Impact"];
+const WRESTLING_KEYWORDS = ["WWE", "AEW", "TNA", "SmackDown", "NXT", "RAW", "Impact", "Night of Champions", "WrestleMania", "SummerSlam", "Royal Rumble", "Survivor Series"];
 const MMA_KEYWORDS = ["UFC", "MMA", "PFL", "LFC", "Bellator", "ONE Championship"];
 
 export type FightSubcategory = "wrestling" | "mma" | "boxing";

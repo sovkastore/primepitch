@@ -145,6 +145,22 @@ export default function Navbar() {
               <svg className="shrink-0 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
             </Link>
 
+            {/* Live Cricket — Dedicated Manager */}
+            <Link
+              href="/cricket-live"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 p-3 rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
+            >
+              <span className="shrink-0 w-10 h-10 rounded-xl bg-white/20 grid place-items-center">
+                <span className="text-xl">🏏</span>
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[15px] font-bold leading-tight">Live Cricket Matches</span>
+                <span className="block text-[12px] text-white/85">Premium schedule & auto-streams</span>
+              </span>
+              <svg className="shrink-0 w-4 h-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+            </Link>
+
             {affiliate && (
               <Link
                 href="/partner-program"
