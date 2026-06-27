@@ -230,7 +230,6 @@ export default function CricketPage() {
             <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800">
                <div className="flex items-center justify-between mb-4">
                   <p className="text-[10px] font-black text-emerald-400 tracking-widest uppercase">Switch Channel</p>
-                  <p className="text-[9px] text-gray-500">{MASTER_CHANNELS[activeChannelId]}</p>
                </div>
                <div className="flex flex-wrap gap-2.5">
                  {selectedMatch.channel_ids.map(id => (
