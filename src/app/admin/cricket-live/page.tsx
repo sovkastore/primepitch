@@ -32,15 +32,15 @@ export default function AdminCricketPage() {
   const [loading, setLoading] = useState(true);
   const [editingMatch, setEditingMatch] = useState<CricketMatch | null>(null);
   
-  // Form State
   const [title, setTitle] = useState("");
   const [competition, setCompetition] = useState("");
   const [time, setTime] = useState("");
   const [status, setStatus] = useState<CricketMatch["status"]>("live");
   const [selectedChannels, setSelectedChannels] = useState<number[]>([]);
   const [customId, setCustomId] = useState("");
-  const [msg, setMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [msg, setMsg] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
+  // Initialize client outside to ensure it's fresh
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -52,25 +52,27 @@ export default function AdminCricketPage() {
 
   useEffect(() => {
     if (msg) {
-      const t = setTimeout(() => setMsg(null), 4000);
+      const t = setTimeout(() => setMsg(null), 6000);
       return () => clearTimeout(t);
     }
   }, [msg]);
 
   async function fetchMatches() {
     setLoading(true);
-    // TEST CONNECTION
-    const { data: test, error: testErr } = await supabase.from("cricket_streams").select("id").limit(1);
-    if (testErr) {
-      console.error("Connection Test Failed:", testErr);
-      setMsg({ text: "Database Connection Error: " + testErr.message, type: "error" });
+    try {
+      const { data, error } = await supabase
+        .from("cricket_streams")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      if (error) {
+        setMsg({ text: "Fetch Error: " + error.message, type: "error" });
+      } else if (data) {
+        setMatches(data);
+      }
+    } catch (e: any) {
+      setMsg({ text: "System Error: " + e.message, type: "error" });
     }
-
-    const { data, error } = await supabase
-      .from("cricket_streams")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error && data) setMatches(data);
     setLoading(false);
   }
 
@@ -85,7 +87,6 @@ export default function AdminCricketPage() {
     if (!isNaN(id) && !selectedChannels.includes(id)) {
       setSelectedChannels(prev => [...prev, id]);
       setCustomId("");
-      setMsg({ text: `Custom ID ${id} added to selection`, type: "success" });
     }
   };
 
@@ -106,39 +107,46 @@ export default function AdminCricketPage() {
     setTime("");
     setStatus("live");
     setSelectedChannels([]);
-    setCustomId("");
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedChannels.length === 0) {
-      setMsg({ text: "Please select at least one channel!", type: "error" });
-      return;
-    }
+    setMsg({ text: "Saving to database...", type: "info" });
 
-    const payload = { title, competition, time, status, channel_ids: selectedChannels };
-    const { error } = editingMatch?.id 
-      ? await supabase.from("cricket_streams").update(payload).eq("id", editingMatch.id)
-      : await supabase.from("cricket_streams").insert([payload]);
+    const payload = { 
+        title, 
+        competition, 
+        time, 
+        status, 
+        channel_ids: selectedChannels 
+    };
 
-    if (error) {
-      setMsg({ text: "Error: " + error.message, type: "error" });
-    } else {
-      setMsg({ text: editingMatch ? "Match updated successfully!" : "Match created successfully!", type: "success" });
-      resetForm();
-      fetchMatches();
+    try {
+        let result;
+        if (editingMatch?.id) {
+            result = await supabase.from("cricket_streams").update(payload).eq("id", editingMatch.id);
+        } else {
+            result = await supabase.from("cricket_streams").insert([payload]);
+        }
+
+        if (result.error) {
+            setMsg({ text: "SAVE FAILED: " + result.error.message, type: "error" });
+            console.error(result.error);
+        } else {
+            setMsg({ text: "SUCCESS! Match saved to database.", type: "success" });
+            resetForm();
+            fetchMatches();
+        }
+    } catch (err: any) {
+        setMsg({ text: "CRITICAL ERROR: " + err.message, type: "error" });
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure?")) return;
     const { error } = await supabase.from("cricket_streams").delete().eq("id", id);
-    if (error) {
-      setMsg({ text: "Delete failed: " + error.message, type: "error" });
-    } else {
-      setMsg({ text: "Match deleted.", type: "success" });
-      fetchMatches();
-    }
+    if (error) setMsg({ text: "Delete Error: " + error.message, type: "error" });
+    else fetchMatches();
   };
 
   return (
@@ -146,96 +154,85 @@ export default function AdminCricketPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Cricket Stream Manager</h1>
         <div className="flex gap-4">
-           <Link href="/admin" className="text-xs font-bold text-gray-400 hover:text-gray-900 uppercase tracking-widest">Dashboard</Link>
-           <Link href="/cricket" target="_blank" className="text-xs font-bold text-emerald-600 hover:underline uppercase tracking-widest">View Live ↗</Link>
+           <Link href="/cricket-live" target="_blank" className="text-xs font-bold text-emerald-600 hover:underline uppercase tracking-widest">Open Live Page ↗</Link>
         </div>
       </div>
 
-      {/* ALERT BANNER */}
       {msg && (
-        <div className={`mb-6 p-4 rounded-xl font-bold text-[13px] border animate-in fade-in slide-in-from-top-2 duration-300 ${
-          msg.type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-600" : "bg-red-50 border-red-100 text-red-600"
+        <div className={`mb-6 p-4 rounded-xl font-bold text-[13px] border shadow-sm ${
+          msg.type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-600" : 
+          msg.type === "info" ? "bg-blue-50 border-blue-100 text-blue-600" :
+          "bg-red-50 border-red-100 text-red-600"
         }`}>
-          {msg.type === "success" ? "✅" : "❌"} {msg.text}
+          {msg.text}
         </div>
       )}
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-12">
-        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6">{editingMatch ? "Edit Match" : "Add New Match"}</h2>
         <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-4">
             <div>
               <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Match Title</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} required placeholder="e.g. England vs New Zealand" className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 focus:ring-2 focus:ring-emerald-500/20 font-bold" />
+              <input value={title} onChange={e => setTitle(e.target.value)} required placeholder="India vs Australia" className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 focus:ring-2 focus:ring-emerald-500/20 font-bold" />
             </div>
             <div>
               <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Competition</label>
-              <input value={competition} onChange={e => setCompetition(e.target.value)} required placeholder="e.g. International Cricket" className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 focus:ring-2 focus:ring-emerald-500/20 font-bold" />
+              <input value={competition} onChange={e => setCompetition(e.target.value)} required placeholder="T20 World Cup" className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 font-bold" />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Time / Status</label>
-                <input value={time} onChange={e => setTime(e.target.value)} required placeholder="15:30 or LIVE" className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 font-bold" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Visibility</label>
-                <select value={status} onChange={e => setStatus(e.target.value as any)} className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 font-bold">
-                  <option value="live">Live Now</option>
-                  <option value="today">Today</option>
-                  <option value="tomorrow">Tomorrow</option>
-                  <option value="hidden">Hidden</option>
-                </select>
-              </div>
+               <div>
+                 <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Time / LIVE</label>
+                 <input value={time} onChange={e => setTime(e.target.value)} required placeholder="14:00 or LIVE" className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 font-bold" />
+               </div>
+               <div>
+                  <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Section</label>
+                  <select value={status} onChange={e => setStatus(e.target.value as any)} className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 font-bold">
+                    <option value="live">Live Now</option>
+                    <option value="today">Today</option>
+                    <option value="tomorrow">Tomorrow</option>
+                    <option value="hidden">Hidden</option>
+                  </select>
+               </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Channels (Already Linked: {selectedChannels.length})</label>
-            <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto p-2 border border-gray-50 rounded-xl bg-gray-50/50">
-              {MASTER_CHANNELS.map(ch => (
-                <label key={ch.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all ${selectedChannels.includes(ch.id) ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-100'}`}>
-                  <input type="checkbox" checked={selectedChannels.includes(ch.id)} onChange={() => toggleChannel(ch.id)} className="w-4 h-4 accent-emerald-500" />
-                  <span className={`text-[10px] font-bold ${selectedChannels.includes(ch.id) ? 'text-emerald-700' : 'text-gray-600'}`}>{ch.name}</span>
-                </label>
-              ))}
+            <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Select Channels ({selectedChannels.length})</label>
+            <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto p-2 bg-gray-50 rounded-xl">
+               {MASTER_CHANNELS.map(ch => (
+                 <label key={ch.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer ${selectedChannels.includes(ch.id) ? 'bg-white border-emerald-500' : 'bg-white border-transparent'}`}>
+                    <input type="checkbox" checked={selectedChannels.includes(ch.id)} onChange={() => toggleChannel(ch.id)} className="w-4 h-4 accent-emerald-500" />
+                    <span className="text-[10px] font-bold text-gray-600">{ch.name}</span>
+                 </label>
+               ))}
             </div>
-
-            {/* CUSTOM ID ADDER */}
-            <div className="mt-4 flex gap-2">
-              <input type="number" value={customId} onChange={e => setCustomId(e.target.value)} placeholder="Add Custom ID (e.g. 150)" className="flex-1 px-4 py-2 rounded-xl border border-gray-100 bg-gray-50 text-[11px] font-bold" />
-              <button type="button" onClick={addCustomId} className="px-4 py-2 bg-gray-900 text-white text-[10px] font-black rounded-xl uppercase">Add ID</button>
+            <div className="flex gap-2">
+               <input type="number" value={customId} onChange={e => setCustomId(e.target.value)} placeholder="Custom ID" className="flex-1 px-4 py-2 rounded-xl border border-gray-100 text-xs font-bold" />
+               <button type="button" onClick={addCustomId} className="px-4 py-2 bg-gray-900 text-white rounded-xl text-[10px] font-black">ADD</button>
             </div>
-
-            <div className="pt-4 flex gap-3">
-              <button type="submit" className="flex-1 btn-gradient py-3 rounded-xl text-white text-[12px] font-black tracking-widest uppercase">Save Match</button>
-              {editingMatch && <button type="button" onClick={resetForm} className="px-6 py-3 bg-gray-100 rounded-xl text-[12px] font-bold text-gray-400">Cancel</button>}
-            </div>
+            <button type="submit" className="w-full py-3 bg-emerald-500 text-white rounded-xl text-[12px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">
+              {editingMatch ? "Update Match" : "Save Match Now"}
+            </button>
           </div>
         </form>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest px-1">Current Matches</h2>
-        {loading ? (
-          <div className="py-20 text-center text-gray-400 font-bold">Loading...</div>
+      <div className="space-y-3">
+        <h2 className="text-[11px] font-black text-gray-400 uppercase tracking-widest px-1">Registered Matches</h2>
+        {matches.length === 0 ? (
+            <div className="p-8 text-center text-gray-300 font-bold border-2 border-dashed border-gray-100 rounded-2xl">No matches in database. Add one above.</div>
         ) : matches.map(m => (
-          <div key={m.id} className="bg-white rounded-xl border border-gray-100 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 group transition-shadow hover:shadow-sm">
+          <div key={m.id} className="bg-white border border-gray-100 p-4 rounded-xl flex items-center justify-between group">
             <div className="flex items-center gap-4">
-               <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${m.status === 'live' ? 'bg-red-50' : 'bg-emerald-50'}`}>
-                 {m.status === 'live' ? "🔴" : "🏏"}
-               </div>
-               <div>
-                  <h4 className="text-[16px] font-black text-gray-900 leading-none mb-1.5">{m.title}</h4>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${m.status === 'live' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'}`}>{m.status}</span>
-                    <span className="text-[10px] text-gray-400 font-bold">{m.competition} • {m.time}</span>
-                  </div>
-               </div>
+              <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-xl">🏏</div>
+              <div>
+                <h4 className="text-[15px] font-black text-gray-900 leading-none mb-1">{m.title}</h4>
+                <p className="text-[10px] text-gray-400 font-bold uppercase">{m.competition} • {m.status}</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-gray-400 mr-4">{m.channel_ids.length} Channels</span>
-              <button onClick={() => handleEdit(m)} className="px-4 py-2 bg-emerald-50 rounded-lg text-emerald-600 text-[11px] font-bold">Edit</button>
-              <button onClick={() => handleDelete(m.id!)} className="p-2 bg-red-50 rounded-lg text-red-400 hover:text-red-600"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></button>
+            <div className="flex gap-2">
+               <button onClick={() => handleEdit(m)} className="px-3 py-1.5 bg-gray-100 rounded-lg text-gray-500 text-[10px] font-bold hover:bg-emerald-50 hover:text-emerald-600">Edit</button>
+               <button onClick={() => handleDelete(m.id!)} className="px-3 py-1.5 bg-red-50 rounded-lg text-red-500 text-[10px] font-bold">Delete</button>
             </div>
           </div>
         ))}
