@@ -291,7 +291,6 @@ export default function CricketPage() {
                 scrolling="no"
                 frameBorder="0"
                 allowFullScreen={true}
-                sandbox="allow-scripts allow-same-origin allow-presentation"
                 className="absolute inset-0 w-full h-full"
               ></iframe>
             </div>
