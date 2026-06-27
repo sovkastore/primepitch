@@ -114,6 +114,7 @@ export default function AdminCricketPage() {
     setMsg({ text: "Saving to database...", type: "info" });
 
     const payload = { 
+        id: editingMatch?.id,
         title, 
         competition, 
         time, 
@@ -122,16 +123,15 @@ export default function AdminCricketPage() {
     };
 
     try {
-        let result;
-        if (editingMatch?.id) {
-            result = await supabase.from("cricket_streams").update(payload).eq("id", editingMatch.id);
-        } else {
-            result = await supabase.from("cricket_streams").insert([payload]);
-        }
+        const res = await fetch("/api/cricket", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const result = await res.json();
 
         if (result.error) {
-            setMsg({ text: "SAVE FAILED: " + result.error.message, type: "error" });
-            console.error(result.error);
+            setMsg({ text: "SAVE FAILED: " + result.error, type: "error" });
         } else {
             setMsg({ text: "SUCCESS! Match saved to database.", type: "success" });
             resetForm();
@@ -144,9 +144,17 @@ export default function AdminCricketPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure?")) return;
-    const { error } = await supabase.from("cricket_streams").delete().eq("id", id);
-    if (error) setMsg({ text: "Delete Error: " + error.message, type: "error" });
-    else fetchMatches();
+    try {
+        const res = await fetch(`/api/cricket?id=${id}`, { method: "DELETE" });
+        const result = await res.json();
+        if (result.error) setMsg({ text: "Delete Error: " + result.error, type: "error" });
+        else {
+            setMsg({ text: "Match deleted.", type: "success" });
+            fetchMatches();
+        }
+    } catch (err: any) {
+        setMsg({ text: "System Error: " + err.message, type: "error" });
+    }
   };
 
   return (
