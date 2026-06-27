@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 
 interface Channel {
@@ -9,114 +10,60 @@ interface Channel {
 }
 
 interface Match {
-  id: number;
+  id: string;
   time: string;
   competition: string;
   title: string;
-  status: "live" | "today" | "tomorrow" | "upcoming";
-  channels: Channel[];
+  status: "live" | "today" | "tomorrow" | "hidden";
+  channel_ids: number[];
 }
 
-const CRICKET_MATCHES: Match[] = [
-  // LIVE NOW
-  {
-    id: 1,
-    time: "LIVE",
-    competition: "International Cricket",
-    title: "England vs New Zealand",
-    status: "live",
-    channels: [
-      { name: "Sky Sports Cricket", id: 2 },
-      { name: "Willow Cricket", id: 29 }
-    ]
-  },
-  {
-    id: 2,
-    time: "LIVE",
-    competition: "International Cricket",
-    title: "Bangladesh vs Australia",
-    status: "live",
-    channels: [
-      { name: "Star Sports 1", id: 25 },
-      { name: "Willow Cricket", id: 29 }
-    ]
-  },
-  {
-    id: 3,
-    time: "LIVE",
-    competition: "International Cricket",
-    title: "West Indies vs Sri Lanka",
-    status: "live",
-    channels: [
-      { name: "TNT Sports 3", id: 14 },
-      { name: "Willow Cricket", id: 29 }
-    ]
-  },
-  {
-    id: 4,
-    time: "LIVE",
-    competition: "International Cricket",
-    title: "Ireland vs India",
-    status: "live",
-    channels: [
-      { name: "Star Sports 1", id: 25 },
-      { name: "Sky Sports Cricket", id: 2 }
-    ]
-  },
-  {
-    id: 5,
-    time: "LIVE",
-    competition: "ICC Women's T20 World Cup",
-    title: "Ireland Cricket Women vs West Indies Cricket Women",
-    status: "live",
-    channels: [
-      { name: "Sky Sports Mix", id: 7 }
-    ]
-  },
-  // TODAY
-  {
-    id: 6,
-    time: "17:30",
-    competition: "ICC Women's T20 World Cup",
-    title: "England Cricket Women vs New Zealand Cricket Women",
-    status: "today",
-    channels: [
-      { name: "Sky Sports Cricket", id: 2 },
-      { name: "Willow Cricket", id: 29 }
-    ]
-  },
-  // TOMORROW
-  {
-    id: 7,
-    time: "13:30",
-    competition: "ICC Women's T20 World Cup",
-    title: "Australia Cricket Women vs India Cricket Women",
-    status: "tomorrow",
-    channels: [
-      { name: "Star Sports 1", id: 25 },
-      { name: "Sky Sports Cricket", id: 2 }
-    ]
-  },
-  {
-    id: 8,
-    time: "21:30",
-    competition: "Major League Cricket",
-    title: "Los Angeles Knight Riders vs Seattle Orcas",
-    status: "tomorrow",
-    channels: [
-      { name: "Willow Cricket", id: 29 },
-      { name: "TNT Sports 1", id: 12 }
-    ]
-  }
-];
+const MASTER_CHANNELS: Record<number, string> = {
+  2: "Sky Sports Cricket",
+  29: "Willow Cricket",
+  25: "Star Sports 1",
+  26: "Star Sports 1 Hindi",
+  60: "Sky Sport 3 NZ",
+  61: "Sky Sport 4 NZ",
+  1: "Sky Sports Main Event",
+  3: "Sky Sports Action",
+  7: "Sky Sports Mix",
+  12: "TNT Sports 1",
+  13: "TNT Sports 2",
+  14: "TNT Sports 3",
+  22: "TNT Sports 4",
+};
 
 export default function CricketPage() {
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
 
-  const liveMatches = CRICKET_MATCHES.filter(m => m.status === "live");
-  const todayMatches = CRICKET_MATCHES.filter(m => m.status === "today");
-  const tomorrowMatches = CRICKET_MATCHES.filter(m => m.status === "tomorrow");
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  useEffect(() => {
+    fetchMatches();
+  }, []);
+
+  async function fetchMatches() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("cricket_streams")
+      .select("*")
+      .neq("status", "hidden")
+      .order("created_at", { ascending: false });
+
+    if (!error && data) setMatches(data);
+    setLoading(false);
+  }
+
+  const liveMatches = matches.filter(m => m.status === "live");
+  const todayMatches = matches.filter(m => m.status === "today");
+  const tomorrowMatches = matches.filter(m => m.status === "tomorrow");
 
   const reset = () => {
     setSelectedMatch(null);
@@ -144,19 +91,17 @@ export default function CricketPage() {
 
   const MatchRow = ({ match }: { match: Match }) => (
     <div className="flex items-center justify-between p-4 border-b border-gray-50 hover:bg-emerald-50/20 transition-colors w-full gap-3">
-      {/* Time/Status Column */}
-      <div className="w-14 md:w-20 shrink-0 text-center">
+      <div className="w-14 items-center shrink-0 flex flex-col justify-center">
         {match.status === "live" ? (
-          <div className="flex flex-col items-center gap-0.5">
+          <>
             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
             <span className="text-[9px] font-black text-red-600 tracking-tighter">LIVE</span>
-          </div>
+          </>
         ) : (
           <span className="text-[12px] font-black text-gray-700 tabular-nums">{match.time}</span>
         )}
       </div>
 
-      {/* Info Column */}
       <div className="flex-1 min-w-0">
         <p className="text-[9px] font-bold text-emerald-600/70 uppercase tracking-tight truncate mb-0.5">
           {match.competition}
@@ -166,7 +111,6 @@ export default function CricketPage() {
         </h4>
       </div>
 
-      {/* Watch Button */}
       <div className="shrink-0">
         <button 
           onClick={() => handleWatchClick(match)}
@@ -181,61 +125,80 @@ export default function CricketPage() {
     </div>
   );
 
-  // 1. MATCH LIST VIEW
+  if (loading) {
+    return (
+      <div className="max-w-[1200px] mx-auto py-20 text-center">
+        <div className="inline-block w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-sm font-bold text-gray-400">Fetching live cricket schedule...</p>
+      </div>
+    );
+  }
+
   if (!selectedMatch) {
     return (
       <div className="max-w-[1200px] mx-auto py-6">
         {renderBreadcrumb()}
         
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mx-3">
-          {/* Main Title Banner */}
           <div className="p-5 border-b border-gray-100 bg-white flex items-center justify-between">
             <div>
               <h1 className="text-xl font-black text-gray-900 tracking-tight leading-none mb-1">Cricket Live</h1>
-              <p className="text-[11px] text-gray-400 font-medium">All Match Streaming Schedule</p>
+              <p className="text-[11px] text-gray-400 font-medium">Auto-synced Stream Manager</p>
             </div>
             <div className="flex flex-col items-end">
-              <span className="px-2 py-1 bg-red-500 rounded text-[9px] font-black text-white animate-pulse uppercase">{liveMatches.length} Live</span>
+              <span className="px-2 py-1 bg-red-500 rounded text-[9px] font-black text-white animate-pulse uppercase">{liveMatches.length} Live Now</span>
             </div>
           </div>
 
           <div className="flex flex-col w-full">
-            {/* SECTION: LIVE */}
-            <div className="bg-gray-900 px-5 py-2 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                <span className="text-[10px] font-black text-white tracking-widest uppercase">Live Now</span>
+            {liveMatches.length > 0 && (
+              <>
+                <div className="bg-gray-900 px-5 py-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                    <span className="text-[10px] font-black text-white tracking-widest uppercase">Live Now</span>
+                  </div>
+                </div>
+                {liveMatches.map(m => <MatchRow key={m.id} match={m} />)}
+              </>
+            )}
+
+            {todayMatches.length > 0 && (
+              <>
+                <div className="bg-gray-50 px-5 py-2 flex items-center justify-between border-y border-gray-100">
+                  <span className="text-[10px] font-black text-gray-500 tracking-widest uppercase">Today</span>
+                </div>
+                {todayMatches.map(m => <MatchRow key={m.id} match={m} />)}
+              </>
+            )}
+
+            {tomorrowMatches.length > 0 && (
+              <>
+                <div className="bg-gray-50 px-5 py-2 flex items-center justify-between border-y border-gray-100">
+                  <span className="text-[10px] font-black text-gray-500 tracking-widest uppercase">Tomorrow</span>
+                </div>
+                {tomorrowMatches.map(m => <MatchRow key={m.id} match={m} />)}
+              </>
+            )}
+
+            {matches.length === 0 && (
+              <div className="py-20 text-center px-6">
+                <div className="text-4xl mb-4 opacity-20">🏏</div>
+                <h3 className="text-lg font-black text-gray-900 mb-2">No fixtures listed for today</h3>
+                <p className="text-sm text-gray-400 max-w-xs mx-auto font-medium">Please check back later or contact support if you believe there is a major match missing.</p>
               </div>
-              <span className="text-[10px] font-bold text-gray-500 uppercase">{liveMatches.length} Match</span>
-            </div>
-            {liveMatches.map(m => <MatchRow key={m.id} match={m} />)}
-
-            {/* SECTION: TODAY */}
-            <div className="bg-gray-50 px-5 py-2 flex items-center justify-between border-y border-gray-100">
-              <span className="text-[10px] font-black text-gray-500 tracking-widest uppercase">Today</span>
-              <span className="text-[10px] font-bold text-gray-400 uppercase">{todayMatches.length} Match</span>
-            </div>
-            {todayMatches.map(m => <MatchRow key={m.id} match={m} />)}
-
-            {/* SECTION: TOMORROW */}
-            <div className="bg-gray-50 px-5 py-2 flex items-center justify-between border-y border-gray-100">
-              <span className="text-[10px] font-black text-gray-500 tracking-widest uppercase">Tomorrow</span>
-              <span className="text-[10px] font-bold text-gray-400 uppercase">{tomorrowMatches.length} Match</span>
-            </div>
-            {tomorrowMatches.map(m => <MatchRow key={m.id} match={m} />)}
+            )}
           </div>
         </div>
       </div>
     );
   }
 
-  // 2. PLAYER / CHANNEL SELECTION VIEW
   return (
     <div className="max-w-[1200px] mx-auto px-3 py-6">
       {renderBreadcrumb()}
 
       <div className="grid grid-cols-1 gap-6">
-        {/* Match Header */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
              <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-2xl shadow-inner">🏏</div>
@@ -245,12 +208,11 @@ export default function CricketPage() {
              </div>
           </div>
           <div className="flex items-center justify-between md:justify-end gap-3 border-t md:border-none pt-4 md:pt-0 mt-2 md:mt-0">
-             <span className="px-2.5 py-1 bg-red-500 rounded text-[9px] font-black text-white animate-pulse">LIVE NOW</span>
+             {selectedMatch.status === 'live' && <span className="px-2.5 py-1 bg-red-500 rounded text-[9px] font-black text-white animate-pulse">LIVE NOW</span>}
              <button onClick={reset} className="px-3 py-1 bg-gray-100 rounded-lg text-[10px] font-bold text-gray-500 hover:bg-gray-200">CLOSE ×</button>
           </div>
         </div>
 
-        {/* Player Area */}
         {activeChannelId ? (
           <div className="space-y-6">
             <div className="relative w-full bg-black rounded-2xl overflow-hidden shadow-2xl aspect-video border-2 md:border-4 border-emerald-500/20">
@@ -268,20 +230,20 @@ export default function CricketPage() {
             <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800">
                <div className="flex items-center justify-between mb-4">
                   <p className="text-[10px] font-black text-emerald-400 tracking-widest uppercase">Switch Channel</p>
-                  <p className="text-[9px] text-gray-500">Source: crichd.sc</p>
+                  <p className="text-[9px] text-gray-500">{MASTER_CHANNELS[activeChannelId]}</p>
                </div>
                <div className="flex flex-wrap gap-2.5">
-                 {selectedMatch.channels.map(ch => (
+                 {selectedMatch.channel_ids.map(id => (
                    <button 
-                     key={ch.id}
-                     onClick={() => setActiveChannelId(ch.id)}
+                     key={id}
+                     onClick={() => setActiveChannelId(id)}
                      className={`px-4 py-2 rounded-xl text-[10px] md:text-[11px] font-black transition-all ${
-                       activeChannelId === ch.id 
+                       activeChannelId === id 
                        ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/20" 
                        : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
                      }`}
                    >
-                     {ch.name}
+                     {MASTER_CHANNELS[id] || `Channel ${id}`}
                    </button>
                  ))}
                </div>
@@ -295,15 +257,15 @@ export default function CricketPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
              </div>
-             <h3 className="text-lg font-black text-gray-900 mb-6">Start Watching</h3>
+             <h3 className="text-lg font-black text-gray-900 mb-6">Select Stream</h3>
              <div className="max-w-sm mx-auto grid grid-cols-1 gap-3">
-               {selectedMatch.channels.map(ch => (
+               {selectedMatch.channel_ids.map(id => (
                  <button 
-                   key={ch.id}
-                   onClick={() => setActiveChannelId(ch.id)}
+                   key={id}
+                   onClick={() => setActiveChannelId(id)}
                    className="w-full flex items-center justify-between px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50/50 hover:border-emerald-500 hover:bg-emerald-50 transition-all group"
                  >
-                   <span className="text-[13px] font-black text-gray-900">{ch.name}</span>
+                   <span className="text-[13px] font-black text-gray-900">{MASTER_CHANNELS[id] || `Channel ${id}`}</span>
                    <span className="text-[10px] font-bold text-white px-3 py-1 bg-emerald-500 rounded-lg uppercase shadow-sm">Watch</span>
                  </button>
                ))}
