@@ -148,7 +148,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 1) Referral capture (never blocks the site — any error falls through).
+  // 1) Referral capture — original path-based logic (/CODE)
+  // A visit to /<partnerCode> (e.g. /gims) sets a long-lived cookie and redirects
+  // home. This logic is left completely untouched per requirements.
   const seg = singleSegment(pathname);
   if (seg && !pathname.startsWith("/admin")) {
     const code = seg.toLowerCase();
@@ -168,12 +170,37 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 2) Admin protection (unchanged behaviour).
-  if (!pathname.startsWith("/admin") || pathname === "/admin/login") {
-    return NextResponse.next();
+  // 1.5) Silent Query-param Referral (?ref=CODE)
+  // New additive mechanism: lets a partner share a link to ANY page (e.g. /ppv?ref=gims)
+  // that tags the visitor silently without redirecting them.
+  const refParam = request.nextUrl.searchParams.get("ref");
+  let pendingRefCode: string | null = null;
+  if (refParam && !request.cookies.has(REF_COOKIE)) {
+    const code = refParam.toLowerCase();
+    try {
+      const codes = await getActiveCodes();
+      if (codes.has(code)) {
+        pendingRefCode = code;
+      }
+    } catch { /* ignore */ }
   }
 
-  const response = NextResponse.next();
+  // Helper to attach the pending referral cookie to whatever response we return.
+  function withRef(res: NextResponse): NextResponse {
+    if (pendingRefCode) {
+      res.cookies.set(REF_COOKIE, pendingRefCode, {
+        maxAge: REF_MAX_AGE, path: "/", httpOnly: true, sameSite: "lax", secure: true,
+      });
+    }
+    return res;
+  }
+
+  // 2) Admin protection
+  if (!pathname.startsWith("/admin") || pathname === "/admin/login") {
+    return withRef(NextResponse.next());
+  }
+
+  const response = withRef(NextResponse.next());
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -191,14 +218,14 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+    return withRef(NextResponse.redirect(new URL("/admin/login", request.url)));
   }
 
   const adminEmails = (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((e) => e.trim().toLowerCase());
   if (!adminEmails.includes(user.email?.toLowerCase() || "")) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return withRef(NextResponse.redirect(new URL("/", request.url)));
   }
 
   return response;
