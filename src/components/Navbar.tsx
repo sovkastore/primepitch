@@ -11,8 +11,6 @@ const ALL_SPORTS = [
   "golf", "darts", "billiards", "afl", "other",
 ];
 
-// Icons/brand colors per channel. The actual links + on/off state are managed
-// from Admin → Settings and fetched at runtime, so the owner controls them.
 const SOCIAL_ICONS: Record<string, { color: string; icon: ReactNode }> = {
   telegram: {
     color: "#229ED9",
@@ -49,8 +47,6 @@ export default function Navbar() {
   const [socialsLoaded, setSocialsLoaded] = useState(false);
   const [affiliate, setAffiliate] = useState(false);
 
-  // Fetch the admin-managed connect links the first time the menu opens —
-  // no request on page load, only when someone actually opens the menu.
   useEffect(() => {
     if (!mobileOpen || socialsLoaded) return;
     fetch("/api/social-links", { cache: "no-store" })
@@ -66,173 +62,76 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-gray-200">
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-gray-200 uppercase">
         <div className="max-w-[1400px] mx-auto px-4 lg:px-6 h-14 flex items-center justify-between">
-          {/* Left: Hamburger (mobile) */}
-          <button
-            onClick={() => setMobileOpen(!mobileOpen)}
-            className="md:hidden text-gray-500 hover:text-gray-900 w-8 h-8 flex items-center justify-center relative z-[1000]"
-          >
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden text-gray-500 w-8 h-8 flex items-center justify-center relative z-[1000]">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d={mobileOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={mobileOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
             </svg>
           </button>
-
-          {/* Center: Logo */}
-          <Link href="/" className="flex items-center">
-            <Logo size="md" />
-          </Link>
-
-          {/* Right spacer */}
+          <Link href="/" className="flex items-center"><Logo size="md" /></Link>
           <div className="w-8" />
         </div>
       </nav>
 
-      {/* Mobile fullscreen menu — outside nav to avoid stacking context */}
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 top-14 bg-white z-[999] overflow-y-auto">
-          <div className="max-w-md mx-auto px-4 py-4 space-y-1.5">
-            {/* Subscribe — primary action */}
-            <Link
-              href="/subscribe"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25"
-            >
-              <span className="shrink-0 w-10 h-10 rounded-xl bg-white/20 grid place-items-center">
-                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true"><path d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v3.2l1.7 2.6a1 1 0 0 1-.84 1.55H5.14a1 1 0 0 1-.84-1.55L6 12.7V9.5a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1Zm0 20a2.5 2.5 0 0 1-2.45-2h4.9A2.5 2.5 0 0 1 12 22Z" /></svg>
-              </span>
-              <span className="flex-1 min-w-0">
-                <span className="block text-[15px] font-bold leading-tight">Subscribe</span>
-                <span className="block text-[12px] text-white/85">Live goal alerts to your phone</span>
-              </span>
-              <svg className="shrink-0 w-4 h-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+        <div className="md:hidden fixed inset-0 top-14 bg-white z-[999] overflow-y-auto uppercase tracking-tighter">
+          <div className="max-w-md mx-auto px-4 py-4 space-y-2">
+            <Link href="/subscribe" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-3 rounded-2xl bg-emerald-500 text-white shadow-lg">
+              <span className="shrink-0 w-10 h-10 rounded-xl bg-white/20 grid place-items-center"><svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v3.2l1.7 2.6a1 1 0 0 1-.84 1.55H5.14a1 1 0 0 1-.84-1.55L6 12.7V9.5a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1Zm0 20a2.5 2.5 0 0 1-2.45-2h4.9A2.5 2.5 0 0 1 12 22Z" /></svg></span>
+              <div className="flex-1">
+                <span className="block font-black text-[15px]">Subscribe</span>
+                <span className="block text-[11px] text-white/80">Live alerts to your phone</span>
+              </div>
             </Link>
 
-            {/* World Cup — featured */}
-            <Link
-              href="/world-cup"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 p-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 hover:bg-emerald-50 transition-colors"
-            >
-              <span className="shrink-0 w-10 h-10 rounded-xl bg-white grid place-items-center text-emerald-600 shadow-sm">
-                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z" /><path d="M17 5h2.5a1 1 0 0 1 1 1c0 2.2-1.6 3.8-3.5 4M7 5H4.5a1 1 0 0 0-1 1c0 2.2 1.6 3.8 3.5 4" /><path d="M12 13v3M9 20h6M10 20c0-1.5.5-2.5 2-2.5s2 1 2 2.5" /></svg>
-              </span>
-              <span className="flex-1 min-w-0">
-                <span className="block text-[15px] font-bold text-gray-900 leading-tight">FIFA World Cup 2026</span>
-                <span className="block text-[12px] text-emerald-700/80">All 104 matches</span>
-              </span>
-              <svg className="shrink-0 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+            <Link href="/world-cup" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-3 rounded-2xl border border-emerald-100 bg-emerald-50/60">
+              <span className="shrink-0 w-10 h-10 rounded-xl bg-white grid place-items-center text-emerald-600 shadow-sm"><svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z" /><path d="M12 13v3" /></svg></span>
+              <div className="flex-1">
+                <span className="block font-black text-[15px]">FIFA World Cup 2026</span>
+                <span className="block text-[11px] text-emerald-600">All 104 matches</span>
+              </div>
             </Link>
 
-            {/* Can't watch? — streaming help */}
-            <Link
-              href="/help"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 p-3 rounded-2xl border border-gray-100 bg-white hover:bg-gray-50 transition-colors"
-            >
-              <span className="shrink-0 w-10 h-10 rounded-xl bg-gray-50 grid place-items-center text-emerald-600 shadow-sm">
-                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></svg>
-              </span>
-              <span className="flex-1 min-w-0">
-                <span className="block text-[15px] font-bold text-gray-900 leading-tight">Can&apos;t watch?</span>
-                <span className="block text-[12px] text-gray-500">Stream not loading — get help</span>
-              </span>
-              <svg className="shrink-0 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+            <Link href="/help" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-3 rounded-2xl border border-gray-100 bg-white shadow-sm">
+              <span className="shrink-0 w-10 h-10 rounded-xl bg-gray-50 grid place-items-center text-emerald-600"><svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /></svg></span>
+              <div className="flex-1">
+                <span className="block font-black text-[15px]">Can&apos;t watch?</span>
+                <span className="block text-[12px] text-gray-500">Contact Streaming Support</span>
+              </div>
             </Link>
 
-            {/* Live Cricket — Dedicated Manager */}
-            <Link
-              href="/cricket-live"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 p-3 rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
-            >
-              <span className="shrink-0 w-10 h-10 rounded-xl bg-white/20 grid place-items-center">
-                <span className="text-xl">🏏</span>
-              </span>
-              <span className="flex-1 min-w-0">
-                <span className="block text-[15px] font-bold leading-tight">Live Cricket Matches</span>
-                <span className="block text-[12px] text-white/85">Premium schedule & auto-streams</span>
-              </span>
-              <svg className="shrink-0 w-4 h-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+            {/* THE MISSING LINK — FIXED */}
+            <Link href="/cricket-live" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-4 rounded-2xl bg-gray-900 text-white shadow-xl shadow-emerald-900/10 scale-[1.02] border-2 border-emerald-500/30">
+              <span className="shrink-0 w-10 h-10 rounded-xl bg-emerald-500 grid place-items-center text-xl">🏏</span>
+              <div className="flex-1">
+                <span className="block font-black text-[15px] text-emerald-400">Live Cricket Matches</span>
+                <span className="block text-[11px] text-white/60 font-bold">Premium schedule & auto-streams</span>
+              </div>
+              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
             </Link>
 
             {affiliate && (
-              <Link
-                href="/partner-program"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 p-3 rounded-2xl border border-[#3cac3b]/20 bg-[#3cac3b]/5 hover:bg-[#3cac3b]/10 transition-colors"
-              >
-                <span className="shrink-0 w-10 h-10 rounded-xl bg-white grid place-items-center text-[#3cac3b] shadow-sm">
-                  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[15px] font-bold text-gray-900 leading-tight">Affiliate Program</span>
-                  <span className="block text-[12px] text-[#3cac3b]/80">Earn from the traffic you send</span>
-                </span>
-                <svg className="shrink-0 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+              <Link href="/partner-program" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-3 rounded-2xl border border-emerald-100 bg-emerald-50/30">
+                <span className="shrink-0 w-10 h-10 rounded-xl bg-white grid place-items-center text-emerald-600 shadow-sm"><svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg></span>
+                <div className="flex-1"><span className="block font-black text-[15px]">Partner Program</span></div>
               </Link>
             )}
 
-            <div className="h-px bg-gray-100 my-2.5" />
+            <div className="h-px bg-gray-100 my-2" />
 
-            {/* Sports — collapsible */}
-            <button
-              type="button"
-              onClick={() => setSportsOpen((v) => !v)}
-              aria-expanded={sportsOpen}
-              className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 transition-colors"
-            >
-              <span className="shrink-0 w-10 h-10 rounded-xl bg-gray-100 grid place-items-center text-gray-500">
-                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9" strokeWidth={2} /><path strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" d="M12 3a9 9 0 0 0 0 18M3 12h18M5.6 6.5c2 1.2 10.8 1.2 12.8 0M5.6 17.5c2-1.2 10.8-1.2 12.8 0" /></svg>
-              </span>
-              <span className="flex-1 text-left text-[15px] font-semibold text-gray-800">All Sports</span>
+            <button type="button" onClick={() => setSportsOpen((v) => !v)} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50">
+              <span className="shrink-0 w-10 h-10 rounded-xl bg-gray-100 grid place-items-center text-gray-500 text-xl font-bold">🎯</span>
+              <span className="flex-1 text-left font-black text-[15px] text-gray-800 tracking-tight">All Sports Categories</span>
               <svg className={`shrink-0 w-4 h-4 text-gray-400 transition-transform ${sportsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
             </button>
             {sportsOpen && (
               <div className="grid grid-cols-2 gap-1 pb-1">
                 {ALL_SPORTS.map((id) => (
-                  <Link
-                    key={id}
-                    href={`/${id}`}
-                    onClick={() => setMobileOpen(false)}
-                    className="px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
-                  >
+                  <Link key={id} href={`/${id}`} onClick={() => setMobileOpen(false)} className="px-3 py-2.5 rounded-xl text-[13px] font-black text-gray-600 hover:text-gray-900 hover:bg-emerald-50">
                     {SPORT_LABELS[id] || id}
                   </Link>
                 ))}
-              </div>
-            )}
-
-            {/* Connect with us — admin-managed, tap-to-open links */}
-            {socials.length > 0 && (
-              <div className="pt-3 mt-1.5 border-t border-gray-100">
-                <p className="px-3 pb-1.5 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
-                  Connect with us
-                </p>
-                {socials.map((s) => {
-                  const meta = SOCIAL_ICONS[s.id];
-                  return (
-                    <a
-                      key={s.id}
-                      href={s.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setMobileOpen(false)}
-                      className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 transition-colors"
-                    >
-                      <span className="shrink-0 w-10 h-10 rounded-xl bg-gray-100 grid place-items-center" style={meta ? { color: meta.color } : undefined}>
-                        {meta ? meta.icon : null}
-                      </span>
-                      <span className="flex-1 text-[15px] font-semibold text-gray-800">{s.label}</span>
-                      <svg className="shrink-0 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
-                    </a>
-                  );
-                })}
               </div>
             )}
           </div>
