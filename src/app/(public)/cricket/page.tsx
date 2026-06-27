@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface Channel {
   name: string;
   id: number;
@@ -51,13 +54,22 @@ export default function CricketPage() {
 
   async function fetchMatches() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("cricket_streams")
-      .select("*")
-      .neq("status", "hidden")
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("cricket_streams")
+        .select("*")
+        .neq("status", "hidden")
+        .order("created_at", { ascending: false });
 
-    if (!error && data) setMatches(data);
+      if (error) {
+        console.error("Supabase Error:", error.message);
+        setMatches([]);
+      } else if (data) {
+        setMatches(data);
+      }
+    } catch (e) {
+      console.error("Fetch Error:", e);
+    }
     setLoading(false);
   }
 
@@ -184,8 +196,9 @@ export default function CricketPage() {
             {matches.length === 0 && (
               <div className="py-20 text-center px-6">
                 <div className="text-4xl mb-4 opacity-20">🏏</div>
-                <h3 className="text-lg font-black text-gray-900 mb-2">No fixtures listed for today</h3>
-                <p className="text-sm text-gray-400 max-w-xs mx-auto font-medium">Please check back later or contact support if you believe there is a major match missing.</p>
+                <h3 className="text-lg font-black text-gray-900 mb-2">No fixtures listed yet</h3>
+                <p className="text-sm text-gray-400 max-w-xs mx-auto font-medium mb-6">If you just added a match in Admin, click the button below to sync.</p>
+                <button onClick={fetchMatches} className="px-6 py-2 bg-emerald-500 text-white text-[11px] font-black rounded-lg uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">Sync Schedule</button>
               </div>
             )}
           </div>
