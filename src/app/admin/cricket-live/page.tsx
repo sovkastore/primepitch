@@ -59,6 +59,13 @@ export default function AdminCricketPage() {
 
   async function fetchMatches() {
     setLoading(true);
+    // TEST CONNECTION
+    const { data: test, error: testErr } = await supabase.from("cricket_streams").select("id").limit(1);
+    if (testErr) {
+      console.error("Connection Test Failed:", testErr);
+      setMsg({ text: "Database Connection Error: " + testErr.message, type: "error" });
+    }
+
     const { data, error } = await supabase
       .from("cricket_streams")
       .select("*")
