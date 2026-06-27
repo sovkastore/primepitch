@@ -38,7 +38,8 @@ export default function AdminCricketPage() {
   const [time, setTime] = useState("");
   const [status, setStatus] = useState<CricketMatch["status"]>("live");
   const [selectedChannels, setSelectedChannels] = useState<number[]>([]);
-  const [customId, setCustomId] = useState(""); // NEW: Custom ID support
+  const [customId, setCustomId] = useState("");
+  const [msg, setMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,6 +49,13 @@ export default function AdminCricketPage() {
   useEffect(() => {
     fetchMatches();
   }, []);
+
+  useEffect(() => {
+    if (msg) {
+      const t = setTimeout(() => setMsg(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [msg]);
 
   async function fetchMatches() {
     setLoading(true);
@@ -70,6 +78,7 @@ export default function AdminCricketPage() {
     if (!isNaN(id) && !selectedChannels.includes(id)) {
       setSelectedChannels(prev => [...prev, id]);
       setCustomId("");
+      setMsg({ text: `Custom ID ${id} added to selection`, type: "success" });
     }
   };
 
@@ -95,20 +104,34 @@ export default function AdminCricketPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { title, competition, time, status, channel_ids: selectedChannels };
-    if (editingMatch?.id) {
-      await supabase.from("cricket_streams").update(payload).eq("id", editingMatch.id);
-    } else {
-      await supabase.from("cricket_streams").insert([payload]);
+    if (selectedChannels.length === 0) {
+      setMsg({ text: "Please select at least one channel!", type: "error" });
+      return;
     }
-    resetForm();
-    fetchMatches();
+
+    const payload = { title, competition, time, status, channel_ids: selectedChannels };
+    const { error } = editingMatch?.id 
+      ? await supabase.from("cricket_streams").update(payload).eq("id", editingMatch.id)
+      : await supabase.from("cricket_streams").insert([payload]);
+
+    if (error) {
+      setMsg({ text: "Error: " + error.message, type: "error" });
+    } else {
+      setMsg({ text: editingMatch ? "Match updated successfully!" : "Match created successfully!", type: "success" });
+      resetForm();
+      fetchMatches();
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure?")) return;
-    await supabase.from("cricket_streams").delete().eq("id", id);
-    fetchMatches();
+    const { error } = await supabase.from("cricket_streams").delete().eq("id", id);
+    if (error) {
+      setMsg({ text: "Delete failed: " + error.message, type: "error" });
+    } else {
+      setMsg({ text: "Match deleted.", type: "success" });
+      fetchMatches();
+    }
   };
 
   return (
@@ -120,6 +143,15 @@ export default function AdminCricketPage() {
            <Link href="/cricket" target="_blank" className="text-xs font-bold text-emerald-600 hover:underline uppercase tracking-widest">View Live ↗</Link>
         </div>
       </div>
+
+      {/* ALERT BANNER */}
+      {msg && (
+        <div className={`mb-6 p-4 rounded-xl font-bold text-[13px] border animate-in fade-in slide-in-from-top-2 duration-300 ${
+          msg.type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-600" : "bg-red-50 border-red-100 text-red-600"
+        }`}>
+          {msg.type === "success" ? "✅" : "❌"} {msg.text}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-12">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6">{editingMatch ? "Edit Match" : "Add New Match"}</h2>
