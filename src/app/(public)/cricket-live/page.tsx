@@ -145,7 +145,11 @@ export default function CricketPage() {
           </>
         ) : (
           <>
-            <span className="text-[12px] font-black text-gray-700 tabular-nums">{match.time}</span>
+            <span className="text-[12px] font-black text-gray-700 tabular-nums">
+              {match.starts_at 
+                ? new Date(match.starts_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) 
+                : match.time}
+            </span>
             {match.starts_at && <span className="text-[8px] font-bold text-gray-400 uppercase">{new Date(match.starts_at).toLocaleDateString([], { weekday: 'short' })}</span>}
           </>
         )}
@@ -192,7 +196,10 @@ export default function CricketPage() {
           <div className="p-5 border-b border-gray-100 bg-white flex items-center justify-between">
             <div>
               <h1 className="text-xl font-black text-gray-900 tracking-tight leading-none mb-1">Cricket Live</h1>
-              <p className="text-[11px] text-gray-400 font-medium">Auto-synced Stream Manager</p>
+              <p className="text-[11px] text-gray-400 font-medium flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/></svg>
+                Times shown in your local timezone
+              </p>
             </div>
             <div className="flex flex-col items-end">
               <span className="px-2 py-1 bg-red-500 rounded text-[9px] font-black text-white animate-pulse uppercase">{liveMatches.length} Live Now</span>

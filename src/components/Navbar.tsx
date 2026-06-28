@@ -107,7 +107,6 @@ export default function Navbar() {
              </span>
              <div className="flex-1">
                 <span className="block text-[15px] font-black text-emerald-400">Live Cricket Matches</span>
-                <span className="block text-[10px] text-white/50 lowercase">Manual schedule & premium streams</span>
              </div>
              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" strokeWidth={3} /></svg>
           </Link>
