@@ -61,15 +61,25 @@ export default function AdminCricketPage() {
   async function fetchMatches() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Try fetching with starts_at (the new way)
+      let result = await supabase
         .from("cricket_streams")
         .select("*")
         .order("starts_at", { ascending: true });
       
-      if (error) {
-        setMsg({ text: "Fetch Error: " + error.message, type: "error" });
-      } else if (data) {
-        setMatches(data);
+      // If it fails because column doesn't exist yet, fall back to created_at
+      if (result.error && result.error.message.includes("starts_at")) {
+        console.warn("Database column 'starts_at' not found. Falling back to 'created_at'. Please run the SQL migration.");
+        result = await supabase
+          .from("cricket_streams")
+          .select("*")
+          .order("created_at", { ascending: false });
+      }
+
+      if (result.error) {
+        setMsg({ text: "Fetch Error: " + result.error.message, type: "error" });
+      } else if (result.data) {
+        setMatches(result.data);
       }
     } catch (e: any) {
       setMsg({ text: "System Error: " + e.message, type: "error" });

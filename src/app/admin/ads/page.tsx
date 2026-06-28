@@ -265,6 +265,9 @@ export default function AdminAdsPage() {
           formats[id] = { ...formats[id], enabled };
         }
       }
+      if (net === "Adsterra") {
+        return { ...prev, formats, smartLinks: { ...prev.smartLinks, enabled } };
+      }
       return { ...prev, formats };
     });
   }
@@ -341,10 +344,15 @@ export default function AdminAdsPage() {
   function toggleSmartTarget(key: string) {
     setCfg((prev) => {
       const targets = { ...(prev.smartLinks.targets ?? {}) };
-      targets[key] = !targets[key];
+      const nextActive = !targets[key];
+      targets[key] = nextActive;
+      
+      // Auto-enable the main switch if we're turning a target ON
+      const nextEnabled = nextActive ? true : prev.smartLinks.enabled;
+
       return {
         ...prev,
-        smartLinks: { ...prev.smartLinks, targets },
+        smartLinks: { ...prev.smartLinks, targets, enabled: nextEnabled },
       };
     });
   }
@@ -513,7 +521,9 @@ export default function AdminAdsPage() {
         const ids = formatIds.filter(
           (id) => (cfg.formats[id].network?.trim() || "Other") === net
         );
-        const anyOn = ids.some((id) => cfg.formats[id].enabled);
+        let anyOn = ids.some((id) => cfg.formats[id].enabled);
+        if (net === "Adsterra" && cfg.smartLinks.enabled) anyOn = true;
+
         return (
         <div key={net} className="space-y-3">
           <div className="flex items-center justify-between px-1">
@@ -826,104 +836,78 @@ export default function AdminAdsPage() {
           </div>
         );
           })}
+
+          {net === "Adsterra" && (
+            <div className={`rounded-2xl border overflow-hidden ${cfg.smartLinks.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
+              {headerRow(
+                "smart_links",
+                "Smart Link Interceptor",
+                "Intercept category/watch clicks with Adsterra Smart Link",
+                cfg.smartLinks.enabled,
+                () => updateSmartLinks({ enabled: !cfg.smartLinks.enabled }),
+                "Adsterra"
+              )}
+              {open.smart_links && (
+                <div className="px-5 pb-5 pt-1 space-y-5 border-t border-gray-100">
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-gray-800">Smart Link / Direct Link URL</label>
+                    <input
+                      type="text"
+                      value={cfg.smartLinks.url}
+                      onChange={(e) => updateSmartLinks({ url: e.target.value })}
+                      placeholder="https://www.effectivecpmnetwork.com/..."
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-mono text-[11px]"
+                    />
+                    <p className="text-[12px] text-gray-500">
+                      When enabled, targeted items below will open this URL first.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                        <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Common Actions</h4>
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                          <button
+                            type="button"
+                            onClick={() => toggleSmartTarget("watch_buttons")}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                              cfg.smartLinks.targets["watch_buttons"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                            }`}
+                          >
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["watch_buttons"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                              {cfg.smartLinks.targets["watch_buttons"] ? "✓" : ""}
+                            </span>
+                            ALL "WATCH" BUTTONS
+                          </button>
+                        </div>
+                        <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Sports</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          {["football", "basketball", "american-football", "ufc", "wwe", "boxing", "motor-sports", "tennis", "cricket", "hockey", "baseball", "rugby"].map(s => {
+                            const active = !!cfg.smartLinks.targets[s];
+                            const label = s === "american-football" ? "NFL" : s.toUpperCase();
+                            return (
+                              <button key={s} type="button" onClick={() => toggleSmartTarget(s)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${active ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"}`}>
+                                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                                  {active ? "✓" : ""}
+                                </span>
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         );
       })}
 
 
 
-      {/* ── Adsterra Smart Link Interceptor ────────────────── */}
-      <div className={`rounded-2xl border overflow-hidden ${cfg.smartLinks.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
-        {headerRow(
-          "smart_links",
-          "Smart Link Interceptor",
-          "Intercepts clicks on categories to show a 'double-click' ad page.",
-          cfg.smartLinks.enabled,
-          () => updateSmartLinks({ enabled: !cfg.smartLinks.enabled }),
-          "Adsterra"
-        )}
-        {open.smart_links && (
-          <div className="px-5 pb-5 pt-1 space-y-5 border-t border-gray-100">
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-gray-800">Smart Link / Direct Link URL</label>
-              <input
-                type="text"
-                value={cfg.smartLinks.url}
-                onChange={(e) => updateSmartLinks({ url: e.target.value })}
-                placeholder="https://www.effectivecpmnetwork.com/..."
-                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-mono text-[11px]"
-              />
-              <p className="text-[12px] text-gray-500">
-                When enabled, clicking a targeted category below will open this URL first.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-               <div>
-                  <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Sports</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {["football", "basketball", "american-football", "ufc", "wwe", "boxing", "motor-sports", "tennis", "cricket", "hockey", "baseball", "rugby"].map(s => {
-                      const active = !!cfg.smartLinks.targets[s];
-                      const label = s === "american-football" ? "NFL" : s.toUpperCase();
-                      return (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => toggleSmartTarget(s)}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
-                            active ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
-                          }`}
-                        >
-                          <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
-                            {active ? "✓" : ""}
-                          </span>
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-               </div>
-
-               <div>
-                  <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Leagues (Football)</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleSmartTarget("wc")}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
-                        cfg.smartLinks.targets["wc"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
-                      }`}
-                    >
-                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["wc"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
-                        {cfg.smartLinks.targets["wc"] ? "✓" : ""}
-                      </span>
-                      WORLD CUP 2026
-                    </button>
-                    {leagues.map(l => {
-                      const key = l.league_id.toString();
-                      const active = !!cfg.smartLinks.targets[key];
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => toggleSmartTarget(key)}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
-                            active ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
-                          }`}
-                        >
-                          <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
-                            {active ? "✓" : ""}
-                          </span>
-                          {l.label.toUpperCase()}
-                        </button>
-                      );
-                    })}
-                  </div>
-               </div>
-            </div>
-          </div>
-        )}
-      </div>
       <button
         type="button"
         onClick={addFormat}

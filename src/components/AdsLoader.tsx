@@ -120,6 +120,7 @@ export default function AdsLoader() {
             if (href.startsWith("/league/")) key = href.replace("/league/", "");
             else if (href === "/world-cup") key = "wc";
             else if (href === "/cricket-live") key = "cricket";
+            else if (href.startsWith("/watch/")) key = "watch_buttons";
             else if (href.startsWith("/") && !href.includes(".")) {
                const s = href.slice(1);
                if (sl.targets[s]) key = s;

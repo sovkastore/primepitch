@@ -54,17 +54,27 @@ export default function CricketPage() {
   async function fetchMatches() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Try with the new scheduling field
+      let result = await supabase
         .from("cricket_streams")
         .select("*")
         .neq("status", "hidden")
-        .order("created_at", { ascending: false });
+        .order("starts_at", { ascending: true });
 
-      if (error) {
-        console.error("Supabase Error:", error.message);
+      // Fallback if column is missing
+      if (result.error && result.error.message.includes("starts_at")) {
+        result = await supabase
+          .from("cricket_streams")
+          .select("*")
+          .neq("status", "hidden")
+          .order("created_at", { ascending: false });
+      }
+
+      if (result.error) {
+        console.error("Supabase Error:", result.error.message);
         setMatches([]);
-      } else if (data) {
-        setMatches(data);
+      } else if (result.data) {
+        setMatches(result.data);
       }
     } catch (e) {
       console.error("Fetch Error:", e);
