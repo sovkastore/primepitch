@@ -33,11 +33,17 @@ type Preroll = {
   noFillTimeout: number;
   mode: Mode;
 };
+type SmartLinks = {
+  enabled: boolean;
+  url: string;
+  targets: Record<string, boolean>;
+};
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
   formats: Record<string, Format>;
   preroll: Preroll;
+  smartLinks: SmartLinks;
 };
 
 const MAX_CAP_MIN = 10080; // 7 days
@@ -49,10 +55,11 @@ const DEFAULTS: AdsConfig = {
     inpage_push: { label: "In-Page Push", enabled: false, network: "Monetag", group: "notification", placement: "all", zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, network: "Monetag", group: "interstitial", placement: "all", zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
     social_bar: { label: "Social Bar", enabled: false, network: "Adsterra", group: "notification", placement: "all", zone: "", src: "", cap: 60, delay: "0" },
-    popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "watch", zone: "", src: "", cap: 0, delay: "0" },
+    popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "all", zone: "", src: "https://pl29767070.effectivecpmnetwork.com/30/ab/f5/30abf5ef48f19536833cf036986d6551.js", cap: 0, delay: "0" },
     monetag_popunder: { label: "Popunder", enabled: false, network: "Monetag", group: "popunder", placement: "home", zone: "11157914", src: "https://al5sm.com/tag.min.js", cap: 0, delay: "0" },
   },
   preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
+  smartLinks: { enabled: false, url: "", targets: {} },
 };
 
 const TRIGGER_LABELS: Record<Trigger, string> = {
@@ -127,6 +134,8 @@ export default function AdminAdsPage() {
   >([]);
   const [fixturesLoaded, setFixturesLoaded] = useState(false);
   const [fixturesLoading, setFixturesLoading] = useState(false);
+  const [leagues, setLeagues] = useState<{ league_id: number; label: string }[]>([]);
+  const [leaguesLoaded, setLeaguesLoaded] = useState(false);
 
   const loadFixtures = useCallback(async () => {
     if (fixturesLoaded || fixturesLoading) return;
@@ -175,13 +184,34 @@ export default function AdminAdsPage() {
             };
             u[id] = m === 0 ? "off" : m % 60 === 0 ? "hours" : "minutes";
           }
-          setCfg({ ...d, formats, preroll: { ...DEFAULTS.preroll, ...(d.preroll ?? {}) } });
+          setCfg({
+            ...d,
+            formats: formats,
+            preroll: { ...DEFAULTS.preroll, ...(d.preroll ?? {}) },
+            smartLinks: { ...DEFAULTS.smartLinks, ...(d.smartLinks ?? {}) },
+          });
           setUnits(u);
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const loadLeagues = useCallback(async () => {
+    if (leaguesLoaded) return;
+    try {
+      const res = await fetch("/api/leagues", { cache: "no-store" });
+      if (res.ok) {
+        const d = await res.json();
+        setLeagues(Array.isArray(d.leagues) ? d.leagues : []);
+      }
+    } catch { /* ignore */ }
+    setLeaguesLoaded(true);
+  }, [leaguesLoaded]);
+
+  useEffect(() => {
+    if (open.smart_links) loadLeagues();
+  }, [open.smart_links, loadLeagues]);
 
   function updateFormat(id: string, patch: Partial<Format>) {
     setCfg((prev) => ({
@@ -300,6 +330,23 @@ export default function AdminAdsPage() {
       [id]: m === 0 ? "off" : m % 60 === 0 ? "hours" : "minutes",
     }));
     updateFormat(id, { cap: m });
+  }
+
+  function updateSmartLinks(patch: Partial<SmartLinks>) {
+    setCfg((prev) => ({
+      ...prev,
+      smartLinks: { ...prev.smartLinks, ...patch },
+    }));
+  }
+  function toggleSmartTarget(key: string) {
+    setCfg((prev) => {
+      const targets = { ...(prev.smartLinks.targets ?? {}) };
+      targets[key] = !targets[key];
+      return {
+        ...prev,
+        smartLinks: { ...prev.smartLinks, targets },
+      };
+    });
   }
 
   async function save() {
@@ -911,15 +958,108 @@ export default function AdminAdsPage() {
         )}
       </div>
 
+      {/* ── Adsterra Smart Link Interceptor ────────────────── */}
+      <div className={`rounded-2xl border overflow-hidden ${cfg.smartLinks.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
+        {headerRow(
+          "smart_links",
+          "Smart Link Interceptor",
+          "Intercepts clicks on categories to show a 'double-click' ad page.",
+          cfg.smartLinks.enabled,
+          () => updateSmartLinks({ enabled: !cfg.smartLinks.enabled }),
+          "Adsterra"
+        )}
+        {open.smart_links && (
+          <div className="px-5 pb-5 pt-1 space-y-5 border-t border-gray-100">
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-gray-800">Smart Link / Direct Link URL</label>
+              <input
+                type="text"
+                value={cfg.smartLinks.url}
+                onChange={(e) => updateSmartLinks({ url: e.target.value })}
+                placeholder="https://www.effectivecpmnetwork.com/..."
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-mono text-[11px]"
+              />
+              <p className="text-[12px] text-gray-500">
+                When enabled, clicking a targeted category below will open this URL first.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+               <div>
+                  <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Sports</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {["football", "basketball", "american-football", "ufc", "wwe", "boxing", "motor-sports", "tennis", "cricket", "hockey", "baseball", "rugby"].map(s => {
+                      const active = !!cfg.smartLinks.targets[s];
+                      const label = s === "american-football" ? "NFL" : s.toUpperCase();
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => toggleSmartTarget(s)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                            active ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                            {active ? "✓" : ""}
+                          </span>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+               </div>
+
+               <div>
+                  <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Leagues (Football)</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleSmartTarget("wc")}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                        cfg.smartLinks.targets["wc"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["wc"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                        {cfg.smartLinks.targets["wc"] ? "✓" : ""}
+                      </span>
+                      WORLD CUP 2026
+                    </button>
+                    {leagues.map(l => {
+                      const key = l.league_id.toString();
+                      const active = !!cfg.smartLinks.targets[key];
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => toggleSmartTarget(key)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                            active ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                            {active ? "✓" : ""}
+                          </span>
+                          {l.label.toUpperCase()}
+                        </button>
+                      );
+                    })}
+                  </div>
+               </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center gap-3">
         <button
           onClick={save}
           disabled={saving}
-          className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors"
+          className="px-6 py-3 bg-gray-900 hover:bg-black disabled:opacity-50 text-white text-[13px] font-bold rounded-xl transition-all shadow-lg active:scale-95"
         >
-          {saving ? "Saving…" : "Save"}
+          {saving ? "Saving Changes…" : "Save All Changes"}
         </button>
-        {msg && <span className="text-[13px] text-gray-600">{msg}</span>}
+        {msg && <span className="text-[13px] font-medium text-emerald-600">{msg}</span>}
       </div>
     </div>
   );

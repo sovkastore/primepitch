@@ -10,6 +10,11 @@ type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
   formats: Record<string, Format>;
+  smartLinks?: {
+    enabled: boolean;
+    url: string;
+    targets: Record<string, boolean>;
+  };
 };
 
 function domainAllowed(setting: AdsConfig["domains"], host: string): boolean {
@@ -93,16 +98,44 @@ export default function AdsLoader() {
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
         for (const [id, f] of Object.entries(cfg.formats || {})) {
           if (!f?.enabled) continue;
-          if (!placementAllows(f.placement, path)) continue; // re-checked per page
+          if (!placementAllows(f.placement, path)) continue;
           const t = setTimeout(() => {
             if (done) return;
-            if (!capAllows(id, f.cap)) return; // cap checked only when we actually show
+            if (!capAllows(id, f.cap)) return;
             injectScript(id, f.src, f.zone);
           }, delaySeconds(f.delay) * 1000);
           timers.push(t);
         }
+
+        // ── Adsterra Smart Link Interceptor ──────────────────
+        if (cfg.smartLinks?.enabled && cfg.smartLinks.url) {
+          const sl = cfg.smartLinks;
+          const handleGlobalClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const link = target.closest("a");
+            if (!link) return;
+
+            const href = link.getAttribute("href") || "";
+            let key = "";
+            if (href.startsWith("/league/")) key = href.replace("/league/", "");
+            else if (href === "/world-cup") key = "wc";
+            else if (href === "/cricket-live") key = "cricket";
+            else if (href.startsWith("/") && !href.includes(".")) {
+               const s = href.slice(1);
+               if (sl.targets[s]) key = s;
+            }
+
+            if (key && sl.targets[key]) {
+               window.open(sl.url, "_blank");
+            }
+          };
+          document.addEventListener("click", handleGlobalClick, { capture: true });
+          return () => {
+            document.removeEventListener("click", handleGlobalClick, { capture: true });
+          };
+        }
       } catch {
-        // network/parse failure -> show no ads
+        // ignore
       }
     })();
     return () => {

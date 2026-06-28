@@ -32,11 +32,17 @@ type Preroll = {
   noFillTimeout: number; // seconds to wait for an ad before revealing the stream
   mode: Mode; // "silent" = invisible until a real ad; "gate" = black screen while checking
 };
+type SmartLinks = {
+  enabled: boolean;
+  url: string;
+  targets: Record<string, boolean>; // key (sport id or league id) -> enabled
+};
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
   formats: Record<string, Format>;
   preroll: Preroll;
+  smartLinks?: SmartLinks;
 };
 
 const DEFAULTS: AdsConfig = {
@@ -46,10 +52,11 @@ const DEFAULTS: AdsConfig = {
     inpage_push: { label: "In-Page Push", enabled: false, network: "Monetag", group: "notification", placement: "all", zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, network: "Monetag", group: "interstitial", placement: "all", zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
     social_bar: { label: "Social Bar", enabled: false, network: "Adsterra", group: "notification", placement: "all", zone: "", src: "", cap: 60, delay: "0" },
-    popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "watch", zone: "", src: "", cap: 0, delay: "0" },
+    popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "all", zone: "", src: "https://pl29767070.effectivecpmnetwork.com/30/ab/f5/30abf5ef48f19536833cf036986d6551.js", cap: 0, delay: "0" },
     monetag_popunder: { label: "Popunder", enabled: false, network: "Monetag", group: "popunder", placement: "home", zone: "11157914", src: "https://al5sm.com/tag.min.js", cap: 0, delay: "0" },
   },
   preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
+  smartLinks: { enabled: false, url: "", targets: {} },
 };
 
 const ALLOWED_DOMAINS = new Set(["all", "workers_dev", "xellnetwork"]);
@@ -104,6 +111,19 @@ function cleanPreroll(v: unknown): Preroll {
     skipAfter: clampInt(p.skipAfter, 0, 60, 5),
     noFillTimeout: clampInt(p.noFillTimeout, 1, 15, 3),
     mode: ALLOWED_MODES.has(p.mode as string) ? (p.mode as Mode) : "silent",
+  };
+}
+function cleanSmartLinks(v: unknown): SmartLinks {
+  const s = (v ?? {}) as Partial<SmartLinks>;
+  const rawTargets = (s.targets ?? {}) as Record<string, unknown>;
+  const targets: Record<string, boolean> = {};
+  for (const [k, on] of Object.entries(rawTargets)) {
+    if (typeof k === "string" && k.length < 50) targets[k] = !!on;
+  }
+  return {
+    enabled: !!s.enabled,
+    url: typeof s.url === "string" ? s.url.trim() : "",
+    targets,
   };
 }
 
@@ -176,6 +196,7 @@ export async function POST(request: NextRequest) {
       domains: ALLOWED_DOMAINS.has(body.domains as string) ? (body.domains as AdsConfig["domains"]) : "all",
       formats,
       preroll: cleanPreroll(body.preroll),
+      smartLinks: cleanSmartLinks(body.smartLinks),
     };
 
     const { error } = await getSupabaseAdmin()

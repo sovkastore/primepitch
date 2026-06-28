@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { SPORT_LABELS } from "@/lib/api";
 
 const SPORTS = [
@@ -22,6 +23,24 @@ function getSportIcon(id: string): string {
   return BRAND_ICONS[id] || `/icons/sports/${id}.svg`;
 }
 
+type SmartLinkCfg = { enabled: boolean; url: string; targets: Record<string, boolean> } | null;
+let _slCache: SmartLinkCfg = null;
+let _slFetched = false;
+
+async function getSmartLinks(): Promise<SmartLinkCfg> {
+  if (_slFetched) return _slCache;
+  try {
+    const res = await fetch("/api/ads-config", { cache: "no-store" });
+    if (!res.ok) return null;
+    const cfg = await res.json();
+    _slCache = cfg?.smartLinks?.enabled ? cfg.smartLinks : null;
+    _slFetched = true;
+    return _slCache;
+  } catch {
+    return null;
+  }
+}
+
 interface SportsNavProps {
   activeSport: string | null;
   onSelect: (sport: string | null) => void;
@@ -30,6 +49,20 @@ interface SportsNavProps {
 }
 
 export default function SportsNav({ activeSport, onSelect }: SportsNavProps) {
+  const slRef = useRef<SmartLinkCfg>(null);
+
+  useEffect(() => {
+    getSmartLinks().then((sl) => { slRef.current = sl; });
+  }, []);
+
+  function handleClick(id: string) {
+    const sl = slRef.current;
+    if (sl?.enabled && sl.url && sl.targets[id]) {
+      window.open(sl.url, "_blank");
+    }
+    onSelect(id);
+  }
+
   return (
     <section className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
       <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
@@ -38,7 +71,7 @@ export default function SportsNav({ activeSport, onSelect }: SportsNavProps) {
           return (
             <button
               key={id}
-              onClick={() => onSelect(id)}
+              onClick={() => handleClick(id)}
               className="flex flex-col items-center gap-1.5 shrink-0"
             >
               <div
