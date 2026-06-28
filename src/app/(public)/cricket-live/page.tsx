@@ -13,6 +13,7 @@ interface Channel {
 interface Match {
   id: string;
   time: string;
+  starts_at?: string; // The real UTC timestamp
   competition: string;
   title: string;
   status: "live" | "today" | "tomorrow" | "hidden";
@@ -71,9 +72,34 @@ export default function CricketPage() {
     setLoading(false);
   }
 
-  const liveMatches = matches.filter(m => m.status === "live");
-  const todayMatches = matches.filter(m => m.status === "today");
-  const tomorrowMatches = matches.filter(m => m.status === "tomorrow");
+  // --- Smart Logic: Is it Live? ---
+  const isMatchLive = (m: Match) => {
+    if (m.status === "live") return true; // Manual override
+    if (!m.starts_at) return false;
+    
+    const now = new Date();
+    const start = new Date(m.starts_at);
+    const diffMs = now.getTime() - start.getTime();
+    
+    // Auto-Live: If time has passed (diffMs >= 0) AND it's less than 10 hours ago
+    return diffMs >= 0 && diffMs < (10 * 60 * 60 * 1000);
+  };
+
+  const liveMatches = matches.filter(m => isMatchLive(m));
+  
+  // Upcoming matches (not live, not hidden)
+  const upcomingMatches = matches
+    .filter(m => !isMatchLive(m))
+    .sort((a, b) => new Date(a.starts_at || 0).getTime() - new Date(b.starts_at || 0).getTime());
+
+  // Group upcoming by date
+  const groupedUpcoming: Record<string, Match[]> = {};
+  upcomingMatches.forEach(m => {
+    const d = new Date(m.starts_at || "");
+    const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    if (!groupedUpcoming[label]) groupedUpcoming[label] = [];
+    groupedUpcoming[label].push(m);
+  });
 
   const reset = () => {
     setSelectedMatch(null);
@@ -101,14 +127,17 @@ export default function CricketPage() {
 
   const MatchRow = ({ match }: { match: Match }) => (
     <div className="flex items-center justify-between p-4 border-b border-gray-50 hover:bg-emerald-50/20 transition-colors w-full gap-3">
-      <div className="w-14 items-center shrink-0 flex flex-col justify-center">
-        {match.status === "live" ? (
+      <div className="w-14 items-center shrink-0 flex flex-col justify-center text-center">
+        {isMatchLive(match) ? (
           <>
             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
             <span className="text-[9px] font-black text-red-600 tracking-tighter">LIVE</span>
           </>
         ) : (
-          <span className="text-[12px] font-black text-gray-700 tabular-nums">{match.time}</span>
+          <>
+            <span className="text-[12px] font-black text-gray-700 tabular-nums">{match.time}</span>
+            {match.starts_at && <span className="text-[8px] font-bold text-gray-400 uppercase">{new Date(match.starts_at).toLocaleDateString([], { weekday: 'short' })}</span>}
+          </>
         )}
       </div>
 
@@ -173,23 +202,14 @@ export default function CricketPage() {
               </>
             )}
 
-            {todayMatches.length > 0 && (
-              <>
+            {Object.entries(groupedUpcoming).map(([date, items]) => (
+              <div key={date}>
                 <div className="bg-gray-50 px-5 py-2 flex items-center justify-between border-y border-gray-100">
-                  <span className="text-[10px] font-black text-gray-500 tracking-widest uppercase">Today</span>
+                  <span className="text-[10px] font-black text-gray-500 tracking-widest uppercase">{date}</span>
                 </div>
-                {todayMatches.map(m => <MatchRow key={m.id} match={m} />)}
-              </>
-            )}
-
-            {tomorrowMatches.length > 0 && (
-              <>
-                <div className="bg-gray-50 px-5 py-2 flex items-center justify-between border-y border-gray-100">
-                  <span className="text-[10px] font-black text-gray-500 tracking-widest uppercase">Tomorrow</span>
-                </div>
-                {tomorrowMatches.map(m => <MatchRow key={m.id} match={m} />)}
-              </>
-            )}
+                {items.map(m => <MatchRow key={m.id} match={m} />)}
+              </div>
+            ))}
 
             {matches.length === 0 && (
               <div className="py-20 text-center px-6">
@@ -219,7 +239,7 @@ export default function CricketPage() {
              </div>
           </div>
           <div className="flex items-center justify-between md:justify-end gap-3 border-t md:border-none pt-4 md:pt-0 mt-2 md:mt-0">
-             {selectedMatch.status === 'live' && <span className="px-2.5 py-1 bg-red-500 rounded text-[9px] font-black text-white animate-pulse">LIVE NOW</span>}
+             {isMatchLive(selectedMatch) && <span className="px-2.5 py-1 bg-red-500 rounded text-[9px] font-black text-white animate-pulse">LIVE NOW</span>}
              <button onClick={reset} className="px-3 py-1 bg-gray-100 rounded-lg text-[10px] font-bold text-gray-500 hover:bg-gray-200">CLOSE ×</button>
           </div>
         </div>

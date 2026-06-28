@@ -21,7 +21,8 @@ interface CricketMatch {
   id?: string;
   title: string;
   competition: string;
-  time: string;
+  time: string; // Keep for fallback/legacy display
+  starts_at: string; // Real UTC Timestamp
   status: "live" | "today" | "tomorrow" | "hidden";
   channel_ids: number[];
   created_at?: string;
@@ -34,7 +35,7 @@ export default function AdminCricketPage() {
   
   const [title, setTitle] = useState("");
   const [competition, setCompetition] = useState("");
-  const [time, setTime] = useState("");
+  const [startsAt, setStartsAt] = useState("");
   const [status, setStatus] = useState<CricketMatch["status"]>("live");
   const [selectedChannels, setSelectedChannels] = useState<number[]>([]);
   const [customId, setCustomId] = useState("");
@@ -63,7 +64,7 @@ export default function AdminCricketPage() {
       const { data, error } = await supabase
         .from("cricket_streams")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("starts_at", { ascending: true });
       
       if (error) {
         setMsg({ text: "Fetch Error: " + error.message, type: "error" });
@@ -94,7 +95,11 @@ export default function AdminCricketPage() {
     setEditingMatch(match);
     setTitle(match.title);
     setCompetition(match.competition);
-    setTime(match.time);
+    // Convert timestamp to local datetime format for input (YYYY-MM-DDThh:mm)
+    const date = new Date(match.starts_at || Date.now());
+    const offset = date.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(date.getTime() - offset).toISOString().slice(0, 16);
+    setStartsAt(localISOTime);
     setStatus(match.status);
     setSelectedChannels(match.channel_ids);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -104,7 +109,7 @@ export default function AdminCricketPage() {
     setEditingMatch(null);
     setTitle("");
     setCompetition("");
-    setTime("");
+    setStartsAt("");
     setStatus("live");
     setSelectedChannels([]);
   };
@@ -113,11 +118,17 @@ export default function AdminCricketPage() {
     e.preventDefault();
     setMsg({ text: "Saving to database...", type: "info" });
 
+    // Ensure we send a valid UTC timestamp
+    const utcTime = startsAt ? new Date(startsAt).toISOString() : new Date().toISOString();
+    // Helper formatted time for legacy display (HH:mm)
+    const shortTime = startsAt ? new Date(startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : "LIVE";
+
     const payload = { 
         id: editingMatch?.id,
         title, 
         competition, 
-        time, 
+        starts_at: utcTime,
+        time: shortTime, 
         status, 
         channel_ids: selectedChannels 
     };
@@ -189,15 +200,21 @@ export default function AdminCricketPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
                <div>
-                 <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Time / LIVE</label>
-                 <input value={time} onChange={e => setTime(e.target.value)} required placeholder="14:00 or LIVE" className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 font-bold" />
+                 <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Kickoff Time (UTC)</label>
+                 <input 
+                   type="datetime-local"
+                   value={startsAt} 
+                   onChange={e => setStartsAt(e.target.value)} 
+                   required 
+                   className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 font-bold" 
+                 />
                </div>
                <div>
-                  <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Section</label>
+                  <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Override Status</label>
                   <select value={status} onChange={e => setStatus(e.target.value as any)} className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 font-bold">
-                    <option value="live">Live Now</option>
-                    <option value="today">Today</option>
-                    <option value="tomorrow">Tomorrow</option>
+                    <option value="today">Scheduled (Auto-Live)</option>
+                    <option value="live">Force LIVE Now</option>
+                    <option value="tomorrow">Tomorrow / Future</option>
                     <option value="hidden">Hidden</option>
                   </select>
                </div>
@@ -235,7 +252,9 @@ export default function AdminCricketPage() {
               <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-xl">🏏</div>
               <div>
                 <h4 className="text-[15px] font-black text-gray-900 leading-none mb-1">{m.title}</h4>
-                <p className="text-[10px] text-gray-400 font-bold uppercase">{m.competition} • {m.status}</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase">
+                  {m.competition} • {m.starts_at ? new Date(m.starts_at).toLocaleString() : m.status}
+                </p>
               </div>
             </div>
             <div className="flex gap-2">

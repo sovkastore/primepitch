@@ -830,133 +830,7 @@ export default function AdminAdsPage() {
         );
       })}
 
-      <button
-        type="button"
-        onClick={addFormat}
-        className="w-full rounded-2xl border-2 border-dashed border-gray-300 py-3 text-sm font-semibold text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors"
-      >
-        ＋ Add ad
-      </button>
 
-      {/* ── Pre-roll Video (VAST) ───────────────────────── */}
-      <div className={`rounded-2xl border overflow-hidden ${cfg.preroll.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
-        {headerRow(
-          "preroll",
-          "Pre-roll Video",
-          "Short video ad before the stream (VAST).",
-          cfg.preroll.enabled,
-          () => updatePreroll({ enabled: !cfg.preroll.enabled })
-        )}
-        {open["preroll"] && (
-          <div className="px-5 pb-5 pt-1 space-y-4 border-t border-gray-100">
-        <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-gray-800">VAST tag URL</label>
-          <input
-            type="text"
-            value={cfg.preroll.vastTag}
-            onChange={(e) => updatePreroll({ vastTag: e.target.value })}
-            placeholder="https://…"
-            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          />
-          <p className="text-[12px] text-gray-500">Paste the VAST link from your ad network. Must start with https://</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-gray-800">Where to show it</label>
-          <select
-            value={cfg.preroll.placement}
-            onChange={(e) => updatePreroll({ placement: e.target.value as Placement })}
-            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          >
-            {(Object.keys(PLACEMENT_LABELS) as Placement[]).map((pl) => (
-              <option key={pl} value={pl}>{PLACEMENT_LABELS[pl]}</option>
-            ))}
-          </select>
-          <p className="text-[12px] text-gray-500">
-            Watch page = before a live stream. Home page = a full-screen video when a visitor lands on the homepage.
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-gray-800">How it appears</label>
-          <select
-            value={cfg.preroll.mode}
-            onChange={(e) => updatePreroll({ mode: e.target.value as Mode })}
-            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          >
-            {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
-              <option key={m} value={m}>{MODE_LABELS[m]}</option>
-            ))}
-          </select>
-          <p className="text-[12px] text-gray-500">
-            Silent: the page/stream loads normally and a screen only appears if an ad actually plays — no black flash on no-fill. Gate: viewers see a brief black loading screen first, then the ad (or the page if no ad).
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-gray-800">When to show it</label>
-          <select
-            value={cfg.preroll.trigger}
-            onChange={(e) => updatePreroll({ trigger: e.target.value as Trigger })}
-            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          >
-            {(Object.keys(TRIGGER_LABELS) as Trigger[]).map((t) => (
-              <option key={t} value={t}>{TRIGGER_LABELS[t]}</option>
-            ))}
-          </select>
-        </div>
-
-        {cfg.preroll.trigger === "interval" && (
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-gray-800">Minutes between plays</label>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={1}
-              value={cfg.preroll.cap || ""}
-              onChange={(e) => {
-                let n = Math.floor(Number(e.target.value));
-                if (!Number.isFinite(n) || n < 1) n = 1;
-                updatePreroll({ cap: Math.min(n, MAX_CAP_MIN) });
-              }}
-              className="w-32 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-            />
-            <p className="text-[12px] text-gray-500">A device won’t see another pre-roll until this many minutes pass.</p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-gray-800">Skip after (sec)</label>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={60}
-              value={cfg.preroll.skipAfter}
-              onChange={(e) => updatePreroll({ skipAfter: Math.max(0, Math.min(60, Math.floor(Number(e.target.value)) || 0)) })}
-              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-gray-800">No-ad wait (sec)</label>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={15}
-              value={cfg.preroll.noFillTimeout}
-              onChange={(e) => updatePreroll({ noFillTimeout: Math.max(1, Math.min(15, Math.floor(Number(e.target.value)) || 1)) })}
-              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-            />
-          </div>
-        </div>
-        <p className="text-[12px] text-gray-500">
-          “Skip after” is best-effort — the ad’s own skip timer can override it. “No-ad wait” is how long to wait for an ad before giving up and showing the stream.
-        </p>
-          </div>
-        )}
-      </div>
 
       {/* ── Adsterra Smart Link Interceptor ────────────────── */}
       <div className={`rounded-2xl border overflow-hidden ${cfg.smartLinks.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
@@ -1050,6 +924,13 @@ export default function AdminAdsPage() {
           </div>
         )}
       </div>
+      <button
+        type="button"
+        onClick={addFormat}
+        className="w-full rounded-2xl border-2 border-dashed border-gray-300 py-3 text-sm font-semibold text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors my-4"
+      >
+        ＋ Add custom ad unit
+      </button>
 
       <div className="flex items-center gap-3">
         <button
