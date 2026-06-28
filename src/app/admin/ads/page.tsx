@@ -897,6 +897,43 @@ export default function AdminAdsPage() {
                           })}
                         </div>
                     </div>
+
+                    <div>
+                        <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Leagues (Football)</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleSmartTarget("wc")}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                              cfg.smartLinks.targets["wc"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                            }`}
+                          >
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["wc"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                              {cfg.smartLinks.targets["wc"] ? "✓" : ""}
+                            </span>
+                            WORLD CUP 2026
+                          </button>
+                          {leagues.map(l => {
+                            const key = l.league_id.toString();
+                            const active = !!cfg.smartLinks.targets[key];
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => toggleSmartTarget(key)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                                  active ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                                }`}
+                              >
+                                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                                  {active ? "✓" : ""}
+                                </span>
+                                {l.label.toUpperCase()}
+                              </button>
+                            );
+                          })}
+                        </div>
+                    </div>
                   </div>
                 </div>
               )}
