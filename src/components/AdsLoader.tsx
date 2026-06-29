@@ -139,9 +139,13 @@ export default function AdsLoader() {
         for (const [id, f] of Object.entries(cfg.formats || {})) {
           if (!f?.enabled) continue;
           if (!placementAllows(f.placement, path)) continue;
+
+          // Skip custom frequency cap for popunders (allow network to handle it)
+          const isPopunder = id.toLowerCase().includes("popunder");
+
           const t = setTimeout(() => {
             if (done) return;
-            if (!capAllows(id, f.cap)) return;
+            if (!isPopunder && !capAllows(id, f.cap)) return;
             injectScript(id, f.src, f.zone);
           }, delaySeconds(f.delay) * 1000);
           timers.push(t);
