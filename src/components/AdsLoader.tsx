@@ -102,10 +102,17 @@ function injectScript(id: string, src: string, zone: string) {
   if (!src) return;
   if (document.querySelector(`script[data-ad-format="${id}"]`)) return; // once per load
   const s = document.createElement("script");
+  s.async = true;
   if (zone) s.dataset.zone = zone;
   s.dataset.adFormat = id;
   s.src = src;
-  document.body.appendChild(s);
+
+  // Adsterra scripts (no zone) often perform better when loaded in the head
+  if (!zone) {
+    document.head.appendChild(s);
+  } else {
+    document.body.appendChild(s);
+  }
 }
 
 export default function AdsLoader() {
