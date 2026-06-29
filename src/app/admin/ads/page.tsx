@@ -231,7 +231,10 @@ export default function AdminAdsPage() {
             formats: formats,
             preroll: { ...DEFAULTS.preroll, ...(d.preroll ?? {}) },
             smartLinks: { ...DEFAULTS.smartLinks, ...(d.smartLinks ?? {}) },
-            notifications: { ...DEFAULTS.notifications, ...(d.notifications ?? {}) },
+            notifications: {
+              wait_banner: { ...DEFAULTS.notifications!.wait_banner, ...(d.notifications?.wait_banner ?? {}) },
+              tap_warning: { ...DEFAULTS.notifications!.tap_warning, ...(d.notifications?.tap_warning ?? {}) },
+            },
           });
           setUnits(u);
         }
