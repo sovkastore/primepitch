@@ -156,6 +156,11 @@ export default function WatchPage() {
   // correct forceLive value (avoids a race that logged force-lived viewers as pre).
   const [liveResolved, setLiveResolved] = useState(false);
   const [hotKeys, setHotKeys] = useState<Set<string>>(new Set());
+  const [adsCfg, setAdsCfg] = useState<any>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/ads-config").then(r => r.json()).then(setAdsCfg).catch(() => {});
+  }, []);
 
   // One-time read of HOT flags so an upcoming/custom hot match's page is also
   // special (live matches already carry `hot` via the live feed).
@@ -502,14 +507,14 @@ export default function WatchPage() {
 
       {/* Video player (live) OR Match card (upcoming) */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
-        {!isEnded && !isUpcoming && (
+        {!isEnded && !isUpcoming && adsCfg?.notifications?.wait_banner?.enabled && (
           <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
             <svg className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clipRule="evenodd" />
             </svg>
             <div className="min-w-0">
-              <p className="text-[12.5px] font-bold text-gray-900 leading-snug">Give the stream a moment to load.</p>
-              <p className="text-[11.5px] text-gray-600 leading-snug mt-0.5">Depending on your region, the player can take a little time to appear. Please wait and don&apos;t tap anything until the video shows. Still blank after a while?{" "}
+              <p className="text-[12.5px] font-bold text-gray-900 leading-snug">{adsCfg.notifications.wait_banner.title}</p>
+              <p className="text-[11.5px] text-gray-600 leading-snug mt-0.5">{adsCfg.notifications.wait_banner.text}{" "}
                 <Link href="/help" className="font-semibold text-emerald-700 underline underline-offset-2 whitespace-nowrap">Can&apos;t watch? →</Link>
               </p>
             </div>
@@ -638,9 +643,11 @@ export default function WatchPage() {
                 {!iframeLoaded && (
                   <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black px-6 text-center">
                     <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                    <div>
-                      <p className="text-sm font-semibold text-gray-200">Please wait — don&apos;t tap until the player appears.</p>
-                    </div>
+                    {adsCfg?.notifications?.tap_warning?.enabled && adsCfg.notifications.tap_warning.title && (
+                      <div>
+                        <p className="text-sm font-semibold text-gray-200">{adsCfg.notifications.tap_warning.title}</p>
+                      </div>
+                    )}
                   </div>
                 )}
 

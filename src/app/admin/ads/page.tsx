@@ -44,6 +44,16 @@ type AdsConfig = {
   formats: Record<string, Format>;
   preroll: Preroll;
   smartLinks: SmartLinks;
+  notifications?: PageNotifications;
+};
+type PageNotification = {
+  enabled: boolean;
+  title: string;
+  text: string;
+};
+type PageNotifications = {
+  wait_banner: PageNotification;
+  tap_warning: PageNotification;
 };
 
 const MAX_CAP_MIN = 10080; // 7 days
@@ -60,6 +70,18 @@ const DEFAULTS: AdsConfig = {
   },
   preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
   smartLinks: { enabled: false, url: "", targets: {} },
+  notifications: {
+    wait_banner: {
+      enabled: true,
+      title: "Give the stream a moment to load.",
+      text: "Depending on your region, the player can take a little time to appear. Please wait and don't tap anything until the video shows.",
+    },
+    tap_warning: {
+      enabled: true,
+      title: "Please wait — don't tap until the player appears.",
+      text: "",
+    },
+  },
 };
 
 const TRIGGER_LABELS: Record<Trigger, string> = {
@@ -209,6 +231,7 @@ export default function AdminAdsPage() {
             formats: formats,
             preroll: { ...DEFAULTS.preroll, ...(d.preroll ?? {}) },
             smartLinks: { ...DEFAULTS.smartLinks, ...(d.smartLinks ?? {}) },
+            notifications: { ...DEFAULTS.notifications, ...(d.notifications ?? {}) },
           });
           setUnits(u);
         }
@@ -1026,6 +1049,97 @@ export default function AdminAdsPage() {
         </div>
         );
       })}
+
+      {/* Page Notifications */}
+      <h2 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 px-1 mt-2">Watch Page Banners</h2>
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
+        {/* Wait Banner */}
+        <div className="space-y-0">
+          {headerRow(
+            "notif_wait",
+             cfg.notifications?.wait_banner.title || "Wait Banner",
+             "Tells users to wait for the stream to load",
+             !!cfg.notifications?.wait_banner.enabled,
+             () => setCfg(p => ({
+               ...p,
+               notifications: {
+                 ...p.notifications!,
+                 wait_banner: { ...p.notifications!.wait_banner, enabled: !p.notifications!.wait_banner.enabled }
+               }
+             }))
+          )}
+          {open["notif_wait"] && (
+            <div className="px-5 pb-5 pt-1 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-gray-800">Banner Headline</label>
+                <input
+                  type="text"
+                  value={cfg.notifications?.wait_banner.title}
+                  onChange={(e) => setCfg(p => ({
+                    ...p,
+                    notifications: {
+                      ...p.notifications!,
+                      wait_banner: { ...p.notifications!.wait_banner, title: e.target.value }
+                    }
+                  }))}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-gray-800">Message Text</label>
+                <textarea
+                  value={cfg.notifications?.wait_banner.text}
+                  rows={3}
+                  onChange={(e) => setCfg(p => ({
+                    ...p,
+                    notifications: {
+                      ...p.notifications!,
+                      wait_banner: { ...p.notifications!.wait_banner, text: e.target.value }
+                    }
+                  }))}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-sans"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Tap Warning Overlay */}
+        <div className="space-y-0">
+          {headerRow(
+            "notif_tap",
+             cfg.notifications?.tap_warning.title || "Player Loading Warning",
+             "Text shown on top of the black player while loading",
+             !!cfg.notifications?.tap_warning.enabled,
+             () => setCfg(p => ({
+               ...p,
+               notifications: {
+                 ...p.notifications!,
+                 tap_warning: { ...p.notifications!.tap_warning, enabled: !p.notifications!.tap_warning.enabled }
+               }
+             }))
+          )}
+          {open["notif_tap"] && (
+            <div className="px-5 pb-5 pt-1 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-gray-800">Headline Text</label>
+                <input
+                  type="text"
+                  value={cfg.notifications?.tap_warning.title}
+                  onChange={(e) => setCfg(p => ({
+                    ...p,
+                    notifications: {
+                      ...p.notifications!,
+                      tap_warning: { ...p.notifications!.tap_warning, title: e.target.value }
+                    }
+                  }))}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
 
 

@@ -37,12 +37,22 @@ type SmartLinks = {
   url: string;
   targets: Record<string, boolean>; // key (sport id or league id) -> enabled
 };
+type PageNotification = {
+  enabled: boolean;
+  title: string;
+  text: string;
+};
+type PageNotifications = {
+  wait_banner: PageNotification;
+  tap_warning: PageNotification;
+};
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
   formats: Record<string, Format>;
   preroll: Preroll;
   smartLinks?: SmartLinks;
+  notifications?: PageNotifications;
 };
 
 const DEFAULTS: AdsConfig = {
@@ -57,6 +67,18 @@ const DEFAULTS: AdsConfig = {
   },
   preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
   smartLinks: { enabled: false, url: "", targets: {} },
+  notifications: {
+    wait_banner: {
+      enabled: true,
+      title: "Give the stream a moment to load.",
+      text: "Depending on your region, the player can take a little time to appear. Please wait and don't tap anything until the video shows.",
+    },
+    tap_warning: {
+      enabled: true,
+      title: "Please wait — don't tap until the player appears.",
+      text: "",
+    },
+  },
 };
 
 const ALLOWED_DOMAINS = new Set(["all", "workers_dev", "xellnetwork"]);
@@ -124,6 +146,23 @@ function cleanSmartLinks(v: unknown): SmartLinks {
     enabled: !!s.enabled,
     url: typeof s.url === "string" ? s.url.trim() : "",
     targets,
+  };
+}
+function cleanNotifications(v: unknown): PageNotifications {
+  const n = (v ?? {}) as Partial<PageNotifications>;
+  const w = (n.wait_banner ?? {}) as Partial<PageNotification>;
+  const t = (n.tap_warning ?? {}) as Partial<PageNotification>;
+  return {
+    wait_banner: {
+      enabled: w.enabled !== undefined ? !!w.enabled : (DEFAULTS.notifications?.wait_banner.enabled ?? true),
+      title: typeof w.title === "string" ? w.title.trim().slice(0, 200) : (DEFAULTS.notifications?.wait_banner.title ?? ""),
+      text: typeof w.text === "string" ? w.text.trim().slice(0, 500) : (DEFAULTS.notifications?.wait_banner.text ?? ""),
+    },
+    tap_warning: {
+      enabled: t.enabled !== undefined ? !!t.enabled : (DEFAULTS.notifications?.tap_warning.enabled ?? true),
+      title: typeof t.title === "string" ? t.title.trim().slice(0, 200) : (DEFAULTS.notifications?.tap_warning.title ?? ""),
+      text: typeof t.text === "string" ? t.text.trim().slice(0, 500) : (DEFAULTS.notifications?.tap_warning.text ?? ""),
+    },
   };
 }
 
@@ -195,6 +234,7 @@ export async function POST(request: NextRequest) {
       formats,
       preroll: cleanPreroll(body.preroll),
       smartLinks: cleanSmartLinks(body.smartLinks),
+      notifications: cleanNotifications(body.notifications),
     };
 
     const { error } = await getSupabaseAdmin()
