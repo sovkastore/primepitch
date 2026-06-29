@@ -241,17 +241,28 @@ export default function AdminAdsPage() {
   }
 
   function togglePage(id: string, pageId: string) {
-    const current = cfg.formats[id].placement || "all";
+    const current = cfg.formats[id].placement || "";
     let next = "";
+    
     if (pageId === "all") {
-      next = "all";
+      // Toggle everything: if already 'all', clear it. Otherwise set to 'all'.
+      next = (current === "all") ? "" : "all";
     } else {
-      const parts = current === "all" ? [] : current.split(",").filter(Boolean);
+      // If currently 'all', we transition to 'all except this one'
+      // by listing all pages EXCEPT the one being toggled off.
+      let parts: string[] = [];
+      if (current === "all") {
+        parts = SITE_PAGES.map(p => p.id);
+      } else {
+        parts = current.split(",").filter(Boolean);
+      }
+
       if (parts.includes(pageId)) {
         next = parts.filter((p) => p !== pageId).join(",");
-        if (!next) next = "all"; // Fallback to all if none selected? No, user might want to hide it.
       } else {
         next = [...parts, pageId].join(",");
+        // If we just selected everything individually, we could set it to "all", 
+        // but keeping the IDs is more explicit and flexible.
       }
     }
     updateFormat(id, { placement: next });
@@ -648,11 +659,10 @@ export default function AdminAdsPage() {
                         <button
                           key={p.id}
                           type="button"
-                          disabled={f.placement === "all"}
                           onClick={() => togglePage(id, p.id)}
                           className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
                             selected ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
-                          } ${f.placement === "all" ? "opacity-50 cursor-not-allowed" : ""}`}
+                          }`}
                         >
                           <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
                             {selected ? "✓" : ""}
