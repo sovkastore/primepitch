@@ -466,7 +466,7 @@ export default function WorldCupPage() {
               </div>
             </div>
           ))}
-          {(view === "knockout" ? byRound.length : byDay.length) === 0 && (
+          {byDay.length === 0 && (
             <p className="text-center text-gray-400 py-16">
               {view === "results" ? "Played matches and final scores will appear here." : "Fixtures will appear here as they're scheduled."}
             </p>
