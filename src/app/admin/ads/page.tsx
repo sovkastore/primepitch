@@ -191,7 +191,7 @@ export default function AdminAdsPage() {
               enabled: !!f.enabled,
               network: f.network ?? seed?.network ?? "",
               group: f.group ?? seed?.group ?? "standalone",
-              placement: (f.placement ?? seed?.placement ?? "all") as FmtPlacement,
+              placement: f.placement !== undefined ? f.placement : (seed?.placement ?? "all"),
               zone: f.zone ?? seed?.zone ?? "",
               src: f.src ?? seed?.src ?? "",
               cap: m,
