@@ -119,7 +119,7 @@ export default function WorldCupPage() {
   const [data, setData] = useState<WCData>({ groups: {}, fixtures: [] });
   const [live, setLive] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"fixtures" | "results" | "standings">("fixtures");
+  const [view, setView] = useState<"fixtures" | "results" | "knockout" | "standings">("fixtures");
 
   // Selecting a category from the World Cup page goes back to home with that
   // category pre-selected (home restores it from sessionStorage on mount).
@@ -203,9 +203,34 @@ export default function WorldCupPage() {
   // Results = played matches (most recent day first); Fixtures = live + upcoming.
   const playedFixtures = data.fixtures.filter((f) => isPlayedFixture(f));
   const unplayedFixtures = data.fixtures.filter((f) => !isPlayedFixture(f));
+  
+  const knockoutKeywords = ["round of 32", "round of 16", "quarter", "semi", "final", "3rd place", "play-off"];
+  const isKnockout = (f: Fixture) => {
+    const g = (f.group || "").toLowerCase();
+    return knockoutKeywords.some(k => g.includes(k)) || (f.round && f.round > 3);
+  };
+
+  const knockoutFixtures = data.fixtures.filter(isKnockout);
+
+  function groupByRound(list: Fixture[]): { round: string; items: Fixture[] }[] {
+    const out: { round: string; items: Fixture[] }[] = [];
+    for (const f of list) {
+      const round = f.group || (f.round ? `Round ${f.round}` : "Match");
+      let bucket = out.find((b) => b.round === round);
+      if (!bucket) { bucket = { round, items: [] }; out.push(bucket); }
+      bucket.items.push(f);
+    }
+    // Sort rounds roughly logically (Final at top or bottom? Usually Final at top for current tournament state)
+    return out.reverse(); 
+  }
+
   const byDay = view === "results"
     ? groupByDay([...playedFixtures].sort((a, b) => b.date - a.date))
+    : view === "knockout"
+    ? [] // handled below
     : groupByDay(unplayedFixtures);
+
+  const byRound = view === "knockout" ? groupByRound(knockoutFixtures) : [];
 
   const groupKeys = Object.keys(data.groups).sort();
 
@@ -225,12 +250,12 @@ export default function WorldCupPage() {
       )}
 
       {/* View toggle */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max mb-5">
-        {(["fixtures", "results", "standings"] as const).map((t) => (
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max mb-5 overflow-auto max-w-full">
+        {(["fixtures", "results", "knockout", "standings"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setView(t)}
-            className={`text-[12px] font-bold px-4 py-1.5 rounded-lg transition-colors capitalize ${
+            className={`text-[12px] font-bold px-4 py-1.5 rounded-lg transition-colors capitalize whitespace-nowrap ${
               view === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
             }`}
           >
@@ -290,6 +315,85 @@ export default function WorldCupPage() {
             ))}
           </div>
         )
+      ) : view === "knockout" ? (
+        <div className="space-y-8">
+          {byRound.map(({ round, items }) => (
+            <div key={round}>
+              <h3 className="text-[13px] font-extrabold text-gray-900 border-l-4 border-emerald-500 pl-3 mb-4">{round}</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                {items.map((f) => {
+                  const done = isDone(f.status);
+                  const href = !done ? watchHref(f) : null;
+                  const liveNow = isLiveFixture(f, nowTs) || !!href;
+                  const time = f.date ? new Date(f.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "";
+                  const showScore = f.home_score !== null || f.away_score !== null;
+                  const Row: React.ElementType = href ? Link : "div";
+                  
+                  return (
+                    <Row
+                      key={f.id}
+                      {...(href ? { href } : {})}
+                      className={`flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4 rounded-2xl border ${
+                        liveNow
+                          ? "bg-red-50/40 border-red-100" + (href ? " hover:border-red-200 hover:bg-red-50 cursor-pointer transition-colors" : "")
+                          : "bg-white border-gray-100 shadow-sm"
+                      }`}
+                    >
+                      <div className="shrink-0 w-14 sm:w-16 text-center">
+                        {liveNow ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-red-500">
+                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                            {f.minute ? `${f.minute}'` : "LIVE"}
+                          </span>
+                        ) : done ? (
+                          <span className="text-[11px] font-bold text-gray-400">FT</span>
+                        ) : (
+                          <KickoffCell date={f.date} time={time} />
+                        )}
+                      </div>
+                      <div className="w-px h-10 bg-gray-100 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <Flag name={f.home.name} />
+                            <span className="text-[13px] sm:text-[14px] font-extrabold text-gray-900 truncate">{f.home.name}</span>
+                          </div>
+                          {showScore && <span className="text-[14px] font-black text-gray-900 tabular-nums shrink-0">{f.home_score ?? 0}</span>}
+                        </div>
+                        <div className="flex items-center justify-between gap-2 mt-1.5">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <Flag name={f.away.name} />
+                            <span className="text-[13px] sm:text-[14px] font-extrabold text-gray-900 truncate">{f.away.name}</span>
+                          </div>
+                          {showScore && <span className="text-[14px] font-black text-gray-900 tabular-nums shrink-0">{f.away_score ?? 0}</span>}
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex flex-col items-end gap-1 w-[72px]">
+                        {href && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-500 px-3 py-1.5 rounded-xl whitespace-nowrap shadow-sm">
+                             WATCH
+                          </span>
+                        )}
+                        {!href && liveNow && (
+                           <span className="text-[9px] font-bold text-red-400 animate-pulse">LIVE NOW</span>
+                        )}
+                        {done && (
+                           <span className="text-[10px] font-bold text-gray-300">COMPLETED</span>
+                        )}
+                      </div>
+                    </Row>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {byRound.length === 0 && (
+            <div className="text-center py-24 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
+               <p className="text-[14px] font-bold text-gray-500 uppercase tracking-widest">Knockout stages pending</p>
+               <p className="text-[12px] text-gray-400 mt-1">Bracket will be generated after group stage completion.</p>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="space-y-6">
           {byDay.map(({ day, items }) => (
@@ -362,7 +466,7 @@ export default function WorldCupPage() {
               </div>
             </div>
           ))}
-          {byDay.length === 0 && (
+          {(view === "knockout" ? byRound.length : byDay.length) === 0 && (
             <p className="text-center text-gray-400 py-16">
               {view === "results" ? "Played matches and final scores will appear here." : "Fixtures will appear here as they're scheduled."}
             </p>
