@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 
 type Delay = "0" | "15s" | "30s" | "1m" | "2m" | "3m" | "4m" | "5m" | "10m";
 type Unit = "off" | "minutes" | "hours";
-type FmtPlacement = "all" | "watch" | "home";
+type FmtPlacement = string; // Comma-separated page IDs or "all"
 type Format = {
   label: string;
   enabled: boolean;
@@ -90,10 +90,30 @@ const GROUP_LABELS: Record<string, string> = {
 };
 const GROUP_OPTIONS = Object.keys(GROUP_LABELS);
 
-const FMT_PLACEMENT_LABELS: Record<FmtPlacement, string> = {
+const SITE_PAGES = [
+  { id: "home", label: "Home Page", path: "/" },
+  { id: "football", label: "Football", path: "/football" },
+  { id: "basketball", label: "Basketball", path: "/basketball" },
+  { id: "nfl", label: "NFL (Amer. Football)", path: "/american-football" },
+  { id: "ufc", label: "UFC", path: "/ufc" },
+  { id: "wwe", label: "WWE", path: "/wwe" },
+  { id: "boxing", label: "Boxing", path: "/boxing" },
+  { id: "motorsports", label: "Motor Sports", path: "/motor-sports" },
+  { id: "tennis", label: "Tennis", path: "/tennis" },
+  { id: "cricket", label: "Cricket", path: "/cricket" },
+  { id: "hockey", label: "Hockey", path: "/hockey" },
+  { id: "baseball", label: "Baseball", path: "/baseball" },
+  { id: "rugby", label: "Rugby", path: "/rugby" },
+  { id: "cricket_live", label: "Cricket Live (Manual)", path: "/cricket-live" },
+  { id: "world_cup", label: "World Cup 2026", path: "/world-cup" },
+  { id: "watch", label: "Watch Pages", path: "/watch/" },
+  { id: "leagues", label: "League Pages", path: "/league/" },
+  { id: "help", label: "Help Page", path: "/help" },
+  { id: "subscribe", label: "Subscribe Page", path: "/subscribe" },
+];
+
+const FMT_PLACEMENT_LABELS: Record<string, string> = {
   all: "All pages",
-  watch: "Watch page only (fires on the play tap)",
-  home: "Home page only",
 };
 
 // Quick-pick frequencies (minutes). 0 = no limit.
@@ -218,6 +238,23 @@ export default function AdminAdsPage() {
       ...prev,
       formats: { ...prev.formats, [id]: { ...prev.formats[id], ...patch } },
     }));
+  }
+
+  function togglePage(id: string, pageId: string) {
+    const current = cfg.formats[id].placement || "all";
+    let next = "";
+    if (pageId === "all") {
+      next = "all";
+    } else {
+      const parts = current === "all" ? [] : current.split(",").filter(Boolean);
+      if (parts.includes(pageId)) {
+        next = parts.filter((p) => p !== pageId).join(",");
+        if (!next) next = "all"; // Fallback to all if none selected? No, user might want to hide it.
+      } else {
+        next = [...parts, pageId].join(",");
+      }
+    }
+    updateFormat(id, { placement: next });
   }
 
   // Toggle an ad on/off. Independent — enabling one no longer affects any other.
@@ -590,17 +627,41 @@ export default function AdminAdsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-gray-800">Show on</label>
-                  <select
-                    value={f.placement}
-                    onChange={(e) => updateFormat(id, { placement: e.target.value as FmtPlacement })}
-                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                  >
-                    {(Object.keys(FMT_PLACEMENT_LABELS) as FmtPlacement[]).map((p) => (
-                      <option key={p} value={p}>{FMT_PLACEMENT_LABELS[p]}</option>
-                    ))}
-                  </select>
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-gray-800">Show on these pages</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => togglePage(id, "all")}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                        f.placement === "all" ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${f.placement === "all" ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                        {f.placement === "all" ? "✓" : ""}
+                      </span>
+                      ALL PAGES
+                    </button>
+                    {SITE_PAGES.map((p) => {
+                      const selected = f.placement === "all" || (f.placement || "").split(",").includes(p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          disabled={f.placement === "all"}
+                          onClick={() => togglePage(id, p.id)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                            selected ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                          } ${f.placement === "all" ? "opacity-50 cursor-not-allowed" : ""}`}
+                        >
+                          <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                            {selected ? "✓" : ""}
+                          </span>
+                          {p.label.toUpperCase()}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -878,6 +939,19 @@ export default function AdminAdsPage() {
                               {cfg.smartLinks.targets["watch_buttons"] ? "✓" : ""}
                             </span>
                             ALL "WATCH" BUTTONS
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleSmartTarget("cricket_watch")}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                              cfg.smartLinks.targets["cricket_watch"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                            }`}
+                          >
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["cricket_watch"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                              {cfg.smartLinks.targets["cricket_watch"] ? "✓" : ""}
+                            </span>
+                            LIVE CRICKET WATCH (MANUAL PAGE)
                           </button>
                         </div>
                         <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Sports</h4>

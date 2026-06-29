@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 type Cap = number | string; // minutes (number); legacy string keys still tolerated
-type FmtPlacement = "all" | "watch" | "home";
+type FmtPlacement = string; // Comma-separated page IDs or "all"
 type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string; placement?: FmtPlacement };
 type AdsConfig = {
   master: boolean;
@@ -53,14 +53,47 @@ function delaySeconds(d?: string): number {
   return (d && DELAY_SECONDS[d]) || 0;
 }
 
-// Per-format placement gate. Popunder is scoped to the watch page so it fires
-// on the play tap, not on casual home-page browsing.
+const PAGE_MAP = [
+  { id: "home", path: "/" },
+  { id: "football", path: "/football" },
+  { id: "basketball", path: "/basketball" },
+  { id: "nfl", path: "/american-football" },
+  { id: "ufc", path: "/ufc" },
+  { id: "wwe", path: "/wwe" },
+  { id: "boxing", path: "/boxing" },
+  { id: "motorsports", path: "/motor-sports" },
+  { id: "tennis", path: "/tennis" },
+  { id: "cricket", path: "/cricket" },
+  { id: "hockey", path: "/hockey" },
+  { id: "baseball", path: "/baseball" },
+  { id: "rugby", path: "/rugby" },
+  { id: "cricket_live", path: "/cricket-live" },
+  { id: "world_cup", path: "/world-cup" },
+  { id: "help", path: "/help" },
+  { id: "subscribe", path: "/subscribe" },
+];
+
+function getCurrentPageId(path: string): string {
+  if (path === "/") return "home";
+  if (path.startsWith("/watch/")) return "watch";
+  if (path.startsWith("/league/")) return "leagues";
+  const found = PAGE_MAP.find(p => path === p.path || path === p.path + "/");
+  return found ? found.id : "other";
+}
+
+// Per-format placement gate. Check if current page is in the ad's allowed list.
 function placementAllows(placement: FmtPlacement | undefined, path: string): boolean {
-  if (path.startsWith("/ppv") || path.startsWith("/cricket")) return true; 
   if (!placement || placement === "all") return true;
-  if (placement === "watch") return path.startsWith("/watch");
-  if (placement === "home") return path === "/";
-  return true;
+
+  // Legacy support for simple strings
+  if (placement === "home" && path === "/") return true;
+  if (placement === "watch" && path.startsWith("/watch/")) return true;
+
+  // Modern multi-select logic
+  const allowedIds = placement.split(",").filter(Boolean);
+  const currentId = getCurrentPageId(path);
+  
+  return allowedIds.includes(currentId);
 }
 
 // Inject an ad script. Monetag tags need a data-zone; Adsterra tags (popunder,
@@ -113,6 +146,19 @@ export default function AdsLoader() {
           const handleGlobalClick = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             const link = target.closest("a");
+            const btn = target.closest("button");
+            
+            if (!link && !btn) return;
+
+            // Handle Buttons (like on /cricket-live)
+            if (btn && path === "/cricket-live") {
+              const text = btn.innerText?.toUpperCase() || "";
+              if (text.includes("WATCH") && sl.targets["cricket_watch"]) {
+                window.open(sl.url, "_blank");
+                return;
+              }
+            }
+
             if (!link) return;
 
             const href = link.getAttribute("href") || "";
