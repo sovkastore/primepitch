@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 const KEY = "ads_config";
 
 type Delay = "0" | "15s" | "30s" | "1m" | "2m" | "3m" | "4m" | "5m" | "10m";
-type FmtPlacement = "all" | "watch" | "home";
+type FmtPlacement = string; // Comma-separated page IDs or "all"
 type Format = {
   label: string;
   enabled: boolean;
@@ -73,7 +73,7 @@ function cleanCap(v: unknown): number {
 // These two always render so the core toggles never disappear; any other
 // (admin-created or seeded) format is allowed too. Only the admin can POST here.
 const CORE_FORMATS = ["inpage_push", "vignette", "social_bar", "popunder", "monetag_popunder"];
-const ALLOWED_FMT_PLACEMENTS = new Set(["all", "watch", "home"]);
+// Any string is allowed for placement now (comma-separated IDs)
 const MAX_FORMATS = 24;
 
 function cleanStr(v: unknown, max: number): string {
@@ -159,9 +159,7 @@ export async function POST(request: NextRequest) {
       const label = cleanStr(f.label, 60) || def?.label || id;
       const network = cleanStr(f.network, 24) || def?.network || "";
       const group = cleanKey(cleanStr(f.group, 40)) ? cleanStr(f.group, 40) : def?.group || "standalone";
-      const placement = ALLOWED_FMT_PLACEMENTS.has(f.placement as string)
-        ? (f.placement as FmtPlacement)
-        : def?.placement || "all";
+      const placement = typeof f.placement === "string" ? f.placement.trim().slice(0, 500) : (def?.placement || "all");
       const rawSrc = typeof f.src === "string" ? f.src.trim() : "";
       const src = cleanUrl(rawSrc.startsWith("//") ? `https:${rawSrc}` : rawSrc);
       formats[id] = {
