@@ -52,6 +52,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dismissCount, setDismissCount] = useState(0);
 
   useEffect(() => {
     if (msg) {
