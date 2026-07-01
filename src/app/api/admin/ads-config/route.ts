@@ -49,6 +49,7 @@ type PageNotifications = {
 type PromoBannerConfig = {
   enabled: boolean;
   link: string;
+  whatsappMessage: string;
   imagePath: string;
 };
 type AdsConfig = {
@@ -88,6 +89,7 @@ const DEFAULTS: AdsConfig = {
   promoBanner: {
     enabled: true,
     link: "https://chat.whatsapp.com/GZIDDAtkCOg9r8p25itF9t",
+    whatsappMessage: "",
     imagePath: "/promo-banner.png"
   },
 };
@@ -182,6 +184,7 @@ function cleanPromoBanner(v: unknown): PromoBannerConfig {
   return {
     enabled: p.enabled !== undefined ? !!p.enabled : (DEFAULTS.promoBanner?.enabled ?? true),
     link: typeof p.link === "string" ? p.link.trim().slice(0, 500) : (DEFAULTS.promoBanner?.link ?? ""),
+    whatsappMessage: typeof p.whatsappMessage === "string" ? p.whatsappMessage.trim().slice(0, 1000) : (DEFAULTS.promoBanner?.whatsappMessage ?? ""),
     imagePath: typeof p.imagePath === "string" ? p.imagePath.trim().slice(0, 500) : (DEFAULTS.promoBanner?.imagePath ?? ""),
   };
 }

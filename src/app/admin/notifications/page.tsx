@@ -244,16 +244,29 @@ export default function NotificationsPage() {
               {open["promo_banner"] && (
                 <div className="px-5 pb-5 pt-1 space-y-4 bg-gray-50/50">
                   <div className="space-y-1.5">
-                    <label className="text-[13px] font-semibold text-gray-800">Destination URL</label>
+                    <label className="text-[13px] font-semibold text-gray-800">Destination URL or Phone Link</label>
                     <input
                       type="text"
                       value={adsCfg.promoBanner?.link || ""}
                       onChange={(e) => setAdsCfg((p: any) => ({
                         ...p, promoBanner: { ...p.promoBanner, link: e.target.value }
                       }))}
-                      placeholder="e.g. https://chat.whatsapp.com/..."
+                      placeholder="e.g. https://wa.me/1234567890"
                       className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-gray-800">WhatsApp Pre-filled Message (optional)</label>
+                    <textarea
+                      value={adsCfg.promoBanner?.whatsappMessage || ""}
+                      onChange={(e) => setAdsCfg((p: any) => ({
+                        ...p, promoBanner: { ...p.promoBanner, whatsappMessage: e.target.value }
+                      }))}
+                      rows={3}
+                      placeholder="Type your message here..."
+                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                    <p className="text-[11px] text-gray-500">If the Destination URL is a wa.me link, this text will automatically be prepared for the user to send.</p>
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[13px] font-semibold text-gray-800">Image Path</label>
