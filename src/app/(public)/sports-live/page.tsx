@@ -166,12 +166,11 @@ export default function SportsLivePage() {
               <div className="space-y-4 text-center md:text-left">
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">Manual Management Active</span>
+                  <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">Live Coverage Active</span>
                 </div>
                 <h1 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tight leading-none italic uppercase">Sports Live</h1>
                 <p className="text-[13px] md:text-15px text-gray-500 font-bold max-w-lg leading-relaxed">
-                  Hand-picked premium streams for the biggest events. 
-                  If it&apos;s not in our main list, you&apos;ll find it here.
+                  Premium live streams for the biggest sports events. Experience the action seamlessly right here.
                 </p>
               </div>
               <div className="hidden lg:block">
