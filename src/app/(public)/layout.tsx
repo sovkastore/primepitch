@@ -3,7 +3,6 @@ import Footer from "@/components/Footer";
 import Analytics from "@/components/Analytics";
 import StaleSessionReset from "@/components/StaleSessionReset";
 import AnnouncementBar from "@/components/AnnouncementBar";
-import WhatsAppBanner from "@/components/WhatsAppBanner";
 
 export default function PublicLayout({
   children,
@@ -18,7 +17,6 @@ export default function PublicLayout({
       <Footer />
       <Analytics />
       <StaleSessionReset />
-      <WhatsAppBanner />
     </>
   );
 }

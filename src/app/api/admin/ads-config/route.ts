@@ -46,6 +46,11 @@ type PageNotifications = {
   wait_banner: PageNotification;
   tap_warning: PageNotification;
 };
+type PromoBannerConfig = {
+  enabled: boolean;
+  link: string;
+  imagePath: string;
+};
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -53,6 +58,7 @@ type AdsConfig = {
   preroll: Preroll;
   smartLinks?: SmartLinks;
   notifications?: PageNotifications;
+  promoBanner?: PromoBannerConfig;
 };
 
 const DEFAULTS: AdsConfig = {
@@ -78,6 +84,11 @@ const DEFAULTS: AdsConfig = {
       title: "Please wait — don't tap until the player appears.",
       text: "",
     },
+  },
+  promoBanner: {
+    enabled: true,
+    link: "https://chat.whatsapp.com/GZIDDAtkCOg9r8p25itF9t",
+    imagePath: "/promo-banner.png"
   },
 };
 

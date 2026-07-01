@@ -38,6 +38,11 @@ type SmartLinks = {
   url: string;
   targets: Record<string, boolean>;
 };
+type PromoBannerConfig = {
+  enabled: boolean;
+  link: string;
+  imagePath: string;
+};
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -45,6 +50,7 @@ type AdsConfig = {
   preroll: Preroll;
   smartLinks: SmartLinks;
   notifications?: PageNotifications;
+  promoBanner?: PromoBannerConfig;
 };
 type PageNotification = {
   enabled: boolean;
@@ -82,6 +88,11 @@ const DEFAULTS: AdsConfig = {
       text: "",
     },
   },
+  promoBanner: {
+    enabled: true,
+    link: "https://chat.whatsapp.com/GZIDDAtkCOg9r8p25itF9t",
+    imagePath: "/promo-banner.png"
+  }
 };
 
 const TRIGGER_LABELS: Record<Trigger, string> = {
@@ -237,6 +248,7 @@ export default function AdminAdsPage() {
               wait_banner: { ...DEFAULTS.notifications!.wait_banner, ...(d.notifications?.wait_banner ?? {}) },
               tap_warning: { ...DEFAULTS.notifications!.tap_warning, ...(d.notifications?.tap_warning ?? {}) },
             },
+            promoBanner: { ...DEFAULTS.promoBanner!, ...(d.promoBanner ?? {}) },
           });
           setUnits(u);
         }
@@ -1056,8 +1068,52 @@ export default function AdminAdsPage() {
       })}
 
       {/* Page Notifications */}
-      <h2 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 px-1 mt-2">Watch Page Banners</h2>
+      <h2 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 px-1 mt-2">Banners & Notifications</h2>
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
+        {/* Promo Banner */}
+        <div className="space-y-0">
+          {headerRow(
+            "promo_banner",
+             "Promo Banner (Home Page)",
+             "Displays an inline image banner on the home page",
+             !!cfg.promoBanner?.enabled,
+             () => setCfg(p => ({
+               ...p,
+               promoBanner: { ...p.promoBanner!, enabled: !p.promoBanner!.enabled }
+             }))
+          )}
+          {open["promo_banner"] && (
+            <div className="px-5 pb-5 pt-1 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-gray-800">Destination URL</label>
+                <input
+                  type="text"
+                  value={cfg.promoBanner?.link}
+                  onChange={(e) => setCfg(p => ({
+                    ...p,
+                    promoBanner: { ...p.promoBanner!, link: e.target.value }
+                  }))}
+                  placeholder="e.g. https://chat.whatsapp.com/..."
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-gray-800">Image Path</label>
+                <input
+                  type="text"
+                  value={cfg.promoBanner?.imagePath}
+                  onChange={(e) => setCfg(p => ({
+                    ...p,
+                    promoBanner: { ...p.promoBanner!, imagePath: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+                <p className="text-[11px] text-gray-500">The uploaded image path (e.g. /promo-banner.png)</p>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Wait Banner */}
         <div className="space-y-0">
           {headerRow(

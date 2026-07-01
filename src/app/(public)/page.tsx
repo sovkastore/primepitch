@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import SportsNav from "@/components/SportsNav";
 import LeagueNav from "@/components/LeagueNav";
+import PromoBanner from "@/components/PromoBanner";
 import LiveNow from "@/components/LiveNow";
 import TodayMatches from "@/components/Upcoming";
 import Logo from "@/components/Logo";
@@ -211,6 +212,7 @@ export default function HomePage() {
       <div className="flex-1 pb-10">
         <SportsNav activeSport={activeSport} onSelect={selectSport} />
         {activeSport === "football" && <LeagueNav active="all" />}
+        <PromoBanner />
         <LiveNow matches={liveForSport} />
         <TodayMatches matches={filtered} excludeKeys={liveKeys} />
       </div>
