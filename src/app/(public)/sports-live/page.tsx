@@ -170,7 +170,7 @@ export default function SportsLivePage() {
                 </div>
                 <h1 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tight leading-none italic uppercase">Sports Live</h1>
                 <p className="text-[13px] md:text-15px text-gray-500 font-bold max-w-lg leading-relaxed">
-                  Live streams for sports events. Experience the action seamlessly right here.
+                  Live streams for sports events.
                 </p>
               </div>
               <div className="hidden lg:block">
