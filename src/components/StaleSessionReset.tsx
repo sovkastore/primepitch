@@ -30,7 +30,13 @@ export default function StaleSessionReset() {
       touch(); // mark fresh so the reloaded page isn't treated as stale again
       const onHome = window.location.pathname === "/";
       const onCricket = window.location.pathname.startsWith("/cricket");
-      if ((!onHome && !onCricket) || hadSport) window.location.replace("/");
+      const onSportsLive = window.location.pathname.startsWith("/sports-live");
+      const onPPV = window.location.pathname.startsWith("/ppv");
+      
+      // Do not redirect to home if they are on a standalone manual stream page
+      if ((!onHome && !onCricket && !onSportsLive && !onPPV) || hadSport) {
+        window.location.replace("/");
+      }
     };
 
     // Returned to a stale tab, or reopened the browser after >1 min away.
