@@ -12,7 +12,7 @@ type Announcement = {
   reshowHours: number;
 };
 
-const DEFAULTS: Announcement = {
+const DEFAULTS_ANNOUNCE: Announcement = {
   enabled: false,
   message: "",
   linkUrl: "",
@@ -21,7 +21,10 @@ const DEFAULTS: Announcement = {
   reshowHours: 0,
 };
 
-const RESHOW_OPTIONS: { value: number; label: string }[] = [
+type PageNotification = { enabled: boolean; title: string; text: string; };
+type PromoBannerConfig = { enabled: boolean; link: string; imagePath: string; };
+
+const RESHOW_OPTIONS = [
   { value: 0, label: "Don't show again (until I change the message)" },
   { value: 1, label: "After 1 hour" },
   { value: 3, label: "After 3 hours" },
@@ -42,39 +45,51 @@ const VARIANT_PREVIEW: Record<Variant, string> = {
 };
 
 export default function NotificationsPage() {
-  const [cfg, setCfg] = useState<Announcement>(DEFAULTS);
+  const [announce, setAnnounce] = useState<Announcement>(DEFAULTS_ANNOUNCE);
+  const [adsCfg, setAdsCfg] = useState<any>(null); // We only care about .notifications and .promoBanner
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [dismissCount, setDismissCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
+  const toggleOpen = (key: string) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+
   useEffect(() => {
-    fetch("/api/admin/announcement", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
-        setCfg({ ...DEFAULTS, ...d });
-        setDismissCount(Number(d?.dismissCount) || 0);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch("/api/admin/announcement", { cache: "no-store" }).then(r => r.json()),
+      fetch("/api/admin/ads-config", { cache: "no-store" }).then(r => r.json())
+    ]).then(([announceData, adsData]) => {
+      setAnnounce({ ...DEFAULTS_ANNOUNCE, ...announceData });
+      setDismissCount(Number(announceData?.dismissCount) || 0);
+      setAdsCfg(adsData);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  function update(patch: Partial<Announcement>) {
-    setCfg((p) => ({ ...p, ...patch }));
+  function updateAnnounce(patch: Partial<Announcement>) {
+    setAnnounce((p) => ({ ...p, ...patch }));
   }
 
   async function save() {
     setSaving(true);
     setMsg("");
     try {
-      const res = await fetch("/api/admin/announcement", {
+      // Save top announcement
+      await fetch("/api/admin/announcement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cfg),
+        body: JSON.stringify(announce),
       });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      if (data.config) setCfg({ ...DEFAULTS, ...data.config });
+
+      // Save ads config (banners)
+      if (adsCfg) {
+        await fetch("/api/admin/ads-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(adsCfg),
+        });
+      }
+
       setMsg("Saved.");
     } catch {
       setMsg("Failed to save.");
@@ -83,147 +98,269 @@ export default function NotificationsPage() {
     }
   }
 
+  function headerRow(id: string, title: string, desc: string, enabled: boolean, toggle: () => void) {
+    const isOpen = !!open[id];
+    return (
+      <div className={`p-5 transition-colors ${isOpen ? "bg-gray-50/50" : "bg-white hover:bg-gray-50/30"}`}>
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleOpen(id)}>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-gray-900 truncate">{title}</h3>
+            </div>
+            <p className="text-[12px] text-gray-500 mt-1">{desc}</p>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); toggle(); }}
+            className={`relative w-[42px] h-[24px] rounded-full transition-colors shrink-0 ${enabled ? "bg-emerald-500" : "bg-gray-200"}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${enabled ? "left-[24px]" : "left-1"}`} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return <div className="p-6 text-sm text-gray-500">Loading…</div>;
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Notifications</h1>
-        <p className="text-[13px] text-gray-600 mt-1">
-          Show a message bar across the top of the site &mdash; a welcome note, an
-          announcement, a nudge to subscribe, anything. Turn it off when you&rsquo;re
-          done. Visitors can dismiss it; choose below how long before it returns for
-          them.
-        </p>
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-8">
+      {/* Top Bar Announcement */}
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Top Bar Announcement</h1>
+          <p className="text-[13px] text-gray-600 mt-1">
+            Show a message bar across the top of the site. Turn it off when you&rsquo;re done.
+          </p>
+        </div>
+
+        <div className={`rounded-2xl border p-5 space-y-3 ${announce.enabled ? "border-emerald-300 bg-emerald-50" : "border-gray-200 bg-white"}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-bold text-gray-900">Show the banner</span>
+              <p className="text-[13px] text-gray-600 mt-0.5">
+                {announce.enabled ? "The banner is LIVE on the site." : "The banner is hidden."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateAnnounce({ enabled: !announce.enabled })}
+              className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${announce.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
+              aria-label="Toggle banner"
+            >
+              <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${announce.enabled ? "left-[22px]" : "left-0.5"}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-gray-800">Message</label>
+            <textarea
+              value={announce.message}
+              onChange={(e) => updateAnnounce({ message: e.target.value })}
+              rows={3}
+              maxLength={500}
+              placeholder="e.g. Welcome! Add us to your home screen to get live goal alerts."
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-gray-800">Link (optional)</label>
+              <input
+                value={announce.linkUrl}
+                onChange={(e) => updateAnnounce({ linkUrl: e.target.value })}
+                placeholder="/subscribe  or  https://…"
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-gray-800">Link text</label>
+              <input
+                value={announce.linkLabel}
+                onChange={(e) => updateAnnounce({ linkLabel: e.target.value })}
+                maxLength={60}
+                placeholder="Learn more"
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-gray-800">Color</label>
+            <select
+              value={announce.variant}
+              onChange={(e) => updateAnnounce({ variant: e.target.value as Variant })}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            >
+              {(Object.keys(VARIANT_LABELS) as Variant[]).map((v) => (
+                <option key={v} value={v}>{VARIANT_LABELS[v]}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-gray-800">Show again after dismiss</label>
+            <select
+              value={announce.reshowHours}
+              onChange={(e) => updateAnnounce({ reshowHours: Number(e.target.value) })}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            >
+              {RESHOW_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* On/off */}
-      <div className={`rounded-2xl border p-5 space-y-3 ${cfg.enabled ? "border-emerald-300 bg-emerald-50" : "border-gray-200 bg-white"}`}>
-        <div className="flex items-center justify-between">
+      {/* Embedded Ads Config Banners */}
+      {adsCfg && (
+        <div className="space-y-4">
           <div>
-            <span className="text-sm font-bold text-gray-900">Show the banner</span>
-            <p className="text-[13px] text-gray-600 mt-0.5">
-              {cfg.enabled ? "The banner is LIVE on the site." : "The banner is hidden."}
+            <h1 className="text-xl font-bold text-gray-900">Watch & Home Banners</h1>
+            <p className="text-[13px] text-gray-600 mt-1">
+              Inline promotional banners and stream waiting notifications.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => update({ enabled: !cfg.enabled })}
-            className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${cfg.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
-            aria-label="Toggle banner"
-          >
-            <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${cfg.enabled ? "left-[22px]" : "left-0.5"}`} />
-          </button>
-        </div>
-      </div>
+          
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100 mb-8">
+            {/* Promo Banner */}
+            <div className="space-y-0">
+              {headerRow(
+                "promo_banner",
+                 "Promo Banner (Home Page)",
+                 "Displays an inline image banner on the home page",
+                 !!adsCfg.promoBanner?.enabled,
+                 () => setAdsCfg((p: any) => ({
+                   ...p,
+                   promoBanner: { ...p.promoBanner, enabled: !p.promoBanner?.enabled }
+                 }))
+              )}
+              {open["promo_banner"] && (
+                <div className="px-5 pb-5 pt-1 space-y-4 bg-gray-50/50">
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-gray-800">Destination URL</label>
+                    <input
+                      type="text"
+                      value={adsCfg.promoBanner?.link || ""}
+                      onChange={(e) => setAdsCfg((p: any) => ({
+                        ...p, promoBanner: { ...p.promoBanner, link: e.target.value }
+                      }))}
+                      placeholder="e.g. https://chat.whatsapp.com/..."
+                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-gray-800">Image Path</label>
+                    <input
+                      type="text"
+                      value={adsCfg.promoBanner?.imagePath || ""}
+                      onChange={(e) => setAdsCfg((p: any) => ({
+                        ...p, promoBanner: { ...p.promoBanner, imagePath: e.target.value }
+                      }))}
+                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
 
-      {/* Message + link */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-        <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-gray-800">Message</label>
-          <textarea
-            value={cfg.message}
-            onChange={(e) => update({ message: e.target.value })}
-            rows={3}
-            maxLength={500}
-            placeholder="e.g. Welcome! Add us to your home screen to get live goal alerts."
-            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          />
-        </div>
+            {/* Wait Banner */}
+            <div className="space-y-0">
+              {headerRow(
+                "notif_wait",
+                 adsCfg.notifications?.wait_banner?.title || "Wait Banner",
+                 "Tells users to wait for the stream to load",
+                 !!adsCfg.notifications?.wait_banner?.enabled,
+                 () => setAdsCfg((p: any) => ({
+                   ...p, notifications: {
+                     ...p.notifications, wait_banner: { ...p.notifications?.wait_banner, enabled: !p.notifications?.wait_banner?.enabled }
+                   }
+                 }))
+              )}
+              {open["notif_wait"] && (
+                <div className="px-5 pb-5 pt-1 space-y-4 bg-gray-50/50">
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-gray-800">Banner Headline</label>
+                    <input
+                      type="text"
+                      value={adsCfg.notifications?.wait_banner?.title || ""}
+                      onChange={(e) => setAdsCfg((p: any) => ({
+                        ...p, notifications: {
+                          ...p.notifications, wait_banner: { ...p.notifications?.wait_banner, title: e.target.value }
+                        }
+                      }))}
+                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-gray-800">Message Text</label>
+                    <textarea
+                      value={adsCfg.notifications?.wait_banner?.text || ""}
+                      rows={3}
+                      onChange={(e) => setAdsCfg((p: any) => ({
+                        ...p, notifications: {
+                          ...p.notifications, wait_banner: { ...p.notifications?.wait_banner, text: e.target.value }
+                        }
+                      }))}
+                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-sans"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-gray-800">Link (optional)</label>
-            <input
-              value={cfg.linkUrl}
-              onChange={(e) => update({ linkUrl: e.target.value })}
-              placeholder="/subscribe  or  https://…"
-              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-            />
-            <p className="text-[11px] text-gray-500">A page on your site (start with /) or a full https link.</p>
+            {/* Tap Warning Overlay */}
+            <div className="space-y-0">
+              {headerRow(
+                "notif_tap",
+                 adsCfg.notifications?.tap_warning?.title || "Player Loading Warning",
+                 "Text shown on top of the black player while loading",
+                 !!adsCfg.notifications?.tap_warning?.enabled,
+                 () => setAdsCfg((p: any) => ({
+                   ...p, notifications: {
+                     ...p.notifications, tap_warning: { ...p.notifications?.tap_warning, enabled: !p.notifications?.tap_warning?.enabled }
+                   }
+                 }))
+              )}
+              {open["notif_tap"] && (
+                <div className="px-5 pb-5 pt-1 space-y-4 bg-gray-50/50">
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-gray-800">Headline Text</label>
+                    <input
+                      type="text"
+                      value={adsCfg.notifications?.tap_warning?.title || ""}
+                      onChange={(e) => setAdsCfg((p: any) => ({
+                        ...p, notifications: {
+                          ...p.notifications, tap_warning: { ...p.notifications?.tap_warning, title: e.target.value }
+                        }
+                      }))}
+                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-gray-800">Link text</label>
-            <input
-              value={cfg.linkLabel}
-              onChange={(e) => update({ linkLabel: e.target.value })}
-              maxLength={60}
-              placeholder="Learn more"
-              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-            />
-          </div>
         </div>
+      )}
 
-        <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-gray-800">Color</label>
-          <select
-            value={cfg.variant}
-            onChange={(e) => update({ variant: e.target.value as Variant })}
-            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          >
-            {(Object.keys(VARIANT_LABELS) as Variant[]).map((v) => (
-              <option key={v} value={v}>{VARIANT_LABELS[v]}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-gray-800">Show again after dismiss</label>
-          <select
-            value={cfg.reshowHours}
-            onChange={(e) => update({ reshowHours: Number(e.target.value) })}
-            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          >
-            {RESHOW_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <p className="text-[11px] text-gray-500">
-            If a visitor closes the banner, this is how long before it comes back for
-            them. &ldquo;Don&rsquo;t show again&rdquo; keeps it hidden until you change the message.
-          </p>
-        </div>
-      </div>
-
-      {/* Live preview */}
-      <div className="space-y-1.5">
-        <span className="text-[13px] font-semibold text-gray-800">Preview</span>
-        <div className={`rounded-xl px-4 py-2.5 text-sm flex items-center justify-center gap-2 text-center ${VARIANT_PREVIEW[cfg.variant]}`}>
-          <span>{cfg.message || "Your message will appear here"}</span>
-          {cfg.linkUrl && cfg.linkLabel && (
-            <span className="underline font-semibold">{cfg.linkLabel}</span>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center gap-3">
-        <span className="grid place-items-center w-9 h-9 rounded-full bg-white border border-gray-200 text-gray-700 shrink-0">
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-gray-900">
-            Dismissed by {dismissCount} {dismissCount === 1 ? "person" : "people"}
-          </p>
-          <p className="text-[12px] text-gray-600">
-            Unique devices that closed the current message. Resets when you change the message.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3">
+      {/* Save Button */}
+      <div className="flex items-center gap-3 pt-2">
         <button
           type="button"
           onClick={save}
           disabled={saving}
-          className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold disabled:opacity-50"
+          className="px-6 py-3 rounded-xl bg-gray-900 hover:bg-black text-white text-[13px] font-bold shadow-lg active:scale-95 transition-all disabled:opacity-50"
         >
-          {saving ? "Saving…" : "Save"}
+          {saving ? "Saving Changes…" : "Save All Changes"}
         </button>
-        {msg && <span className="text-[13px] text-gray-600">{msg}</span>}
+        {msg && <span className="text-[13px] font-medium text-emerald-600">{msg}</span>}
       </div>
     </div>
   );
