@@ -11,6 +11,7 @@ import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedu
 import { classifyFight } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
 import { readPageCache, writePageCache } from "@/lib/page-cache";
+import DisclaimerFooter from "@/components/DisclaimerFooter";
 
 const SPORTS = [
   "football", "basketball", "american-football", "hockey", "baseball",
@@ -205,12 +206,15 @@ export default function HomePage() {
   const liveKeys = new Set(mergedLive.map(getMatchKey));
 
   return (
-    <div className="pb-20 md:pb-0">
+    <div className="flex flex-col min-h-screen">
       <PreRollGate page="home" />
-      <SportsNav activeSport={activeSport} onSelect={selectSport} />
-      {activeSport === "football" && <LeagueNav active="all" />}
-      <LiveNow matches={liveForSport} />
-      <TodayMatches matches={filtered} excludeKeys={liveKeys} />
+      <div className="flex-1 pb-10">
+        <SportsNav activeSport={activeSport} onSelect={selectSport} />
+        {activeSport === "football" && <LeagueNav active="all" />}
+        <LiveNow matches={liveForSport} />
+        <TodayMatches matches={filtered} excludeKeys={liveKeys} />
+      </div>
+      <DisclaimerFooter />
     </div>
   );
 }

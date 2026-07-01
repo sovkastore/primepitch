@@ -21,7 +21,7 @@ type Format = {
 };
 type PopMode = "off" | "on" | "auto";
 type Trigger = "visit" | "interval" | "match" | "server";
-type Placement = "watch" | "home" | "both";
+type Placement = "watch" | "home" | "both" | "sports-live";
 type Mode = "silent" | "gate";
 type Preroll = {
   enabled: boolean;
@@ -95,6 +95,7 @@ const PLACEMENT_LABELS: Record<Placement, string> = {
   watch: "Watch page only",
   home: "Home page only",
   both: "Home + Watch pages",
+  "sports-live": "Sports Live page only",
 };
 
 const MODE_LABELS: Record<Mode, string> = {
@@ -127,6 +128,7 @@ const SITE_PAGES = [
   { id: "baseball", label: "Baseball", path: "/baseball" },
   { id: "rugby", label: "Rugby", path: "/rugby" },
   { id: "cricket_live", label: "Cricket Live (Manual)", path: "/cricket-live" },
+  { id: "sports_live", label: "Sports Live (Manual)", path: "/sports-live" },
   { id: "world_cup", label: "World Cup 2026", path: "/world-cup" },
   { id: "watch", label: "Watch Pages", path: "/watch/" },
   { id: "leagues", label: "League Pages", path: "/league/" },

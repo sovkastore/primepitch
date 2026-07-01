@@ -20,7 +20,7 @@ type Format = {
   autoMatches?: string[];
 };
 type Trigger = "visit" | "interval" | "match" | "server";
-type Placement = "watch" | "home" | "both";
+type Placement = "watch" | "home" | "both" | "sports-live";
 type Mode = "silent" | "gate";
 type Preroll = {
   enabled: boolean;
@@ -106,7 +106,7 @@ function cleanKey(v: string): boolean {
 }
 
 const ALLOWED_TRIGGERS = new Set(["visit", "interval", "match", "server"]);
-const ALLOWED_PLACEMENTS = new Set(["watch", "home", "both"]);
+const ALLOWED_PLACEMENTS = new Set(["watch", "home", "both", "sports-live"]);
 const ALLOWED_MODES = new Set(["silent", "gate"]);
 function cleanUrl(v: unknown): string {
   if (typeof v !== "string") return "";

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import SportsNav from "@/components/SportsNav";
 import LeagueNav from "@/components/LeagueNav";
+import DisclaimerFooter from "@/components/DisclaimerFooter";
 import type { Match } from "@/lib/api";
 import {
   buildStreamIndex,
@@ -205,11 +206,11 @@ export default function CompetitionPage() {
     streamIdx ? resolveLeagueStream(row, streamIdx) : null;
 
   return (
-    <>
+    <div className="flex flex-col min-h-screen">
       <SportsNav activeSport="football" onSelect={chooseSport} />
       <LeagueNav active={Number.isFinite(leagueId) ? leagueId : "all"} />
 
-      <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
+      <div className="flex-1 max-w-[1400px] mx-auto px-4 lg:px-6 py-4 pb-10">
         {!Number.isFinite(leagueId) ? (
           <p className="text-gray-500 py-10">Unknown competition.</p>
         ) : loading && !data ? (
@@ -258,7 +259,8 @@ export default function CompetitionPage() {
           </>
         )}
       </div>
-    </>
+      <DisclaimerFooter />
+    </div>
   );
 }
 

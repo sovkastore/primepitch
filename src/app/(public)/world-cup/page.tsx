@@ -10,6 +10,7 @@ import { Match, getLiveMatches, getWatchHref } from "@/lib/api";
 import { getCountryFlagUrl } from "@/lib/country-flags";
 import { visibleInterval } from "@/lib/poll";
 import { readPageCache, writePageCache } from "@/lib/page-cache";
+import DisclaimerFooter from "@/components/DisclaimerFooter";
 
 interface Team { name: string; country: string; }
 interface Fixture {
@@ -235,245 +236,246 @@ export default function WorldCupPage() {
   const groupKeys = Object.keys(data.groups).sort();
 
   return (
-    <>
+    <div className="flex flex-col min-h-screen">
       {/* Category bar — same as home, with World Cup highlighted; tapping a
           category returns to home with that category active. */}
       <SportsNav activeSport="football" onSelect={selectSport} />
       <LeagueNav active="wc" />
 
-      <div className="max-w-[1100px] mx-auto px-4 lg:px-6 py-6 pb-24 md:pb-8">
-      {/* Slim live indicator only — the bulky badge/title was redundant with the nav. */}
-      {liveCount > 0 && (
-        <div className="flex items-center gap-1.5 text-red-500 font-bold text-[12px] mb-4">
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> {liveCount} live now
-        </div>
-      )}
+      <div className="flex-1 max-w-[1100px] mx-auto px-4 lg:px-6 py-6 pb-10">
+        {/* Slim live indicator only — the bulky badge/title was redundant with the nav. */}
+        {liveCount > 0 && (
+          <div className="flex items-center gap-1.5 text-red-500 font-bold text-[12px] mb-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> {liveCount} live now
+          </div>
+        )}
 
-      {/* View toggle */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max mb-5 overflow-auto max-w-full">
-        {(["fixtures", "results", "knockout", "standings"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setView(t)}
-            className={`text-[12px] font-bold px-4 py-1.5 rounded-lg transition-colors capitalize whitespace-nowrap ${
-              view === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <div className="w-9 h-9 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        {/* View toggle */}
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-max mb-5 overflow-auto max-w-full">
+          {(["fixtures", "results", "knockout", "standings"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setView(t)}
+              className={`text-[12px] font-bold px-4 py-1.5 rounded-lg transition-colors capitalize whitespace-nowrap ${
+                view === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
         </div>
-      ) : view === "standings" ? (
-        groupKeys.length === 0 ? (
-          <p className="text-center text-gray-400 py-16">Group standings will appear once the draw data is available.</p>
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-4">
-            {groupKeys.map((g) => (
-              <div key={g} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                  <h3 className="text-[13px] font-extrabold text-gray-900">{g}</h3>
-                </div>
-                <table className="w-full text-[11px] sm:text-[12px]">
-                  <thead>
-                    <tr className="text-gray-400 font-bold">
-                      <th className="text-left px-3 py-2 w-5">#</th>
-                      <th className="text-left py-2">Team</th>
-                      <th className="text-center px-1 py-2">P</th>
-                      <th className="text-center px-1 py-2 hidden sm:table-cell">W</th>
-                      <th className="text-center px-1 py-2 hidden sm:table-cell">D</th>
-                      <th className="text-center px-1 py-2 hidden sm:table-cell">L</th>
-                      <th className="text-center px-1 py-2">GD</th>
-                      <th className="text-center px-3 py-2">Pts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.groups[g].map((r) => (
-                      <tr key={r.team_id} className={`border-t border-gray-50 ${r.position <= 2 ? "bg-emerald-50/60" : ""}`}>
-                        <td className="px-3 py-2 font-bold text-gray-400">{r.position}</td>
-                        <td className="py-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Flag name={r.team} />
-                            <span className="font-bold text-gray-800 truncate">{r.team}</span>
-                          </div>
-                        </td>
-                        <td className="text-center px-1 py-2 text-gray-600">{r.played}</td>
-                        <td className="text-center px-1 py-2 text-gray-600 hidden sm:table-cell">{r.won}</td>
-                        <td className="text-center px-1 py-2 text-gray-600 hidden sm:table-cell">{r.drawn}</td>
-                        <td className="text-center px-1 py-2 text-gray-600 hidden sm:table-cell">{r.lost}</td>
-                        <td className="text-center px-1 py-2 text-gray-600 tabular-nums">{r.gd > 0 ? `+${r.gd}` : r.gd}</td>
-                        <td className="text-center px-3 py-2 font-black text-gray-900">{r.pts}</td>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <div className="w-9 h-9 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : view === "standings" ? (
+          groupKeys.length === 0 ? (
+            <p className="text-center text-gray-400 py-16">Group standings will appear once the draw data is available.</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {groupKeys.map((g) => (
+                <div key={g} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                    <h3 className="text-[13px] font-extrabold text-gray-900">{g}</h3>
+                  </div>
+                  <table className="w-full text-[11px] sm:text-[12px]">
+                    <thead>
+                      <tr className="text-gray-400 font-bold">
+                        <th className="text-left px-3 py-2 w-5">#</th>
+                        <th className="text-left py-2">Team</th>
+                        <th className="text-center px-1 py-2">P</th>
+                        <th className="text-center px-1 py-2 hidden sm:table-cell">W</th>
+                        <th className="text-center px-1 py-2 hidden sm:table-cell">D</th>
+                        <th className="text-center px-1 py-2 hidden sm:table-cell">L</th>
+                        <th className="text-center px-1 py-2">GD</th>
+                        <th className="text-center px-3 py-2">Pts</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {data.groups[g].map((r) => (
+                        <tr key={r.team_id} className={`border-t border-gray-50 ${r.position <= 2 ? "bg-emerald-50/60" : ""}`}>
+                          <td className="px-3 py-2 font-bold text-gray-400">{r.position}</td>
+                          <td className="py-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Flag name={r.team} />
+                              <span className="font-bold text-gray-800 truncate">{r.team}</span>
+                            </div>
+                          </td>
+                          <td className="text-center px-1 py-2 text-gray-600">{r.played}</td>
+                          <td className="text-center px-1 py-2 text-gray-600 hidden sm:table-cell">{r.won}</td>
+                          <td className="text-center px-1 py-2 text-gray-600 hidden sm:table-cell">{r.drawn}</td>
+                          <td className="text-center px-1 py-2 text-gray-600 hidden sm:table-cell">{r.lost}</td>
+                          <td className="text-center px-1 py-2 text-gray-600 tabular-nums">{r.gd > 0 ? `+${r.gd}` : r.gd}</td>
+                          <td className="text-center px-3 py-2 font-black text-gray-900">{r.pts}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )
+        ) : view === "knockout" ? (
+          <div className="space-y-8">
+            {byRound.map(({ round, items }) => (
+              <div key={round}>
+                <h3 className="text-[13px] font-extrabold text-gray-900 border-l-4 border-emerald-500 pl-3 mb-4">{round}</h3>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                  {items.map((f) => {
+                    const done = isDone(f.status);
+                    const href = !done ? watchHref(f) : null;
+                    const liveNow = isLiveFixture(f, nowTs) || !!href;
+                    const time = f.date ? new Date(f.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "";
+                    const showScore = f.home_score !== null || f.away_score !== null;
+                    const Row: React.ElementType = href ? Link : "div";
+                    
+                    return (
+                      <Row
+                        key={f.id}
+                        {...(href ? { href } : {})}
+                        className={`flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4 rounded-2xl border ${
+                          liveNow
+                            ? "bg-red-50/40 border-red-100" + (href ? " hover:border-red-200 hover:bg-red-50 cursor-pointer transition-colors" : "")
+                            : "bg-white border-gray-100 shadow-sm"
+                        }`}
+                      >
+                        <div className="shrink-0 w-14 sm:w-16 text-center">
+                          {liveNow ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-red-500">
+                              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                              {f.minute ? `${f.minute}'` : "LIVE"}
+                            </span>
+                          ) : done ? (
+                            <span className="text-[11px] font-bold text-gray-400">FT</span>
+                          ) : (
+                            <KickoffCell date={f.date} time={time} />
+                          )}
+                        </div>
+                        <div className="w-px h-10 bg-gray-100 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <Flag name={f.home.name} />
+                              <span className="text-[13px] sm:text-[14px] font-extrabold text-gray-900 truncate">{f.home.name}</span>
+                            </div>
+                            {showScore && <span className="text-[14px] font-black text-gray-900 tabular-nums shrink-0">{f.home_score ?? 0}</span>}
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-1.5">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <Flag name={f.away.name} />
+                              <span className="text-[13px] sm:text-[14px] font-extrabold text-gray-900 truncate">{f.away.name}</span>
+                            </div>
+                            {showScore && <span className="text-[14px] font-black text-gray-900 tabular-nums shrink-0">{f.away_score ?? 0}</span>}
+                          </div>
+                        </div>
+                        <div className="shrink-0 flex flex-col items-end gap-1 w-[72px]">
+                          {href && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-500 px-3 py-1.5 rounded-xl whitespace-nowrap shadow-sm">
+                               WATCH
+                            </span>
+                          )}
+                          {!href && liveNow && (
+                             <span className="text-[9px] font-bold text-red-400 animate-pulse">LIVE NOW</span>
+                          )}
+                          {done && (
+                             <span className="text-[10px] font-bold text-gray-300">COMPLETED</span>
+                          )}
+                        </div>
+                      </Row>
+                    );
+                  })}
+                </div>
               </div>
             ))}
+            {byRound.length === 0 && (
+              <div className="text-center py-24 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
+                 <p className="text-[14px] font-bold text-gray-500 uppercase tracking-widest">Knockout stages pending</p>
+                 <p className="text-[12px] text-gray-400 mt-1">Bracket will be generated after group stage completion.</p>
+              </div>
+            )}
           </div>
-        )
-      ) : view === "knockout" ? (
-        <div className="space-y-8">
-          {byRound.map(({ round, items }) => (
-            <div key={round}>
-              <h3 className="text-[13px] font-extrabold text-gray-900 border-l-4 border-emerald-500 pl-3 mb-4">{round}</h3>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                {items.map((f) => {
-                  const done = isDone(f.status);
-                  const href = !done ? watchHref(f) : null;
-                  const liveNow = isLiveFixture(f, nowTs) || !!href;
-                  const time = f.date ? new Date(f.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "";
-                  const showScore = f.home_score !== null || f.away_score !== null;
-                  const Row: React.ElementType = href ? Link : "div";
-                  
-                  return (
-                    <Row
-                      key={f.id}
-                      {...(href ? { href } : {})}
-                      className={`flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4 rounded-2xl border ${
-                        liveNow
-                          ? "bg-red-50/40 border-red-100" + (href ? " hover:border-red-200 hover:bg-red-50 cursor-pointer transition-colors" : "")
-                          : "bg-white border-gray-100 shadow-sm"
-                      }`}
-                    >
-                      <div className="shrink-0 w-14 sm:w-16 text-center">
-                        {liveNow ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-red-500">
-                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                            {f.minute ? `${f.minute}'` : "LIVE"}
-                          </span>
-                        ) : done ? (
-                          <span className="text-[11px] font-bold text-gray-400">FT</span>
-                        ) : (
-                          <KickoffCell date={f.date} time={time} />
-                        )}
-                      </div>
-                      <div className="w-px h-10 bg-gray-100 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <Flag name={f.home.name} />
-                            <span className="text-[13px] sm:text-[14px] font-extrabold text-gray-900 truncate">{f.home.name}</span>
-                          </div>
-                          {showScore && <span className="text-[14px] font-black text-gray-900 tabular-nums shrink-0">{f.home_score ?? 0}</span>}
+        ) : (
+          <div className="space-y-6">
+            {byDay.map(({ day, items }) => (
+              <div key={day}>
+                <h3 className="text-[12px] font-extrabold text-gray-500 tracking-wider uppercase mb-2">{day}</h3>
+                <div className="space-y-2">
+                  {items.map((f) => {
+                    const done = isDone(f.status);
+                    // A force-lived match sits in the live set (getLiveMatches) even
+                    // before kickoff, so a watch link resolves → show it as LIVE.
+                    const href = !done ? watchHref(f) : null;
+                    const liveNow = isLiveFixture(f, nowTs) || !!href;
+                    const time = f.date ? new Date(f.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "";
+                    const showScore = f.home_score !== null || f.away_score !== null;
+                    const Row: React.ElementType = href ? Link : "div";
+                    return (
+                      <Row
+                        key={f.id}
+                        {...(href ? { href } : {})}
+                        className={`flex items-center gap-2 sm:gap-3 py-2.5 px-3 sm:px-4 rounded-2xl border ${
+                          liveNow
+                            ? "bg-red-50/40 border-red-100" + (href ? " hover:border-red-200 hover:bg-red-50 cursor-pointer transition-colors" : "")
+                            : "bg-white border-gray-100"
+                        }`}
+                      >
+                        <div className="shrink-0 w-14 sm:w-16 text-center">
+                          {liveNow ? (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black text-red-500">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                              {f.minute ? `${f.minute}'` : "LIVE"}
+                            </span>
+                          ) : done ? (
+                            <span className="text-[10px] font-bold text-gray-400">FT</span>
+                          ) : (
+                            <KickoffCell date={f.date} time={time} />
+                          )}
                         </div>
-                        <div className="flex items-center justify-between gap-2 mt-1.5">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <Flag name={f.away.name} />
-                            <span className="text-[13px] sm:text-[14px] font-extrabold text-gray-900 truncate">{f.away.name}</span>
+                        <div className="w-px h-9 bg-gray-200 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <Flag name={f.home.name} />
+                              <span className="text-[12px] sm:text-[13px] font-bold text-gray-800 truncate">{f.home.name}</span>
+                            </div>
+                            {showScore && <span className="text-[13px] font-black text-gray-900 tabular-nums shrink-0">{f.home_score ?? 0}</span>}
                           </div>
-                          {showScore && <span className="text-[14px] font-black text-gray-900 tabular-nums shrink-0">{f.away_score ?? 0}</span>}
+                          <div className="flex items-center justify-between gap-2 mt-1">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <Flag name={f.away.name} />
+                              <span className="text-[12px] sm:text-[13px] font-bold text-gray-800 truncate">{f.away.name}</span>
+                            </div>
+                            {showScore && <span className="text-[13px] font-black text-gray-900 tabular-nums shrink-0">{f.away_score ?? 0}</span>}
+                          </div>
                         </div>
-                      </div>
-                      <div className="shrink-0 flex flex-col items-end gap-1 w-[72px]">
-                        {href && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-500 px-3 py-1.5 rounded-xl whitespace-nowrap shadow-sm">
-                             WATCH
-                          </span>
-                        )}
-                        {!href && liveNow && (
-                           <span className="text-[9px] font-bold text-red-400 animate-pulse">LIVE NOW</span>
-                        )}
-                        {done && (
-                           <span className="text-[10px] font-bold text-gray-300">COMPLETED</span>
-                        )}
-                      </div>
-                    </Row>
-                  );
-                })}
+                        <div className="shrink-0 flex flex-col items-end gap-1 w-[72px]">
+                          {f.group && <span className="text-[8px] font-bold text-gray-400 whitespace-nowrap">{f.group}</span>}
+                          {href ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-500 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg> WATCH
+                            </span>
+                          ) : liveNow ? (
+                            <span className="text-[8px] font-bold text-red-400 whitespace-nowrap animate-pulse">finding stream…</span>
+                          ) : !done ? (
+                            <NotifyMeButton home={f.home.name} away={f.away.name} />
+                          ) : null}
+                        </div>
+                      </Row>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-          {byRound.length === 0 && (
-            <div className="text-center py-24 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-               <p className="text-[14px] font-bold text-gray-500 uppercase tracking-widest">Knockout stages pending</p>
-               <p className="text-[12px] text-gray-400 mt-1">Bracket will be generated after group stage completion.</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {byDay.map(({ day, items }) => (
-            <div key={day}>
-              <h3 className="text-[12px] font-extrabold text-gray-500 tracking-wider uppercase mb-2">{day}</h3>
-              <div className="space-y-2">
-                {items.map((f) => {
-                  const done = isDone(f.status);
-                  // A force-lived match sits in the live set (getLiveMatches) even
-                  // before kickoff, so a watch link resolves → show it as LIVE.
-                  const href = !done ? watchHref(f) : null;
-                  const liveNow = isLiveFixture(f, nowTs) || !!href;
-                  const time = f.date ? new Date(f.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "";
-                  const showScore = f.home_score !== null || f.away_score !== null;
-                  const Row: React.ElementType = href ? Link : "div";
-                  return (
-                    <Row
-                      key={f.id}
-                      {...(href ? { href } : {})}
-                      className={`flex items-center gap-2 sm:gap-3 py-2.5 px-3 sm:px-4 rounded-2xl border ${
-                        liveNow
-                          ? "bg-red-50/40 border-red-100" + (href ? " hover:border-red-200 hover:bg-red-50 cursor-pointer transition-colors" : "")
-                          : "bg-gray-50 border-gray-100"
-                      }`}
-                    >
-                      <div className="shrink-0 w-14 sm:w-16 text-center">
-                        {liveNow ? (
-                          <span className="inline-flex items-center gap-1 text-[9px] font-black text-red-500">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                            {f.minute ? `${f.minute}'` : "LIVE"}
-                          </span>
-                        ) : done ? (
-                          <span className="text-[10px] font-bold text-gray-400">FT</span>
-                        ) : (
-                          <KickoffCell date={f.date} time={time} />
-                        )}
-                      </div>
-                      <div className="w-px h-9 bg-gray-200 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <Flag name={f.home.name} />
-                            <span className="text-[12px] sm:text-[13px] font-bold text-gray-800 truncate">{f.home.name}</span>
-                          </div>
-                          {showScore && <span className="text-[13px] font-black text-gray-900 tabular-nums shrink-0">{f.home_score ?? 0}</span>}
-                        </div>
-                        <div className="flex items-center justify-between gap-2 mt-1">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <Flag name={f.away.name} />
-                            <span className="text-[12px] sm:text-[13px] font-bold text-gray-800 truncate">{f.away.name}</span>
-                          </div>
-                          {showScore && <span className="text-[13px] font-black text-gray-900 tabular-nums shrink-0">{f.away_score ?? 0}</span>}
-                        </div>
-                      </div>
-                      <div className="shrink-0 flex flex-col items-end gap-1 w-[72px]">
-                        {f.group && <span className="text-[8px] font-bold text-gray-400 whitespace-nowrap">{f.group}</span>}
-                        {href ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-500 px-2.5 py-1 rounded-lg whitespace-nowrap">
-                            <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg> WATCH
-                          </span>
-                        ) : liveNow ? (
-                          <span className="text-[8px] font-bold text-red-400 whitespace-nowrap animate-pulse">finding stream…</span>
-                        ) : !done ? (
-                          <NotifyMeButton home={f.home.name} away={f.away.name} />
-                        ) : null}
-                      </div>
-                    </Row>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-          {byDay.length === 0 && (
-            <p className="text-center text-gray-400 py-16">
-              {view === "results" ? "Played matches and final scores will appear here." : "Fixtures will appear here as they're scheduled."}
-            </p>
-          )}
-        </div>
-      )}
+            ))}
+            {byDay.length === 0 && (
+              <p className="text-center text-gray-400 py-16">
+                {view === "results" ? "Played matches and final scores will appear here." : "Fixtures will appear here as they're scheduled."}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      <DisclaimerFooter />
     </div>
-    </>
   );
 }

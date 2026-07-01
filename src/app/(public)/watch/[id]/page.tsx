@@ -11,6 +11,7 @@ import { Match, getMatchStatus, getLiveMatches, getMatchKey, getMatchFlags, isFl
 import { getVisitorId } from "@/lib/visitor";
 import { visibleInterval } from "@/lib/poll";
 import { useBatchScores } from "@/lib/use-batch-scores";
+import DisclaimerFooter from "@/components/DisclaimerFooter";
 
 interface Stream {
   id: string;
@@ -852,28 +853,8 @@ export default function WatchPage() {
         </div>
       )}
 
-      {/* Related Matches */}
-      {relatedToShow.length > 0 && (
-        <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[12px] font-bold text-gray-500 tracking-widest">
-              {isUpcoming ? "MORE UPCOMING" : "RELATED MATCHES"}
-            </h3>
-            <Link href="/" className="text-[11px] text-gray-500 hover:text-emerald-500 transition-colors font-medium">
-              View All &rsaquo;
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {relatedToShow.map((m) =>
-              isLive ? (
-                <LiveMatchRow key={`rel-${getMatchKey(m)}`} match={m} score={relScores[getMatchKey(m)] || null} />
-              ) : (
-                <UpcomingRow key={`rel-${getMatchKey(m)}`} match={m} showSport={false} />
-              )
-            )}
-          </div>
-        </div>
-      )}
+      {/* Disclaimer Footer */}
+      <DisclaimerFooter />
     </div>
   );
 }

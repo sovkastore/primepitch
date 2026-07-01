@@ -12,8 +12,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // behave exactly as before.
 
 type Trigger = "visit" | "interval" | "match" | "server";
-type Placement = "watch" | "home" | "both";
-type Page = "watch" | "home";
+type Placement = "watch" | "home" | "both" | "sports-live";
+type Page = "watch" | "home" | "sports-live";
 type Preroll = {
   enabled: boolean;
   vastTag: string;
@@ -112,7 +112,7 @@ function domainAllowed(setting: AdsConfig["domains"], host: string): boolean {
 function isDue(p: Preroll, page: Page): boolean {
   try {
     let trigger = p.trigger;
-    if (page === "home" && (trigger === "match" || trigger === "server"))
+    if ((page === "home" || page === "sports-live") && (trigger === "match" || trigger === "server"))
       trigger = "visit";
     if (trigger === "match" || trigger === "server") return true;
     if (trigger === "visit") {
@@ -133,7 +133,7 @@ function isDue(p: Preroll, page: Page): boolean {
 }
 
 function placementAllows(placement: Placement, page: Page): boolean {
-  if (placement === "both") return true;
+  if (placement === "both" && (page === "home" || page === "watch")) return true;
   return placement === page;
 }
 
