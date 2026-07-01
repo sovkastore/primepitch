@@ -9,7 +9,7 @@ import DisclaimerFooter from "@/components/DisclaimerFooter";
 interface StreamSource {
   label: string;
   url: string;
-  type: "hls" | "embed";
+  type: "hls" | "embed" | "hls-cors";
 }
 
 interface ManualMatch {
@@ -86,7 +86,7 @@ export default function SportsLivePage() {
   useEffect(() => {
     if (!selectedMatch) return;
     const stream = selectedMatch.streams[activeStreamIdx];
-    if (!stream || stream.type !== "hls") {
+    if (!stream || (stream.type !== "hls" && stream.type !== "hls-cors")) {
         if (hlsRef.current) {
             hlsRef.current.destroy();
             hlsRef.current = null;
@@ -110,7 +110,16 @@ export default function SportsLivePage() {
         const Hls = (window as any).Hls;
         if (Hls.isSupported()) {
             if (hlsRef.current) hlsRef.current.destroy();
-            const hls = new Hls();
+            
+            const isCors = stream.type === "hls-cors";
+            const config = isCors ? {
+                xhrSetup: function(xhr: any, url: string) {
+                    // Rewrite requests through a public proxy
+                    xhr.open('GET', 'https://corsproxy.io/?' + encodeURIComponent(url), true);
+                }
+            } : {};
+
+            const hls = new Hls(config);
             hls.loadSource(stream.url);
             hls.attachMedia(videoRef.current!);
             hlsRef.current = hls;
