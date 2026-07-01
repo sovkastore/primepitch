@@ -9,7 +9,7 @@ import DisclaimerFooter from "@/components/DisclaimerFooter";
 interface StreamSource {
   label: string;
   url: string;
-  type: "hls" | "embed" | "hls-cors";
+  type: "hls" | "embed" | "hls-cors" | "dash" | "mp4" | "youtube" | "twitch";
 }
 
 interface ManualMatch {
@@ -30,6 +30,7 @@ export default function SportsLivePage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
+  const shakaRef = useRef<any>(null);
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -73,6 +74,10 @@ export default function SportsLivePage() {
         hlsRef.current.destroy();
         hlsRef.current = null;
     }
+    if (shakaRef.current) {
+        shakaRef.current.destroy();
+        shakaRef.current = null;
+    }
   };
 
   const handleWatch = (match: ManualMatch) => {
@@ -82,59 +87,85 @@ export default function SportsLivePage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // HLS logic
+  // HLS / DASH / MP4 logic
   useEffect(() => {
     if (!selectedMatch) return;
     const stream = selectedMatch.streams[activeStreamIdx];
-    if (!stream || (stream.type !== "hls" && stream.type !== "hls-cors")) {
-        if (hlsRef.current) {
-            hlsRef.current.destroy();
-            hlsRef.current = null;
-        }
+    
+    // Clean up previous players
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+    if (shakaRef.current) { shakaRef.current.destroy(); shakaRef.current = null; }
+    if (videoRef.current) { videoRef.current.src = ""; }
+
+    if (!stream || (stream.type !== "hls" && stream.type !== "hls-cors" && stream.type !== "dash" && stream.type !== "mp4")) {
         return;
     }
 
-    const initHls = async () => {
-        if (typeof window === "undefined") return;
+    const initPlayer = async () => {
+        if (typeof window === "undefined" || !videoRef.current) return;
         
-        // Load Hls.js dynamically if needed
-        if (!(window as any).Hls) {
-            await new Promise((resolve) => {
-                const s = document.createElement("script");
-                s.src = "https://cdn.jsdelivr.net/npm/hls.js@latest";
-                s.onload = resolve;
-                document.head.appendChild(s);
-            });
+        // ---- CASE: MP4 ----
+        if (stream.type === "mp4") {
+            videoRef.current.src = stream.url;
+            return;
         }
 
-        const Hls = (window as any).Hls;
-        if (Hls.isSupported()) {
-            if (hlsRef.current) hlsRef.current.destroy();
-            
-            const isCors = stream.type === "hls-cors";
-            const config = isCors ? {
-                xhrSetup: function(xhr: any, url: string) {
-                    // Rewrite requests through a public proxy
-                    xhr.open('GET', 'https://corsproxy.io/?' + encodeURIComponent(url), true);
-                }
-            } : {};
+        // ---- CASE: HLS ----
+        if (stream.type === "hls" || stream.type === "hls-cors") {
+            if (!(window as any).Hls) {
+                await new Promise((resolve) => {
+                    const s = document.createElement("script");
+                    s.src = "https://cdn.jsdelivr.net/npm/hls.js@latest";
+                    s.onload = resolve;
+                    document.head.appendChild(s);
+                });
+            }
+            const Hls = (window as any).Hls;
+            if (Hls.isSupported()) {
+                const isCors = stream.type === "hls-cors";
+                const config = isCors ? {
+                    xhrSetup: function(xhr: any, url: string) {
+                        xhr.open('GET', 'https://corsproxy.io/?' + encodeURIComponent(url), true);
+                    }
+                } : {};
+                const hls = new Hls(config);
+                hls.loadSource(stream.url);
+                hls.attachMedia(videoRef.current!);
+                hlsRef.current = hls;
+            } else if (videoRef.current.canPlayType("application/vnd.apple.mpegurl")) {
+                videoRef.current.src = stream.url;
+            }
+        }
 
-            const hls = new Hls(config);
-            hls.loadSource(stream.url);
-            hls.attachMedia(videoRef.current!);
-            hlsRef.current = hls;
-        } else if (videoRef.current?.canPlayType("application/vnd.apple.mpegurl")) {
-            videoRef.current.src = stream.url;
+        // ---- CASE: DASH ----
+        if (stream.type === "dash") {
+            if (!(window as any).shaka) {
+                await new Promise((resolve) => {
+                    const s = document.createElement("script");
+                    s.src = "https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.compiled.js";
+                    s.onload = resolve;
+                    document.head.appendChild(s);
+                });
+            }
+            const shaka = (window as any).shaka;
+            shaka.polyfill.installAll();
+            if (shaka.Player.isBrowserSupported()) {
+                const player = new shaka.Player(videoRef.current);
+                shakaRef.current = player;
+                try {
+                    await player.load(stream.url);
+                } catch (e) {
+                    console.error("Shaka Load Error", e);
+                }
+            }
         }
     };
 
-    initHls();
+    initPlayer();
 
     return () => {
-        if (hlsRef.current) {
-            hlsRef.current.destroy();
-            hlsRef.current = null;
-        }
+        if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+        if (shakaRef.current) { shakaRef.current.destroy(); shakaRef.current = null; }
     };
   }, [selectedMatch, activeStreamIdx]);
 
@@ -259,13 +290,19 @@ export default function SportsLivePage() {
                <div className="relative w-full bg-black rounded-[2rem] overflow-hidden shadow-2xl aspect-video border-2 border-gray-200">
                   {currentStream ? (
                     <>
-                      {currentStream.type === "embed" ? (
+                      {currentStream.type === "embed" || currentStream.type === "youtube" || currentStream.type === "twitch" ? (
                         <iframe
                           key={currentStream.url}
-                          src={currentStream.url}
+                          src={
+                            currentStream.type === "youtube" 
+                              ? `https://www.youtube.com/embed/${currentStream.url}`
+                              : currentStream.type === "twitch"
+                                ? `https://player.twitch.tv/?channel=${currentStream.url}&parent=${window.location.hostname}`
+                                : currentStream.url
+                          }
                           className="absolute inset-0 w-full h-full"
                           allowFullScreen
-                          allow="encrypted-media"
+                          allow="encrypted-media; autoplay"
                           onLoad={() => setIframeLoaded(true)}
                         />
                       ) : (

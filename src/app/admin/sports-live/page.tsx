@@ -7,7 +7,7 @@ import Link from "next/link";
 interface StreamSource {
   label: string;
   url: string;
-  type: "hls" | "embed" | "hls-cors";
+  type: "hls" | "embed" | "hls-cors" | "dash" | "mp4" | "youtube" | "twitch";
 }
 
 interface ManualMatch {
@@ -39,7 +39,7 @@ export default function AdminSportsLivePage() {
   // New stream form state
   const [newStreamLabel, setNewStreamLabel] = useState("");
   const [newStreamUrl, setNewStreamUrl] = useState("");
-  const [newStreamType, setNewStreamType] = useState<"hls" | "embed" | "hls-cors">("hls");
+  const [newStreamType, setNewStreamType] = useState<"hls" | "embed" | "hls-cors" | "dash" | "mp4" | "youtube" | "twitch">("hls");
 
   const [msg, setMsg] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
@@ -232,8 +232,12 @@ export default function AdminSportsLivePage() {
                     <input value={newStreamLabel} onChange={e => setNewStreamLabel(e.target.value)} placeholder="Label (e.g. Server 1)" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[13px] font-bold" />
                     <select value={newStreamType} onChange={e => setNewStreamType(e.target.value as any)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[13px] font-bold">
                       <option value="hls">HLS / M3U8</option>
-                      <option value="embed">Standard Embed</option>
                       <option value="hls-cors">Bypass Stream (Proxy HLS)</option>
+                      <option value="dash">MPEG-DASH (.mpd)</option>
+                      <option value="mp4">MP4 Video File</option>
+                      <option value="embed">Standard Embed (iframe)</option>
+                      <option value="youtube">YouTube (Video ID)</option>
+                      <option value="twitch">Twitch (Channel Name)</option>
                     </select>
                     <button type="button" onClick={addStream} className="bg-emerald-500 text-white font-black text-[11px] uppercase tracking-widest rounded-xl hover:bg-emerald-600 transition-colors">Add to List</button>
                   </div>
