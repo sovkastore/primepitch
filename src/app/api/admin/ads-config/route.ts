@@ -177,6 +177,15 @@ function cleanNotifications(v: unknown): PageNotifications {
   };
 }
 
+function cleanPromoBanner(v: unknown): PromoBannerConfig {
+  const p = (v ?? {}) as Partial<PromoBannerConfig>;
+  return {
+    enabled: p.enabled !== undefined ? !!p.enabled : (DEFAULTS.promoBanner?.enabled ?? true),
+    link: typeof p.link === "string" ? p.link.trim().slice(0, 500) : (DEFAULTS.promoBanner?.link ?? ""),
+    imagePath: typeof p.imagePath === "string" ? p.imagePath.trim().slice(0, 500) : (DEFAULTS.promoBanner?.imagePath ?? ""),
+  };
+}
+
 export async function GET() {
   try {
     const { data } = await getSupabaseAdmin()
@@ -246,6 +255,7 @@ export async function POST(request: NextRequest) {
       preroll: cleanPreroll(body.preroll),
       smartLinks: cleanSmartLinks(body.smartLinks),
       notifications: cleanNotifications(body.notifications),
+      promoBanner: cleanPromoBanner(body.promoBanner),
     };
 
     const { error } = await getSupabaseAdmin()
