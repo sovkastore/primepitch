@@ -48,12 +48,62 @@ export default function NotificationsPage() {
   const [announce, setAnnounce] = useState<Announcement>(DEFAULTS_ANNOUNCE);
   const [adsCfg, setAdsCfg] = useState<any>(null); // We only care about .notifications and .promoBanner
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const [dismissCount, setDismissCount] = useState(0);
+  const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [uploading, setUploading] = useState(false);
 
-  const toggleOpen = (key: string) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+  useEffect(() => {
+    if (msg) {
+      const t = setTimeout(() => setMsg(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [msg]);
+
+  async function uploadBanner(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setMsg("Please upload an image file.");
+      return;
+    }
+
+    setUploading(true);
+    setMsg("Uploading image...");
+
+    try {
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+
+      const base64 = await base64Promise;
+      const res = await fetch("/api/admin/upload-banner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64 }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        setAdsCfg((p: any) => ({
+          ...p,
+          promoBanner: { ...p.promoBanner, imagePath: data.url }
+        }));
+        setMsg("Banner uploaded successfully!");
+      } else {
+        setMsg(data.error || "Upload failed.");
+      }
+    } catch (err: any) {
+      setMsg("Error: " + err.message);
+    } finally {
+      setUploading(false);
+      // Reset input value to allow re-uploading same file
+      e.target.value = "";
+    }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -269,15 +319,41 @@ export default function NotificationsPage() {
                     <p className="text-[11px] text-gray-500">If the Destination URL is a wa.me link, this text will automatically be prepared for the user to send.</p>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[13px] font-semibold text-gray-800">Image Path</label>
-                    <input
-                      type="text"
-                      value={adsCfg.promoBanner?.imagePath || ""}
-                      onChange={(e) => setAdsCfg((p: any) => ({
-                        ...p, promoBanner: { ...p.promoBanner, imagePath: e.target.value }
-                      }))}
-                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                    />
+                    <label className="text-[13px] font-semibold text-gray-800">Banner Image</label>
+                    <div className="flex flex-col gap-3">
+                      {adsCfg.promoBanner?.imagePath && (
+                        <div className="relative w-full aspect-[4/1] bg-gray-100 rounded-xl overflow-hidden border border-gray-200">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img 
+                            src={adsCfg.promoBanner.imagePath} 
+                            alt="Current Banner"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={adsCfg.promoBanner?.imagePath || ""}
+                          onChange={(e) => setAdsCfg((p: any) => ({
+                            ...p, promoBanner: { ...p.promoBanner, imagePath: e.target.value }
+                          }))}
+                          placeholder="Image URL or path..."
+                          className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                        />
+                        <label className={`cursor-pointer px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${uploading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-gray-800'}`}>
+                          {uploading ? 'Uploading...' : 'Replace Image'}
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={uploadBanner}
+                            disabled={uploading}
+                          />
+                        </label>
+                      </div>
+                      <p className="text-[10px] text-gray-400 italic">You can paste a URL or upload a new image directly.</p>
+                    </div>
                   </div>
                 </div>
               )}
