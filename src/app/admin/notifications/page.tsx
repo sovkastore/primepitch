@@ -54,6 +54,8 @@ export default function NotificationsPage() {
   const [uploading, setUploading] = useState(false);
   const [dismissCount, setDismissCount] = useState(0);
 
+  const toggleOpen = (key: string) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+
   useEffect(() => {
     if (msg) {
       const t = setTimeout(() => setMsg(null), 3000);
