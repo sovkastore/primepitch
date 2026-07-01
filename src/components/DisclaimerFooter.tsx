@@ -41,9 +41,6 @@ export default function DisclaimerFooter() {
 
           {/* Copyright */}
           <div className="mt-12 flex flex-col items-center gap-3">
-             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-               <span className="text-[18px] font-black text-black">P</span>
-             </div>
              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-[0.3em]">
                © {currentYear} PrimePitch
              </p>
