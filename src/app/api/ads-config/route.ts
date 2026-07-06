@@ -100,7 +100,22 @@ type Fmt = {
   [k: string]: unknown;
 };
 
+const CFG_TTL = 30_000;
+let cfgCache: { data: any; ts: number } | null = null;
+
 export async function GET(request: NextRequest) {
+  const now = Date.now();
+  // We include the referral code in the cache key because partner swaps change the output
+  const ref = request.cookies.get("pp_ref")?.value?.trim().toLowerCase() || "none";
+  const cacheKey = `ads_${ref}`;
+  
+  if (cfgCache && now - cfgCache.ts < CFG_TTL) {
+    // Only return cache if it's the same partner segment (or no partner)
+    if (cfgCache.data.__key === cacheKey) {
+       return NextResponse.json(cfgCache.data.body);
+    }
+  }
+
   try {
     const { data } = await getSupabaseAdmin()
       .from("site_settings")
@@ -136,11 +151,8 @@ export async function GET(request: NextRequest) {
     }
 
     // ---- Partner popunder swap (manual switch: partner_ads) ----
-    // When ON, a referred visitor's popunder runs THAT partner's own Monetag
-    // zone instead of the house zone. Push + vignette stay house for everyone.
-    try {
-      const ref = request.cookies.get("pp_ref")?.value?.trim().toLowerCase();
-      if (cfg.master && ref) {
+    if (cfg.master && ref !== "none") {
+      try {
         const sb = getSupabaseAdmin();
         const { data: ad } = await sb
           .from("site_settings").select("value").eq("key", "partner_ads").maybeSingle();
@@ -167,9 +179,10 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-      }
-    } catch { /* swap is best-effort; fall back to house ad */ }
+      } catch { /* swap is best-effort; fall back to house ad */ }
+    }
 
+    cfgCache = { data: { body: cfg, __key: cacheKey }, ts: now };
     return NextResponse.json(cfg);
   } catch {
     return NextResponse.json({ master: false, domains: "all", formats: {} });

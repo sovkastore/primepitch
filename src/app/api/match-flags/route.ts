@@ -6,7 +6,15 @@ import { normTeamKey } from "@/lib/api";
 // can honor them. `hiddenTitles` carries a team-name key for each hidden match
 // so the same fixture is hidden across every feed/league it appears under, not
 // just the one id it was flagged on.
+const TTL = 30_000;
+let cache: { data: any; ts: number } | null = null;
+
 export async function GET() {
+  const now = Date.now();
+  if (cache && now - cache.ts < TTL) {
+    return NextResponse.json(cache.data);
+  }
+
   try {
     const { data } = await getSupabaseAdmin()
       .from("match_flags")
@@ -26,9 +34,12 @@ export async function GET() {
         hidden.push(r.match_id);
       }
       if (r.featured) featured.push(r.match_id);
-      if (r.hot) hot.push(r.match_id);
+      if (r.hot) hot.add ? hot.push(r.match_id) : hot.push(r.match_id);
     }
-    return NextResponse.json({ hidden, featured, hot, hiddenTitles });
+    
+    const result = { hidden, featured, hot, hiddenTitles };
+    cache = { data: result, ts: now };
+    return NextResponse.json(result);
   } catch {
     return NextResponse.json({ hidden: [], featured: [], hot: [], hiddenTitles: [] });
   }
