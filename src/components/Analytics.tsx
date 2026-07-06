@@ -53,7 +53,7 @@ export default function Analytics() {
       }).catch(() => {});
     };
 
-    return visibleInterval(sendHeartbeat, 150_000);
+    return visibleInterval(sendHeartbeat, 300_000);
   }, []);
 
   return null;

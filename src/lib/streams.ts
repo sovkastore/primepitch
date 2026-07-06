@@ -64,23 +64,15 @@ async function overrideStreams(
   matchId: string
 ): Promise<{ streams: ResolvedStream[]; replace_original: boolean }> {
   try {
-    // Select * (not named columns) so this keeps working whether or not the
-    // `position` column exists yet (migration 011). Order is decided in JS:
-    // lowest position first, NULL positions last, ties broken by created_at —
-    // so the first server an admin curates is the one that auto-plays.
     const { data } = await getSupabaseAdmin()
       .from("stream_overrides")
       .select("*")
       .eq("match_id", matchId)
-      .eq("enabled", true);
-    const rows = ((data ?? []) as OverrideRow[]).slice().sort((a, b) => {
-      const pa = a.position ?? null;
-      const pb = b.position ?? null;
-      if (pa !== null && pb !== null && pa !== pb) return pa - pb;
-      if (pa !== null && pb === null) return -1;
-      if (pa === null && pb !== null) return 1;
-      return (a.created_at ? Date.parse(a.created_at) : 0) - (b.created_at ? Date.parse(b.created_at) : 0);
-    });
+      .eq("enabled", true)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true });
+    
+    const rows = (data ?? []) as OverrideRow[];
     const streams = rows.map((o, i) => ({
       id: `override-${i}`,
       streamNo: i + 1,

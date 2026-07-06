@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 // Admin API for manual sports live streams management.
 // Backed by the 'sports_live_streams' table in Supabase.
 // Schema: id (uuid), title (text), category (text), starts_at (timestamp), status (text), streams (jsonb[])
 // streams format: { label: string, url: string, type: 'hls' | 'embed' }
 
+const TTL = 60_000;
+let cache: { data: any; ts: number } | null = null;
+
 export async function GET() {
+  const now = Date.now();
+  if (cache && now - cache.ts < TTL) {
+    return NextResponse.json(cache.data);
+  }
+
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabase = getSupabaseAdmin();
 
     const { data, error } = await supabase
       .from("sports_live_streams")
@@ -24,10 +29,14 @@ export async function GET() {
         .from("sports_live_streams")
         .select("*")
         .order("created_at", { ascending: false });
-      return NextResponse.json({ matches: fallback.data ?? [] });
+      
+      const result = { matches: fallback.data ?? [] };
+      return NextResponse.json(result);
     }
 
-    return NextResponse.json({ matches: data ?? [] });
+    const result = { matches: data ?? [] };
+    cache = { data: result, ts: now };
+    return NextResponse.json(result);
   } catch (err: any) {
     return NextResponse.json({ matches: [], error: err.message }, { status: 500 });
   }
@@ -35,10 +44,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabase = getSupabaseAdmin();
 
     const body = await request.json();
     const { id, ...payload } = body;
@@ -62,10 +68,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabase = getSupabaseAdmin();
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

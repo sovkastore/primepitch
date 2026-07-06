@@ -22,7 +22,15 @@ const EMPTY: Announcement = {
   reshowHours: 0,
 };
 
+const TTL = 60_000;
+let cache: { data: Announcement; ts: number } | null = null;
+
 export async function GET() {
+  const now = Date.now();
+  if (cache && now - cache.ts < TTL) {
+    return NextResponse.json(cache.data);
+  }
+
   try {
     const { data } = await getSupabaseAdmin()
       .from("site_settings")
@@ -32,6 +40,8 @@ export async function GET() {
     const cfg = { ...EMPTY, ...(data?.value ?? {}) } as Announcement;
     // Never advertise an enabled banner with no text.
     if (!cfg.message.trim()) cfg.enabled = false;
+    
+    cache = { data: cfg, ts: now };
     return NextResponse.json(cfg);
   } catch {
     return NextResponse.json(EMPTY);
