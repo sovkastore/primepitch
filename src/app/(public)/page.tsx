@@ -141,14 +141,13 @@ export default function HomePage() {
         .catch(() => {});
     };
     run(); // immediate
-    const stopInterval = visibleInterval(run, 60_000);
-    
+    const iv = setInterval(run, 20_000);
     // Fire exactly at the next kickoff so the transition feels instant.
     const now = Date.now();
     const nextKick = matches.map((m) => m.date).filter((d) => d > now).sort((a, b) => a - b)[0];
     let to: ReturnType<typeof setTimeout> | undefined;
     if (nextKick && nextKick - now < 15 * 60_000) to = setTimeout(run, nextKick - now + 2000);
-    return () => { cancelled = true; stopInterval(); if (to) clearTimeout(to); };
+    return () => { cancelled = true; clearInterval(iv); if (to) clearTimeout(to); };
   }, [matches, liveMatches, hiddenIds, hiddenTitles]);
 
   // Hidden matches (admin) — keep them out of the upcoming list. Hot fixtures
