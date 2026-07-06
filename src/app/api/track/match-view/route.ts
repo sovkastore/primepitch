@@ -40,7 +40,13 @@ export async function POST(request: Request) {
         p_sport: sport || null,
       }),
       getSupabaseAdmin().rpc("bump_match_peak", { p_match_id: match_id }),
-      getSupabaseAdmin().rpc("bump_ref_peaks", { p_match_id: match_id }).catch(() => {}),
+      (async () => {
+        try {
+          await getSupabaseAdmin().rpc("bump_ref_peaks", { p_match_id: match_id });
+        } catch {
+          /* optional/legacy function */
+        }
+      })(),
     ]);
 
     return NextResponse.json({ ok: true });
