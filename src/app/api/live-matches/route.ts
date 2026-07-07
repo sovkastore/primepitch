@@ -29,14 +29,7 @@ interface FlagSets {
   hot: Set<string>;
 }
 
-// Hard timeout wrapper — if Supabase doesn't answer in 3s, reject immediately.
-// This prevents the entire page from hanging during DB outages.
-function withTimeout<T>(promise: Promise<T>, ms = 3000): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), ms)),
-  ]);
-}
+import { withTimeout } from "@/lib/supabase/timeout";
 
 async function getFlags(): Promise<FlagSets> {
   const hidden = new Set<string>();

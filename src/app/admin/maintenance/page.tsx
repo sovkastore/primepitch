@@ -6,6 +6,7 @@ export default function AdminMaintenancePage() {
   const [loading, setLoading] = useState(true);
   const [on, setOn] = useState(false);
   const [disableTracking, setDisableTracking] = useState(false);
+  const [timeoutsEnabled, setTimeoutsEnabled] = useState(true);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -16,6 +17,7 @@ export default function AdminMaintenancePage() {
       .then((d) => {
         setOn(d.on === true);
         setDisableTracking(d.disable_tracking === true);
+        setTimeoutsEnabled(d.timeouts_enabled !== false);
         setMessage(typeof d.message === "string" ? d.message : "");
       })
       .catch(() => {})
@@ -29,7 +31,7 @@ export default function AdminMaintenancePage() {
       const res = await fetch("/api/admin/maintenance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ on: nextOn, message, disable_tracking: disableTracking }),
+        body: JSON.stringify({ on: nextOn, message, disable_tracking: disableTracking, timeouts_enabled: timeoutsEnabled }),
       });
       if (!res.ok) throw new Error();
       setOn(nextOn);
@@ -62,6 +64,27 @@ export default function AdminMaintenancePage() {
           ? "All tracking is now DISABLED. The database is safe from traffic spikes."
           : "Tracking is enabled again."
       );
+    } catch {
+      setStatus("Something went wrong — please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveSettings(updates: any) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const full = { on, message, disable_tracking: disableTracking, timeouts_enabled: timeoutsEnabled, ...updates };
+      const res = await fetch("/api/admin/maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(full),
+      });
+      if (!res.ok) throw new Error();
+      if (updates.disable_tracking !== undefined) setDisableTracking(updates.disable_tracking);
+      if (updates.timeouts_enabled !== undefined) setTimeoutsEnabled(updates.timeouts_enabled);
+      setStatus("Settings saved successfully.");
     } catch {
       setStatus("Something went wrong — please try again.");
     } finally {
@@ -107,35 +130,54 @@ export default function AdminMaintenancePage() {
         )}
       </div>
 
-      {/* Emergency: Kill Tracking */}
-      <div className="bg-red-50 border border-red-200 rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[13px] font-bold text-red-900">Emergency: Kill All Tracking</p>
-            <p className="text-[12px] text-red-700 mt-0.5">
-              Instantly stops all visitors from writing to the database (Views, Online status, Heartbeats). Use this during high-traffic outages to keep the site alive.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={toggleTracking}
-            disabled={loading || busy}
-            className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
-              disableTracking ? "bg-red-600" : "bg-gray-300"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${
-                disableTracking ? "left-[22px]" : "left-0.5"
-              }`}
-            />
-          </button>
-        </div>
-        {disableTracking && (
-          <p className="text-[11px] font-bold text-red-600 animate-pulse uppercase tracking-wider">
-            TRACKING IS CURRENTLY DISABLED
-          </p>
         )}
+      </div>
+
+      {/* Database Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Emergency: Kill Tracking */}
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[13px] font-bold text-red-900">Kill All Tracking</p>
+              <p className="text-[11px] text-red-700 mt-0.5">
+                Stops all DB writes for visits/heartbeats. Use during traffic surges.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => saveSettings({ disable_tracking: !disableTracking })}
+              disabled={loading || busy}
+              className={`relative w-11 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
+                disableTracking ? "bg-red-600" : "bg-gray-300"
+              }`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${disableTracking ? "left-[22px]" : "left-0.5"}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Safety: DB Timeouts */}
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[13px] font-bold text-blue-900">Database Timeouts</p>
+              <p className="text-[11px] text-blue-700 mt-0.5">
+                3s safety shield. Enable to prevent white-screens if DB is slow.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => saveSettings({ timeouts_enabled: !timeoutsEnabled })}
+              disabled={loading || busy}
+              className={`relative w-11 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
+                timeoutsEnabled ? "bg-blue-600" : "bg-gray-300"
+              }`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${timeoutsEnabled ? "left-[22px]" : "left-0.5"}`} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* The switch */}

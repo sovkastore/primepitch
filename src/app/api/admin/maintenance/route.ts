@@ -8,7 +8,7 @@ import { isAdminRequest } from "@/lib/admin-auth";
 export const dynamic = "force-dynamic";
 
 const KEY = "maintenance";
-const DEFAULTS = { on: false, message: "", disable_tracking: false };
+const DEFAULTS = { on: false, message: "", disable_tracking: false, timeouts_enabled: true };
 
 export async function GET() {
   try {
@@ -30,11 +30,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
   try {
-    const body = (await request.json()) as { on?: unknown; message?: unknown; disable_tracking?: unknown };
+    const body = (await request.json()) as { on?: unknown; message?: unknown; disable_tracking?: unknown; timeouts_enabled?: unknown };
     const value = {
       on: body.on === true,
       message: typeof body.message === "string" ? body.message.trim().slice(0, 300) : "",
       disable_tracking: body.disable_tracking === true,
+      timeouts_enabled: body.timeouts_enabled !== false,
     };
     const { error } = await getSupabaseAdmin()
       .from("site_settings")

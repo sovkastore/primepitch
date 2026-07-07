@@ -6,13 +6,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 // match flags. Lets the watch page show a real countdown before kickoff and a
 // real FULL TIME state after — instead of guessing.
 
-// Timeout wrapper to prevent hanging during DB outages
-function withTimeout<T>(promise: Promise<T>, ms = 3000): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), ms)),
-  ]);
-}
+import { withTimeout } from "@/lib/supabase/timeout";
 
 export async function GET(
   request: NextRequest,
