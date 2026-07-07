@@ -987,6 +987,7 @@ export default function AdminAdsPage() {
                           >
                             <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["watch_buttons"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
                               {cfg.smartLinks.targets["watch_buttons"] ? "✓" : ""}
+                            </span>
                             ALL "WATCH" BUTTONS
                           </button>
 
