@@ -69,14 +69,17 @@ const PAGE_MAP = [
   { id: "rugby", path: "/rugby" },
   { id: "cricket_live", path: "/cricket-live" },
   { id: "world_cup", path: "/world-cup" },
+  { id: "tv_channels", path: "/tv-channels" },
   { id: "help", path: "/help" },
   { id: "subscribe", path: "/subscribe" },
 ];
 
 function getCurrentPageId(path: string): string {
   if (path === "/") return "home";
+  if (path.startsWith("/watch/tv-")) return "tv_channels";
   if (path.startsWith("/watch/")) return "watch";
   if (path.startsWith("/league/")) return "leagues";
+  if (path === "/tv-channels" || path === "/tv-channels/") return "tv_channels";
   const found = PAGE_MAP.find(p => path === p.path || path === p.path + "/");
   return found ? found.id : "other";
 }
@@ -177,6 +180,7 @@ export default function AdsLoader() {
             if (href.startsWith("/league/")) key = href.replace("/league/", "");
             else if (href === "/world-cup") key = "wc";
             else if (href === "/cricket-live") key = "cricket";
+            else if (href === "/tv-channels") key = "tv_channels";
             else if (href.startsWith("/watch/")) key = "watch_buttons";
             else if (href.startsWith("/") && !href.includes(".")) {
                const s = href.slice(1);

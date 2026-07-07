@@ -137,7 +137,7 @@ const SITE_PAGES = [
   { id: "cricket", label: "Cricket", path: "/cricket" },
   { id: "hockey", label: "Hockey", path: "/hockey" },
   { id: "baseball", label: "Baseball", path: "/baseball" },
-  { id: "rugby", label: "Rugby", path: "/rugby" },
+  { id: "tv_channels", label: "Live TV Channels", path: "/tv-channels" },
   { id: "cricket_live", label: "Cricket Live (Manual)", path: "/cricket-live" },
   { id: "sports_live", label: "Sports Live (Manual)", path: "/sports-live" },
   { id: "world_cup", label: "World Cup 2026", path: "/world-cup" },
@@ -991,17 +991,20 @@ export default function AdminAdsPage() {
                             ALL "WATCH" BUTTONS
                           </button>
 
+                            LIVE CRICKET WATCH (MANUAL PAGE)
+                          </button>
+
                           <button
                             type="button"
-                            onClick={() => toggleSmartTarget("cricket_watch")}
+                            onClick={() => toggleSmartTarget("tv_channels")}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
-                              cfg.smartLinks.targets["cricket_watch"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                              cfg.smartLinks.targets["tv_channels"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
                             }`}
                           >
-                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["cricket_watch"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
-                              {cfg.smartLinks.targets["cricket_watch"] ? "✓" : ""}
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["tv_channels"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                              {cfg.smartLinks.targets["tv_channels"] ? "✓" : ""}
                             </span>
-                            LIVE CRICKET WATCH (MANUAL PAGE)
+                            LIVE TV CHANNELS
                           </button>
                         </div>
                         <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Sports</h4>
