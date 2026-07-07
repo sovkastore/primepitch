@@ -987,10 +987,19 @@ export default function AdminAdsPage() {
                           >
                             <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["watch_buttons"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
                               {cfg.smartLinks.targets["watch_buttons"] ? "✓" : ""}
-                            </span>
                             ALL "WATCH" BUTTONS
                           </button>
 
+                          <button
+                            type="button"
+                            onClick={() => toggleSmartTarget("cricket_watch")}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                              cfg.smartLinks.targets["cricket_watch"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                            }`}
+                          >
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["cricket_watch"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                              {cfg.smartLinks.targets["cricket_watch"] ? "✓" : ""}
+                            </span>
                             LIVE CRICKET WATCH (MANUAL PAGE)
                           </button>
 
