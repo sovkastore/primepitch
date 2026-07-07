@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "./supabase/admin";
  * High-Speed DB Helper
  * This intelligently switches between Cloudflare D1 (Fast) and Supabase (Backup)
  */
-export async function trackHeartbeat(visitor_id: string, path: string, match_id?: string) {
+export async function trackHeartbeat(visitor_id: string, path: string, match_id?: string | null) {
   const env = (process as any).env;
   const d1 = env.DB as D1Database | undefined;
 
@@ -51,7 +51,14 @@ export async function trackHeartbeat(visitor_id: string, path: string, match_id?
   return { ok: true, source: "supabase" };
 }
 
-export async function trackPageView(visitor_id: string, path: string, referrer?: string, device?: string, country?: string, p_ref?: string) {
+export async function trackPageView(
+  visitor_id: string, 
+  path: string, 
+  referrer?: string | null, 
+  device?: string | null, 
+  country?: string | null, 
+  p_ref?: string | null
+) {
   const env = (process as any).env;
   const d1 = env.DB as D1Database | undefined;
 
@@ -60,7 +67,13 @@ export async function trackPageView(visitor_id: string, path: string, referrer?:
       await d1.prepare(`
         INSERT INTO d1_page_views (visitor_id, path, referrer, device_type, country)
         VALUES (?, ?, ?, ?, ?)
-      `).bind(visitor_id, path, referrer || null, device || null, country || null).run();
+      `).bind(
+        visitor_id, 
+        path, 
+        referrer ?? null, 
+        device ?? null, 
+        country ?? null
+      ).run();
       return { ok: true, source: "d1" };
     } catch (e) {
       console.error("D1 PageView Error:", e);
@@ -70,10 +83,10 @@ export async function trackPageView(visitor_id: string, path: string, referrer?:
   // Fallback
   await getSupabaseAdmin().rpc("track_visitor", {
     p_vid: visitor_id,
-    p_device: device || null,
-    p_referrer: referrer || null,
+    p_device: device ?? null,
+    p_referrer: referrer ?? null,
     p_path: path,
-    p_ref: p_ref || null
+    p_ref: p_ref ?? null
   });
   
   return { ok: true, source: "supabase" };
