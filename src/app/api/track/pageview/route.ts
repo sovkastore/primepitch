@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { countryFromRequest } from "@/lib/geo";
 import { isTrackingDisabled } from "@/lib/tracking";
+import { trackPageView } from "@/lib/db-tracking";
+import { countryFromRequest } from "@/lib/geo";
 
 // Read a single cookie value from the raw request (version-agnostic).
 function readCookie(request: Request, name: string): string | null {
@@ -22,41 +22,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, status: "tracking_disabled" });
   }
   try {
-    const { visitor_id, path, referrer, user_agent, device_type } =
-      await request.json();
+    const { visitor_id, path, referrer, device_type } = await request.json();
 
     if (!visitor_id || !path) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    const country = countryFromRequest(request);
-
-    await getSupabaseAdmin().from("page_views").insert({
-      visitor_id,
-      path,
-      referrer: referrer || null,
-      user_agent: user_agent || null,
-      device_type: device_type || null,
-      country,
-    });
-
-    // Maintain the visitor roster (first_seen / last_seen / visit_count) and
-    // stamp the partner referral (from the pp_ref cookie) on first sight only.
-    // Wrapped so a missing function (pre-migration) never breaks pageview tracking.
-    try {
-      await getSupabaseAdmin().rpc("track_visitor", {
-        p_vid: visitor_id,
-        p_device: device_type || null,
-        p_referrer: referrer || null,
-        p_path: path,
-        p_ref: readCookie(request, "pp_ref"),
-      });
-    } catch {
-      /* visitors table/function not created yet */
-    }
+    // High-speed D1 Tracking (includes partner referral logic via trackPageView)
+    await trackPageView(
+      visitor_id, 
+      path, 
+      referrer, 
+      device_type, 
+      countryFromRequest(request), 
+      readCookie(request, "pp_ref")
+    );
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (e) {
+    console.error("PageView API Error:", e);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
