@@ -15,7 +15,51 @@ const POPULAR = ["India", "Pakistan", "Nigeria", "United States", "United Kingdo
 
 export default function HelpPage() {
   const [q, setQ] = useState("");
+  const [dynamicContent, setDynamicContent] = useState<any>(null);
   const query = q.trim().toLowerCase();
+
+  useEffect(() => {
+    fetch("/api/help-content")
+      .then(r => r.json())
+      .then(d => {
+        if (d) setDynamicContent(d);
+      })
+      .catch(() => {});
+  }, []);
+
+  const content = dynamicContent || {
+    hero: {
+      tag: "STREAMING HELP",
+      title: "Can't watch the stream?",
+      subtitle: "If a match won't play for you, it's almost always your network or region blocking the video — not PrimePitch. Here's how to fix it in a couple of minutes."
+    },
+    waitBox: {
+      title: "First — did you wait for it to load?",
+      message: "Streams can take 30–60 seconds to start, especially on a slower or restricted connection. Stay on the player and don't tap anything while it loads. Only if it has finished loading and you still see a grey or blank box should you follow the steps below."
+    },
+    vpnSteps: {
+      title: "The reliable fix: use a VPN",
+      subtitle: "A VPN makes your connection look like it's coming from another country, so the block no longer applies. It takes about two minutes.",
+      steps: [
+        "Install a VPN app from your app store (any reputable one works).",
+        "Connect to the country we recommend for you — search yours just below.",
+        "Come back and fully refresh / reopen the match page.",
+        "Press play. If it still won’t start, try another source or a backup country."
+      ]
+    },
+    whySection: {
+      title: "Why this happens",
+      text: "Some internet providers and countries block the servers that carry the live video. Everything else on PrimePitch still works — which is exactly why you can see the match list and scores, but the video won't play. The fix is to route your connection through a region that isn't blocked."
+    },
+    footerTips: {
+      title: "A few tips for a smooth stream",
+      tips: [
+        "A paid VPN is usually faster and more reliable than free ones, which can be slow or overloaded.",
+        "After connecting the VPN, always fully refresh or reopen the match page.",
+        "These are general recommendations, not guarantees — if one location doesn't work, try a backup."
+      ]
+    }
+  };
 
   const matches = useMemo(() => {
     if (!query) return [];
@@ -33,15 +77,14 @@ export default function HelpPage() {
     <div className="max-w-3xl mx-auto px-4 lg:px-6 py-8">
       {/* Hero */}
       <div className="text-center">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-700 tracking-wide">
-          STREAMING HELP
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-700 tracking-wide uppercase">
+          {content.hero.tag}
         </span>
         <h1 className="mt-3 text-3xl sm:text-4xl font-black text-gray-900 leading-tight">
-          Can&apos;t watch the stream?
+          {content.hero.title}
         </h1>
         <p className="mt-3 text-[15px] text-gray-600 leading-relaxed max-w-xl mx-auto">
-          If a match won&apos;t play for you, it&apos;s almost always your network or region
-          blocking the video — not PrimePitch. Here&apos;s how to fix it in a couple of minutes.
+          {content.hero.subtitle}
         </p>
       </div>
 
@@ -54,12 +97,9 @@ export default function HelpPage() {
             </svg>
           </div>
           <div>
-            <h2 className="text-[15px] font-black text-gray-900">First — did you wait for it to load?</h2>
+            <h2 className="text-[15px] font-black text-gray-900">{content.waitBox.title}</h2>
             <p className="mt-1 text-[13.5px] text-gray-700 leading-relaxed">
-              Streams can take <strong>30–60 seconds</strong> to start, especially on a slower or
-              restricted connection. Stay on the player and don&apos;t tap anything while it loads.
-              Only if it has <strong>finished loading and you still see a grey or blank box</strong>{" "}
-              should you follow the steps below.
+              {content.waitBox.message}
             </p>
           </div>
         </div>
@@ -67,18 +107,12 @@ export default function HelpPage() {
 
       {/* The reliable fix: VPN steps */}
       <section className="mt-9">
-        <h2 className="text-lg font-black text-gray-900">The reliable fix: use a VPN</h2>
+        <h2 className="text-lg font-black text-gray-900">{content.vpnSteps.title}</h2>
         <p className="mt-1 text-[13.5px] text-gray-600">
-          A VPN makes your connection look like it&apos;s coming from another country, so the block
-          no longer applies. It takes about two minutes.
+          {content.vpnSteps.subtitle}
         </p>
         <ol className="mt-4 space-y-3">
-          {[
-            "Install a VPN app from your app store (any reputable one works).",
-            "Connect to the country we recommend for you — search yours just below.",
-            "Come back and fully refresh / reopen the match page.",
-            "Press play. If it still won’t start, try another source or a backup country.",
-          ].map((step, i) => (
+          {content.vpnSteps.steps.map((step: string, i: number) => (
             <li key={i} className="flex items-start gap-3">
               <span className="shrink-0 w-7 h-7 rounded-full bg-emerald-600 text-white text-[13px] font-black flex items-center justify-center">
                 {i + 1}
@@ -225,12 +259,9 @@ export default function HelpPage() {
 
       {/* Why */}
       <section className="mt-9">
-        <h2 className="text-lg font-black text-gray-900">Why this happens</h2>
+        <h2 className="text-lg font-black text-gray-900">{content.whySection.title}</h2>
         <p className="mt-1.5 text-[13.5px] text-gray-700 leading-relaxed">
-          Some internet providers and countries block the servers that carry the live video.
-          Everything else on PrimePitch still works — which is exactly why you can see the match
-          list and scores, but the video won&apos;t play. The fix is to route your connection
-          through a region that isn&apos;t blocked.
+          {content.whySection.text}
         </p>
       </section>
 
@@ -262,11 +293,11 @@ export default function HelpPage() {
 
       {/* Footer note */}
       <section className="mt-9 rounded-2xl border border-gray-100 bg-gray-50 p-5">
-        <h3 className="text-[13.5px] font-black text-gray-900">A few tips for a smooth stream</h3>
+        <h3 className="text-[13.5px] font-black text-gray-900">{content.footerTips.title}</h3>
         <ul className="mt-2 space-y-1.5 text-[12.5px] text-gray-600 leading-relaxed list-disc pl-5">
-          <li>A paid VPN is usually faster and more reliable than free ones, which can be slow or overloaded.</li>
-          <li>After connecting the VPN, always <strong>fully refresh or reopen</strong> the match page.</li>
-          <li>These are general recommendations, not guarantees — if one location doesn&apos;t work, try a backup.</li>
+          {content.footerTips.tips.map((tip: string, i: number) => (
+            <li key={i}>{tip}</li>
+          ))}
         </ul>
       </section>
 
