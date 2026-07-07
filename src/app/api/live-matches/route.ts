@@ -50,7 +50,7 @@ async function getFlags(): Promise<FlagSets> {
     const { data } = (await withTimeout(
       getSupabaseAdmin()
         .from("match_flags")
-        .select("match_id, hidden, forced_live, featured, disable_auto, match_data, display_title, force_ended, hot")
+        .select("match_id, hidden, forced_live, featured, disable_auto, match_data, display_title, force_ended, hot") as any
     )) as any;
     for (const r of (data ?? []) as Array<{
       match_id: string;
@@ -84,7 +84,7 @@ async function getOverrideBacked(): Promise<Map<string, Match>> {
       getSupabaseAdmin()
         .from("stream_overrides")
         .select("match_id, match_data")
-        .eq("enabled", true)
+        .eq("enabled", true) as any
     )) as any;
     for (const r of (data ?? []) as Array<{ match_id: string; match_data: Match | null }>) {
       if (r.match_data && !map.has(r.match_id)) map.set(r.match_id, r.match_data);
@@ -113,7 +113,7 @@ async function getFinishedWcKeys(): Promise<Set<string>> {
       getSupabaseAdmin()
         .from("push_match_state")
         .select("match_key")
-        .eq("finished", true)
+        .eq("finished", true) as any
     )) as any;
     for (const r of (data ?? []) as Array<{ match_key: string }>) {
       if (r.match_key) keys.add(r.match_key);
