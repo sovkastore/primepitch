@@ -4,24 +4,59 @@ import { clusterRows } from "@/lib/match-merge";
 
 export async function GET() {
   try {
-    // "Right now" = last 6 minutes (single heartbeat is 150s; tolerates one miss).
-    const nowWindow = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+    const env = (process as any).env;
+    const d1 = env.DB as D1Database | undefined;
 
-    const { data: activeData } = await getSupabaseAdmin()
-      .from("active_viewers")
-      .select("visitor_id, match_id, path, last_seen")
-      .gte("last_seen", nowWindow);
+    // "Right now" = last 6 minutes (single heartbeat is 150s; tolerates one miss).
+    const nowWindowDate = new Date(Date.now() - 6 * 60 * 1000);
+    const nowWindow = nowWindowDate.toISOString();
+
+    let activeData: any[] = [];
+    let recentData: any[] = [];
+
+    if (d1) {
+      // 1) Get Real-time Presence from Cloudflare
+      const activeRes = await d1.prepare(`
+        SELECT visitor_id, match_id, path, last_seen 
+        FROM d1_active_viewers 
+        WHERE last_seen >= datetime('now', '-6 minutes')
+      `).all();
+      activeData = activeRes.results || [];
+
+      // 2) Get Recent Activity from Cloudflare
+      const recentRes = await d1.prepare(`
+        SELECT path, device_type, created_at 
+        FROM d1_page_views 
+        ORDER BY created_at DESC 
+        LIMIT 20
+      `).all();
+      recentData = recentRes.results || [];
+    } else {
+      // Fallback to Supabase
+      const sb = getSupabaseAdmin();
+      const [presence, activity] = await Promise.all([
+        sb.from("active_viewers")
+          .select("visitor_id, match_id, path, last_seen")
+          .gte("last_seen", nowWindow),
+        sb.from("page_views")
+          .select("path, device_type, created_at")
+          .order("created_at", { ascending: false })
+          .limit(20)
+      ]);
+      activeData = presence.data || [];
+      recentData = activity.data || [];
+    }
 
     // onlineNow = anyone on the site; liveViewers = anyone on a watch page (match_id set).
-    const onlineNow = activeData?.length || 0;
-    const liveViewers = activeData?.filter((r) => r.match_id).length || 0;
-    const totalActive = onlineNow; // kept for backward compatibility
+    const onlineNow = activeData.length;
+    const liveViewers = activeData.filter((r) => r.match_id).length;
+    const totalActive = onlineNow;
 
     // Per-match viewer counts
     const matchViewers: Record<string, number> = {};
     const pageViewers: Record<string, number> = {};
 
-    activeData?.forEach((r) => {
+    activeData.forEach((r) => {
       if (r.match_id) {
         matchViewers[r.match_id] = (matchViewers[r.match_id] || 0) + 1;
       }
@@ -32,8 +67,7 @@ export async function GET() {
       .sort(([, a], [, b]) => b - a)
       .map(([match_id, viewers]) => ({ match_id, viewers }));
 
-    // Per-match traction stats (peak + unique) for active matches AND the most
-    // recent records, so finished matches remain visible in the admin.
+    // Per-match traction stats (peak + unique) from Supabase (The Vault)
     const { data: statsData } = await getSupabaseAdmin()
       .from("match_stats")
       .select("match_id, match_title, sport, peak_viewers, peak_at, unique_viewers, updated_at, first_viewed")
@@ -56,12 +90,7 @@ export async function GET() {
       .slice(0, 50)
       .map(([path, viewers]) => ({ path, viewers }));
 
-    // Recent activity (last 20 page views)
-    const { data: recentData } = await getSupabaseAdmin()
-      .from("page_views")
-      .select("path, device_type, created_at")
-      .order("created_at", { ascending: false })
-      .limit(20);
+    // ... (rest of the merging / clustering logic stays same)
 
 
     type Rec = NonNullable<typeof statsData>[number];
