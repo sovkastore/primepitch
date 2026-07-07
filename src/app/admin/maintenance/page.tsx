@@ -130,9 +130,6 @@ export default function AdminMaintenancePage() {
         )}
       </div>
 
-        )}
-      </div>
-
       {/* Database Controls */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Emergency: Kill Tracking */}
