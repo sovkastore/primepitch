@@ -90,6 +90,30 @@ async function overrideStreams(
   }
 }
 
+async function tvStreams(id: string): Promise<ResolvedStream[]> {
+  try {
+    const { data } = await getSupabaseAdmin()
+      .from("tv_channels")
+      .select("embed_url, name")
+      .eq("id", id)
+      .single();
+    
+    if (data?.embed_url) {
+      return [{
+        id: `tv-${id}`,
+        streamNo: 1,
+        language: data.name || "Default",
+        hd: true,
+        embedUrl: data.embed_url,
+        source: "tv"
+      }];
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 export async function resolveStreams(opts: {
   source: string;
   id: string;
@@ -112,9 +136,10 @@ export async function resolveStreams(opts: {
   const hit = cache.get(cacheKey);
   if (hit && now - hit.ts < TTL) return hit.data;
 
-  const [ov, echo] = await Promise.all([
+  const [ov, echo, tv] = await Promise.all([
     overrideStreams(matchId),
-    echoStreams(source, id),
+    source === "tv" ? Promise.resolve([]) : echoStreams(source, id),
+    source === "tv" ? tvStreams(id) : Promise.resolve([]),
   ]);
 
   let streams: ResolvedStream[];
@@ -126,8 +151,8 @@ export async function resolveStreams(opts: {
     replace = true;
     serving = "override";
   } else {
-    streams = [...ov.streams, ...echo];
-    serving = ov.streams.length > 0 ? "override" : echo.length > 0 ? "echo" : "none";
+    streams = [...ov.streams, ...echo, ...tv];
+    serving = ov.streams.length > 0 ? "override" : tv.length > 0 ? "echo" : echo.length > 0 ? "echo" : "none";
     // Self-heal: only when nothing else is available, auto isn't disabled, and
     // the match has kicked off (gateAuto prevents fallbacks counting as live early).
     // Football is opt-out of the AUTOMATIC fallback by default — admins add a

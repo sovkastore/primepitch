@@ -40,7 +40,16 @@ export async function GET(
   try {
     const { id: raw } = await params;
     const rawId = decodeURIComponent(raw);
-    const [source, id] = rawId.split("--");
+    let source = "";
+    let id = "";
+
+    if (rawId.startsWith("tv-")) {
+      source = "tv";
+      id = rawId.replace("tv-", "");
+    } else {
+      [source, id] = rawId.split("--");
+    }
+
     if (!source || !id) {
       return NextResponse.json({ streams: [], replace_original: false, serving: "none" });
     }

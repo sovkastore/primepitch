@@ -28,8 +28,6 @@ export async function trackHeartbeat(visitor_id: string, path: string, match_id?
           ON CONFLICT(match_id) DO UPDATE SET
             last_updated = CURRENT_TIMESTAMP
         `).bind(match_id).run();
-        
-        // Note: Real summary sync to Supabase happens in a separate background job
       }
       return { ok: true, source: "d1" };
     } catch (e) {
@@ -37,7 +35,8 @@ export async function trackHeartbeat(visitor_id: string, path: string, match_id?
     }
   }
 
-  // 2) Fallback to Supabase if D1 is not configured or fails
+  // 2) Fallback to Supabase DISABLED for testing
+  /*
   await getSupabaseAdmin().from("active_viewers").upsert(
     {
       visitor_id,
@@ -47,8 +46,9 @@ export async function trackHeartbeat(visitor_id: string, path: string, match_id?
     },
     { onConflict: "visitor_id" }
   );
+  */
   
-  return { ok: true, source: "supabase" };
+  return { ok: false, source: "none (supa-disabled)" };
 }
 
 export async function trackPageView(
@@ -80,7 +80,8 @@ export async function trackPageView(
     }
   }
 
-  // Fallback
+  // Fallback DISABLED for testing
+  /*
   await getSupabaseAdmin().rpc("track_visitor", {
     p_vid: visitor_id,
     p_device: device ?? null,
@@ -88,6 +89,7 @@ export async function trackPageView(
     p_path: path,
     p_ref: p_ref ?? null
   });
+  */
   
-  return { ok: true, source: "supabase" };
+  return { ok: false, source: "none (supa-disabled)" };
 }

@@ -15,7 +15,6 @@ export async function GET() {
     const { data } = await getSupabaseAdmin()
       .from("tv_channels")
       .select("*")
-      .eq("is_active", true)
       .order("display_order", { ascending: true });
     
     const result = { channels: data ?? [] };

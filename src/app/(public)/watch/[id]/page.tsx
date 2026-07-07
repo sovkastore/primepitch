@@ -141,7 +141,14 @@ function CountdownTimer({ targetDate }: { targetDate: number }) {
 export default function WatchPage() {
   const params = useParams();
   const rawId = decodeURIComponent(params.id as string);
-  const [source, matchId] = rawId.split("--");
+  let source = "";
+  let matchId = "";
+  if (rawId.startsWith("tv-")) {
+    source = "tv";
+    matchId = rawId.replace("tv-", "");
+  } else {
+    [source, matchId] = rawId.split("--");
+  }
   const [streams, setStreams] = useState<Stream[]>([]);
   const [activeStream, setActiveStream] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -172,19 +179,21 @@ export default function WatchPage() {
   const trackedRef = useRef(false);
   const streamTriesRef = useRef(0);
 
-  const fallbackName = matchId
-    ?.replace(/^ppv-/, "")
-    .replace(/-/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase()) || "Live Match";
+  const fallbackName = source === "tv"
+    ? `TV Channel ${matchId}`
+    : matchId
+        ?.replace(/^ppv-/, "")
+        .replace(/-/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase()) || "Live Match";
 
   const displayTitle = currentMatch?.title || fallbackName;
   const hasTeams = showVersus(currentMatch) && bothTeamsHaveVisuals(currentMatch);
   const sportLabel = SPORT_LABELS[currentMatch?.category || ""] || currentMatch?.category || "";
   // A match that can't be found in any current list and has no streams has
   // ENDED (feeds drop matches once played) — never show it as "upcoming".
-  const matchStatus = currentMatch ? getMatchStatus(currentMatch) : (loading ? "upcoming" : "ended");
-  const isLive = matchStatus === "live" || forceLive || autoLive;
-  const isEnded = !isLive && matchStatus === "ended" && streams.length === 0;
+  const matchStatus = source === "tv" ? "live" : (currentMatch ? getMatchStatus(currentMatch) : (loading ? "upcoming" : "ended"));
+  const isLive = source === "tv" ? true : (matchStatus === "live" || forceLive || autoLive);
+  const isEnded = source !== "tv" && (!isLive && matchStatus === "ended" && streams.length === 0);
 
   // Tell the global heartbeat when this match is over (covers both the FULL
   // TIME page and stale tabs reopened after the match ended), so returning
@@ -234,9 +243,17 @@ export default function WatchPage() {
         // and a real FULL TIME after, never a wrong "ended" guess.
         if (!current) {
           try {
-            const metaRes = await fetch(`/api/match-meta/${encodeURIComponent(rawId)}`);
+            const apiPath = source === "tv" ? "/api/tv-channels" : `/api/match-meta/${encodeURIComponent(rawId)}`;
+            const metaRes = await fetch(apiPath);
             const meta = await metaRes.json();
-            if (meta?.match) current = meta.match as Match;
+            if (source === "tv") {
+              const ch = (meta.channels || []).find((c: any) => String(c.id) === matchId);
+              if (ch) {
+                current = { id: `tv--${ch.id}`, title: ch.name, category: ch.category, date: Date.now(), sources: [{ source: "tv", id: String(ch.id) }] };
+              }
+            } else {
+              if (meta?.match) current = meta.match as Match;
+            }
           } catch {}
         }
         if (current) setCurrentMatch(current);
@@ -291,7 +308,7 @@ export default function WatchPage() {
         setLiveResolved(true);
       }
     }
-    if (source && matchId) load();
+    if (source) load();
   }, [source, matchId]);
 
   // Streamable live matches (for RELATED MATCHES when watching a live game)

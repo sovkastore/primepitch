@@ -16,7 +16,7 @@ const REF_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 const RESERVED = new Set([
   "admin", "api", "watch", "contact", "subscribe", "match-alerts",
   "world-cup", "partner", "_next", "offline", "icons", "alerts",
-  "cricket",
+  "cricket", "tv-channels", "ppv",
 ]);
 
 // Active partner codes, cached per worker isolate to avoid a DB call per request.

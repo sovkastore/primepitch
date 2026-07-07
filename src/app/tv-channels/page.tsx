@@ -15,6 +15,7 @@ interface Channel {
   logo_url: string;
   channel_id: number | null;
   embed_url: string;
+  is_active: boolean;
 }
 
 interface Config {
@@ -150,16 +151,20 @@ export default function TVChannelsPage() {
                 <Link 
                   key={ch.id} 
                   href={ch.embed_url || `/watch/tv-${ch.id}`}
-                  className="bg-white border border-gray-100 p-5 rounded-3xl group hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all relative overflow-hidden"
+                  className={`bg-white border border-gray-100 p-5 rounded-3xl group hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all relative overflow-hidden ${!ch.is_active ? 'opacity-75 grayscale-[0.5]' : ''}`}
                 >
-                  <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                     <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                  <div className={`absolute top-4 right-4 flex gap-1 ${ch.is_active ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'} transition-opacity`}>
+                     {ch.is_active ? (
+                       <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                     ) : (
+                       <span className="text-[8px] font-black bg-gray-500 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">OFFLINE</span>
+                     )}
                   </div>
                   <div className="aspect-square bg-gray-50 rounded-2xl flex items-center justify-center mb-4 overflow-hidden border border-gray-50 group-hover:bg-white transition-colors">
                      {ch.logo_url ? <img src={ch.logo_url} className="w-2/3 h-2/3 object-contain" alt="" /> : <span className="text-4xl">📺</span>}
                   </div>
                   <div className="space-y-1">
-                     <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{ch.category}</span>
+                     <span className={`text-[10px] font-black uppercase tracking-widest ${ch.is_active ? 'text-emerald-600' : 'text-gray-400'}`}>{ch.category}</span>
                      <h3 className="font-black text-gray-900 text-sm leading-tight uppercase group-hover:text-emerald-600 transition-colors">{ch.name}</h3>
                   </div>
                 </Link>
