@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { countryFromRequest } from "@/lib/geo";
+import { isTrackingDisabled } from "@/lib/tracking";
 
 // Read a single cookie value from the raw request (version-agnostic).
 function readCookie(request: Request, name: string): string | null {
@@ -17,6 +18,9 @@ function readCookie(request: Request, name: string): string | null {
 }
 
 export async function POST(request: Request) {
+  if (await isTrackingDisabled()) {
+    return NextResponse.json({ ok: true, status: "tracking_disabled" });
+  }
   try {
     const { visitor_id, path, referrer, user_agent, device_type } =
       await request.json();

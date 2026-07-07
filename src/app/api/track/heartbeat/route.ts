@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { isTrackingDisabled } from "@/lib/tracking";
 
 export async function POST(request: Request) {
+  if (await isTrackingDisabled()) {
+    return NextResponse.json({ ok: true, status: "tracking_disabled" });
+  }
   try {
     const { visitor_id, path, match_id } = await request.json();
 

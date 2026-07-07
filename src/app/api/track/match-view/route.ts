@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { countryFromRequest } from "@/lib/geo";
+import { isTrackingDisabled } from "@/lib/tracking";
 
 export async function POST(request: Request) {
+  if (await isTrackingDisabled()) {
+    return NextResponse.json({ ok: true, status: "tracking_disabled" });
+  }
   try {
     const { visitor_id, match_id, source, match_title, sport, is_live } =
       await request.json();

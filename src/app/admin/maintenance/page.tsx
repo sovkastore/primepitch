@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 export default function AdminMaintenancePage() {
   const [loading, setLoading] = useState(true);
   const [on, setOn] = useState(false);
+  const [disableTracking, setDisableTracking] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -14,6 +15,7 @@ export default function AdminMaintenancePage() {
       .then((r) => r.json())
       .then((d) => {
         setOn(d.on === true);
+        setDisableTracking(d.disable_tracking === true);
         setMessage(typeof d.message === "string" ? d.message : "");
       })
       .catch(() => {})
@@ -27,7 +29,7 @@ export default function AdminMaintenancePage() {
       const res = await fetch("/api/admin/maintenance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ on: nextOn, message }),
+        body: JSON.stringify({ on: nextOn, message, disable_tracking: disableTracking }),
       });
       if (!res.ok) throw new Error();
       setOn(nextOn);
@@ -35,6 +37,30 @@ export default function AdminMaintenancePage() {
         nextOn
           ? "Maintenance is ON. Visitors now see the maintenance page (takes up to ~15s to apply everywhere)."
           : "Maintenance is OFF. The site is live again (takes up to ~15s to apply everywhere)."
+      );
+    } catch {
+      setStatus("Something went wrong — please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleTracking() {
+    if (busy) return;
+    const next = !disableTracking;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on, message, disable_tracking: next }),
+      });
+      if (!res.ok) throw new Error();
+      setDisableTracking(next);
+      setStatus(
+        next
+          ? "All tracking is now DISABLED. The database is safe from traffic spikes."
+          : "Tracking is enabled again."
       );
     } catch {
       setStatus("Something went wrong — please try again.");
@@ -77,6 +103,37 @@ export default function AdminMaintenancePage() {
         ) : (
           <p className="text-sm font-semibold text-emerald-700">
             Site is live — visitors can access it normally.
+          </p>
+        )}
+      </div>
+
+      {/* Emergency: Kill Tracking */}
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[13px] font-bold text-red-900">Emergency: Kill All Tracking</p>
+            <p className="text-[12px] text-red-700 mt-0.5">
+              Instantly stops all visitors from writing to the database (Views, Online status, Heartbeats). Use this during high-traffic outages to keep the site alive.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleTracking}
+            disabled={loading || busy}
+            className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
+              disableTracking ? "bg-red-600" : "bg-gray-300"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${
+                disableTracking ? "left-[22px]" : "left-0.5"
+              }`}
+            />
+          </button>
+        </div>
+        {disableTracking && (
+          <p className="text-[11px] font-bold text-red-600 animate-pulse uppercase tracking-wider">
+            TRACKING IS CURRENTLY DISABLED
           </p>
         )}
       </div>
