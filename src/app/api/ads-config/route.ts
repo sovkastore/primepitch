@@ -47,11 +47,14 @@ function pairKey(a?: string, b?: string): string | null {
 async function finishedPairs(): Promise<Set<string>> {
   try {
     const since = new Date(Date.now() - 12 * 3_600_000).toISOString();
-    const { data } = await getSupabaseAdmin()
-      .from("push_match_state")
-      .select("home_team, away_team")
-      .eq("finished", true)
-      .gte("updated_at", since);
+    const { data } = await Promise.race([
+      getSupabaseAdmin()
+        .from("push_match_state")
+        .select("home_team, away_team")
+        .eq("finished", true)
+        .gte("updated_at", since),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+    ]);
     const set = new Set<string>();
     for (const r of (data ?? []) as Array<{ home_team: string | null; away_team: string | null }>) {
       const k = pairKey(r.home_team || "", r.away_team || "");
@@ -117,11 +120,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("site_settings")
-      .select("value")
-      .eq("key", "ads_config")
-      .maybeSingle();
+    const { data } = await Promise.race([
+      getSupabaseAdmin()
+        .from("site_settings")
+        .select("value")
+        .eq("key", "ads_config")
+        .maybeSingle(),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+    ]);
     const cfg = (data?.value ?? { master: false, domains: "all", formats: {} }) as {
       master?: boolean;
       domains?: string;
@@ -185,6 +191,7 @@ export async function GET(request: NextRequest) {
     cfgCache = { data: { body: cfg, __key: cacheKey }, ts: now };
     return NextResponse.json(cfg);
   } catch {
-    return NextResponse.json({ master: false, domains: "all", formats: {} });
+    // DB down — serve stale cache so AdsLoader doesn't block the page
+    return NextResponse.json(cfgCache?.data?.body ?? { master: false, domains: "all", formats: {} });
   }
 }

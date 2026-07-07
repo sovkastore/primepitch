@@ -18,19 +18,26 @@ export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
 
-    const { data, error } = await supabase
-      .from("sports_live_streams")
-      .select("*")
-      .order("starts_at", { ascending: true });
+    const { data, error } = await Promise.race([
+      supabase
+        .from("sports_live_streams")
+        .select("*")
+        .order("starts_at", { ascending: true }),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+    ]);
 
     if (error) {
       // Re-try with created_at if starts_at fails (compatibility)
-      const fallback = await supabase
-        .from("sports_live_streams")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const fallback = await Promise.race([
+        supabase
+          .from("sports_live_streams")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+      ]);
       
       const result = { matches: fallback.data ?? [] };
+      cache = { data: result, ts: now };
       return NextResponse.json(result);
     }
 
@@ -38,7 +45,8 @@ export async function GET() {
     cache = { data: result, ts: now };
     return NextResponse.json(result);
   } catch (err: any) {
-    return NextResponse.json({ matches: [], error: err.message }, { status: 500 });
+    // DB down or timeout — serve stale cache so the page doesn't break
+    return NextResponse.json(cache?.data ?? { matches: [] });
   }
 }
 

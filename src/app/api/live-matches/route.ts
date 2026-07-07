@@ -29,6 +29,15 @@ interface FlagSets {
   hot: Set<string>;
 }
 
+// Hard timeout wrapper — if Supabase doesn't answer in 3s, reject immediately.
+// This prevents the entire page from hanging during DB outages.
+function withTimeout<T>(promise: Promise<T>, ms = 3000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), ms)),
+  ]);
+}
+
 async function getFlags(): Promise<FlagSets> {
   const hidden = new Set<string>();
   const disableAuto = new Set<string>();
@@ -38,9 +47,11 @@ async function getFlags(): Promise<FlagSets> {
   const forceEnded = new Set<string>();
   const hot = new Set<string>();
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("match_flags")
-      .select("match_id, hidden, forced_live, featured, disable_auto, match_data, display_title, force_ended, hot");
+    const { data } = await withTimeout(
+      getSupabaseAdmin()
+        .from("match_flags")
+        .select("match_id, hidden, forced_live, featured, disable_auto, match_data, display_title, force_ended, hot")
+    );
     for (const r of (data ?? []) as Array<{
       match_id: string;
       hidden: boolean;
@@ -61,7 +72,7 @@ async function getFlags(): Promise<FlagSets> {
       if (r.hot) hot.add(r.match_id);
     }
   } catch {
-    /* match_flags may not exist yet — degrade to no flags */
+    /* DB timeout or match_flags may not exist — degrade to no flags */
   }
   return { hidden, forcedLive, disableAuto, featured, renames, forceEnded, hot };
 }
@@ -69,15 +80,17 @@ async function getFlags(): Promise<FlagSets> {
 async function getOverrideBacked(): Promise<Map<string, Match>> {
   const map = new Map<string, Match>();
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("stream_overrides")
-      .select("match_id, match_data")
-      .eq("enabled", true);
+    const { data } = await withTimeout(
+      getSupabaseAdmin()
+        .from("stream_overrides")
+        .select("match_id, match_data")
+        .eq("enabled", true)
+    );
     for (const r of (data ?? []) as Array<{ match_id: string; match_data: Match | null }>) {
       if (r.match_data && !map.has(r.match_id)) map.set(r.match_id, r.match_data);
     }
   } catch {
-    /* match_data column may not exist yet — skip override-backed surfacing */
+    /* DB timeout or match_data column may not exist — skip override-backed surfacing */
   }
   return map;
 }
@@ -96,15 +109,17 @@ function isRealMatchOver(m: Match, finishedKeys: Set<string>): boolean {
 async function getFinishedWcKeys(): Promise<Set<string>> {
   const keys = new Set<string>();
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("push_match_state")
-      .select("match_key")
-      .eq("finished", true);
+    const { data } = await withTimeout(
+      getSupabaseAdmin()
+        .from("push_match_state")
+        .select("match_key")
+        .eq("finished", true)
+    );
     for (const r of (data ?? []) as Array<{ match_key: string }>) {
       if (r.match_key) keys.add(r.match_key);
     }
   } catch {
-    /* push_match_state may not exist — skip early retire */
+    /* DB timeout or push_match_state may not exist — skip early retire */
   }
   return keys;
 }

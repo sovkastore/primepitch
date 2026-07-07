@@ -16,12 +16,20 @@ export async function GET() {
   }
 
   try {
-    const { data } = await getSupabaseAdmin()
+    const fetchFlags = getSupabaseAdmin()
       .from("match_flags")
       .select("match_id, hidden, hide_one, featured, hot, match_data")
       .eq("hidden", false)
       .order("updated_at", { ascending: false })
       .limit(1000);
+      
+    // Race against a 3s timeout to keep the site snappy during DB glitches
+    const { data, error } = await Promise.race([
+      fetchFlags,
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000))
+    ]);
+
+    if (error) throw error;
       
     const hidden: string[] = [];
     const featured: string[] = [];
@@ -45,6 +53,7 @@ export async function GET() {
     cache = { data: result, ts: now };
     return NextResponse.json(result);
   } catch {
-    return NextResponse.json({ hidden: [], featured: [], hot: [], hiddenTitles: [] });
+    // If DB is down, serve stale cache so the user sees something!
+    return NextResponse.json(cache?.data ?? { hidden: [], featured: [], hot: [], hiddenTitles: [] });
   }
 }

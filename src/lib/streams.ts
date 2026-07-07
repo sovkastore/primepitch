@@ -64,13 +64,16 @@ async function overrideStreams(
   matchId: string
 ): Promise<{ streams: ResolvedStream[]; replace_original: boolean }> {
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("stream_overrides")
-      .select("*")
-      .eq("match_id", matchId)
-      .eq("enabled", true)
-      .order("position", { ascending: true })
-      .order("created_at", { ascending: true });
+    const { data } = await Promise.race([
+      getSupabaseAdmin()
+        .from("stream_overrides")
+        .select("*")
+        .eq("match_id", matchId)
+        .eq("enabled", true)
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true }),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+    ]);
     
     const rows = (data ?? []) as OverrideRow[];
     const streams = rows.map((o, i) => ({

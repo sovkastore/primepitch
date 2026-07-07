@@ -32,11 +32,14 @@ export async function GET() {
   }
 
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("site_settings")
-      .select("value")
-      .eq("key", "announcement")
-      .maybeSingle();
+    const { data } = await Promise.race([
+      getSupabaseAdmin()
+        .from("site_settings")
+        .select("value")
+        .eq("key", "announcement")
+        .maybeSingle(),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+    ]);
     const cfg = { ...EMPTY, ...(data?.value ?? {}) } as Announcement;
     // Never advertise an enabled banner with no text.
     if (!cfg.message.trim()) cfg.enabled = false;
@@ -44,6 +47,6 @@ export async function GET() {
     cache = { data: cfg, ts: now };
     return NextResponse.json(cfg);
   } catch {
-    return NextResponse.json(EMPTY);
+    return NextResponse.json(cache?.data ?? EMPTY);
   }
 }

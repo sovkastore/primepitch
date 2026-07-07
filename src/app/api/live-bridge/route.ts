@@ -28,9 +28,12 @@ async function getFlags(): Promise<Flags> {
   const renames = new Map<string, string>();
   const forceEnded = new Set<string>();
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("match_flags")
-      .select("match_id, hidden, disable_auto, display_title, force_ended");
+    const { data } = await Promise.race([
+      getSupabaseAdmin()
+        .from("match_flags")
+        .select("match_id, hidden, disable_auto, display_title, force_ended"),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+    ]);
     for (const r of (data ?? []) as Array<{
       match_id: string;
       hidden: boolean;
@@ -44,7 +47,7 @@ async function getFlags(): Promise<Flags> {
       if (r.force_ended) forceEnded.add(r.match_id);
     }
   } catch {
-    /* degrade to no flags */
+    /* DB timeout — degrade to no flags */
   }
   return { hidden, disableAuto, renames, forceEnded };
 }

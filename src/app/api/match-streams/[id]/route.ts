@@ -16,11 +16,14 @@ async function autoFlags(
 ): Promise<{ disableAuto: boolean; allowFootballAuto: boolean }> {
   const isFootball = sport.toLowerCase() === "football";
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("match_flags")
-      .select("disable_auto, auto_fallback")
-      .eq("match_id", matchId)
-      .maybeSingle();
+    const { data } = await Promise.race([
+      getSupabaseAdmin()
+        .from("match_flags")
+        .select("disable_auto, auto_fallback")
+        .eq("match_id", matchId)
+        .maybeSingle(),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+    ]);
     const af = data?.auto_fallback as boolean | null | undefined;
     const enabled =
       af === true ? true : af === false ? false : !isFootball && !data?.disable_auto;
