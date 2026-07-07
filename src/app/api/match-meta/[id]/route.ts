@@ -6,6 +6,14 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 // match flags. Lets the watch page show a real countdown before kickoff and a
 // real FULL TIME state after — instead of guessing.
 
+// Timeout wrapper to prevent hanging during DB outages
+function withTimeout<T>(promise: Promise<T>, ms = 3000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), ms)),
+  ]);
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,29 +22,34 @@ export async function GET(
     const { id: raw } = await params;
     const matchId = decodeURIComponent(raw);
 
-    const { data: ov } = await getSupabaseAdmin()
-      .from("stream_overrides")
-      .select("match_data")
-      .eq("match_id", matchId)
-      .not("match_data", "is", null)
-      .order("id", { ascending: false })
-      .limit(1);
+    const { data: ov } = (await withTimeout(
+      getSupabaseAdmin()
+        .from("stream_overrides")
+        .select("match_data")
+        .eq("match_id", matchId)
+        .not("match_data", "is", null)
+        .order("id", { ascending: false })
+        .limit(1) as any
+    )) as any;
     if (ov?.[0]?.match_data) {
       return NextResponse.json({ match: ov[0].match_data });
     }
 
-    const { data: fl } = await getSupabaseAdmin()
-      .from("match_flags")
-      .select("match_data")
-      .eq("match_id", matchId)
-      .not("match_data", "is", null)
-      .limit(1);
+    const { data: fl } = (await withTimeout(
+      getSupabaseAdmin()
+        .from("match_flags")
+        .select("match_data")
+        .eq("match_id", matchId)
+        .not("match_data", "is", null)
+        .limit(1) as any
+    )) as any;
     if (fl?.[0]?.match_data) {
       return NextResponse.json({ match: fl[0].match_data });
     }
 
     return NextResponse.json({ match: null });
   } catch {
+    // If DB is slow or down, return null so the watch page doesn't hang
     return NextResponse.json({ match: null });
   }
 }
