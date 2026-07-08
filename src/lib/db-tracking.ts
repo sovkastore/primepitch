@@ -1,16 +1,14 @@
-/**
- * High-Speed DB Helper
- * This EXCLUSIVELY uses Cloudflare D1 for ultra-fast tracking.
- * No Supabase fallbacks. If it's broken, it stays broken so we can fix it.
- */
 export async function trackHeartbeat(visitor_id: string, path: string, match_id?: string | null) {
+  // Only track heartbeat if the user is on a match page
+  if (!match_id) return { ok: true, skipped: true };
+
   const env = (process as any).env;
   const d1 = env.DB as D1Database | undefined;
 
   if (!d1) return { ok: false, error: "D1_BINDING_MISSING" };
 
   try {
-    // 1) High-Speed Write to Cloudflare
+    // High-Speed presence tracking for matches ONLY
     await d1.prepare(`
       INSERT INTO d1_active_viewers (visitor_id, match_id, path, last_seen)
       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
@@ -18,17 +16,8 @@ export async function trackHeartbeat(visitor_id: string, path: string, match_id?
         match_id = excluded.match_id,
         path = excluded.path,
         last_seen = CURRENT_TIMESTAMP
-    `).bind(visitor_id, match_id || null, path).run();
+    `).bind(visitor_id, match_id, path).run();
 
-    if (match_id) {
-      // Track match-specific duration + local peaks
-      await d1.prepare(`
-        INSERT INTO d1_match_summaries (match_id, total_views, peak_viewers)
-        VALUES (?, 1, 1)
-        ON CONFLICT(match_id) DO UPDATE SET
-          last_updated = CURRENT_TIMESTAMP
-      `).bind(match_id).run();
-    }
     return { ok: true, source: "d1" };
   } catch (e: any) {
     console.error("D1 Tracking Error:", e);
@@ -44,41 +33,8 @@ export async function trackPageView(
   country?: string | null, 
   p_ref?: string | null
 ) {
-  const env = (process as any).env;
-  const d1 = env.DB as D1Database | undefined;
-
-  if (!d1) return { ok: false, error: "D1_BINDING_MISSING" };
-
-  try {
-    await d1.prepare(`
-      INSERT INTO d1_page_views (visitor_id, path, referrer, device_type, country)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(
-      visitor_id, 
-      path, 
-      referrer ?? null, 
-      device ?? null, 
-      country ?? null
-    ).run();
-    
-    // Partner Referral attribution in D1
-    if (p_ref) {
-      try {
-        await d1.prepare(`
-          INSERT INTO d1_partner_referrals (visitor_id, partner_code)
-          VALUES (?, ?)
-          ON CONFLICT(visitor_id) DO UPDATE SET partner_code = excluded.partner_code
-        `).bind(visitor_id, p_ref.toLowerCase()).run();
-      } catch (e) {
-        // Ignore duplicate key errors if visitor is already tracked
-      }
-    }
-    
-    return { ok: true, source: "d1" };
-  } catch (e: any) {
-    console.error("D1 PageView Error:", e);
-    return { ok: false, error: e.message };
-  }
+  // TRACKING DISABLED TO REDUCE DB LOAD
+  return { ok: true, message: "Tracking disabled" };
 }
 
 export async function trackMatchView(
