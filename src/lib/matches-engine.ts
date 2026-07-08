@@ -54,7 +54,10 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
   const d1 = env.DB as D1Database | undefined;
   const sb = getSupabaseAdmin();
 
-  if (!d1) throw new Error("D1_BINDING_MISSING");
+  if (!d1) {
+    console.warn("D1_BINDING_MISSING in aggregateMatches");
+    return { matches: [], total: 0, page: 1 };
+  }
 
   const sport = params.sport || null;
   const sort = params.sort || "views";
