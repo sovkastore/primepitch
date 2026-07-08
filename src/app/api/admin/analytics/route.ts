@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) as page_views,
         COUNT(DISTINCT visitor_id) as unique_people
       FROM d1_page_views 
-      WHERE created_at BETWEEN ? AND ?
+      WHERE created_at BETWEEN datetime(?) AND datetime(?)
     `).bind(start, end).first<any>();
 
     const pageViews = pvRes?.page_views || 0;
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
         FROM d1_page_views
         GROUP BY visitor_id
       )
-      WHERE first_seen BETWEEN ? AND ?
+      WHERE first_seen BETWEEN datetime(?) AND datetime(?)
     `).bind(start, end).first<any>();
 
     const newVisitors = newRes?.new_visitors || 0;
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
         COALESCE(SUM(CASE WHEN is_live = 1 THEN 1 ELSE 0 END), 0) as live_views,
         COALESCE(SUM(CASE WHEN is_live = 0 THEN 1 ELSE 0 END), 0) as pre_views
       FROM d1_match_views
-      WHERE created_at BETWEEN ? AND ?
+      WHERE created_at BETWEEN datetime(?) AND datetime(?)
     `).bind(start, end).first<any>();
 
     const matchViews = matchActivityRes?.views || 0;
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     const watchersLiveRes = await d1.prepare(`
       SELECT COUNT(DISTINCT visitor_id) as watchers_live
       FROM d1_match_views
-      WHERE is_live = 1 AND created_at BETWEEN ? AND ?
+      WHERE is_live = 1 AND created_at BETWEEN datetime(?) AND datetime(?)
     `).bind(start, end).first<any>();
 
     const watchersLive = watchersLiveRes?.watchers_live || 0;
@@ -72,11 +72,11 @@ export async function GET(request: NextRequest) {
     const watchersPreOnlyRes = await d1.prepare(`
       SELECT COUNT(DISTINCT visitor_id) as watchers_pre_only
       FROM d1_match_views
-      WHERE is_live = 0 AND created_at BETWEEN ? AND ?
+      WHERE is_live = 0 AND created_at BETWEEN datetime(?) AND datetime(?)
         AND visitor_id NOT IN (
           SELECT DISTINCT visitor_id 
           FROM d1_match_views 
-          WHERE is_live = 1 AND created_at BETWEEN ? AND ?
+          WHERE is_live = 1 AND created_at BETWEEN datetime(?) AND datetime(?)
         )
     `).bind(start, end, start, end).first<any>();
 
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     const deviceRes = await d1.prepare(`
       SELECT device_type, COUNT(*) as views
       FROM d1_page_views
-      WHERE created_at BETWEEN ? AND ?
+      WHERE created_at BETWEEN datetime(?) AND datetime(?)
       GROUP BY device_type
     `).bind(start, end).all();
 
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
     const topMatchesRes = await d1.prepare(`
       SELECT match_id, match_title as title, sport, COUNT(*) as views
       FROM d1_match_views
-      WHERE created_at BETWEEN ? AND ?
+      WHERE created_at BETWEEN datetime(?) AND datetime(?)
       GROUP BY match_id, match_title, sport
       ORDER BY views DESC
       LIMIT 5
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
     const topPagesRes = await d1.prepare(`
       SELECT path, COUNT(*) as views
       FROM d1_page_views
-      WHERE created_at BETWEEN ? AND ?
+      WHERE created_at BETWEEN datetime(?) AND datetime(?)
       GROUP BY path
       ORDER BY views DESC
       LIMIT 5
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
     const referrerRes = await d1.prepare(`
       SELECT referrer as source, COUNT(*) as views
       FROM d1_page_views
-      WHERE created_at BETWEEN ? AND ? AND referrer IS NOT NULL AND referrer != ''
+      WHERE created_at BETWEEN datetime(?) AND datetime(?) AND referrer IS NOT NULL AND referrer != ''
       GROUP BY referrer
     `).bind(start, end).all();
 

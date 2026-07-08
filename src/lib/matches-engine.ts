@@ -45,8 +45,8 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
   // 1) Get Metrics from D1
   let where = "1=1";
   const args: any[] = [];
-  if (from) { where += " AND created_at >= ?"; args.push(from); }
-  if (to) { where += " AND created_at <= ?"; args.push(to); }
+  if (from) { where += " AND created_at >= datetime(?)"; args.push(from); }
+  if (to) { where += " AND created_at <= datetime(?)"; args.push(to); }
   // Sport filter is done post-aggregation to allow matching with fixtures
 
   const d1Query = `
