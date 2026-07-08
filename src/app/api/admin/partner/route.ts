@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { partnerMatches } from "@/lib/matches-engine";
+import { getPartnerOverviewD1 } from "@/lib/partner-engine";
+import { partnerBalances, scopeToOwn } from "@/lib/partner-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +23,13 @@ export async function GET(request: NextRequest) {
     if (!code) return NextResponse.json({ error: "code required" }, { status: 400 });
 
     if (stat === "overview") {
-      const { data, error } = await sb.rpc("partner_overview", { p_ref: code });
-      if (error) throw error;
-      return NextResponse.json(data);
+      const env = (process as any).env;
+      const d1 = env.DB as D1Database | undefined;
+      if (!d1) return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
+      const d1Overview = await getPartnerOverviewD1(d1, code);
+      const { fullStats } = await partnerBalances(code);
+      const scoped = fullStats ? d1Overview : scopeToOwn(d1Overview);
+      return NextResponse.json(scoped);
     }
     if (stat === "pulse") {
       const { data, error } = await sb.rpc("partner_pulse", { p_ref: code });
