@@ -90,7 +90,9 @@ export async function GET(request: NextRequest) {
         COUNT(*) as visit_count,
         device_type,
         referrer
-      FROM d1_page_views
+      FROM (
+        SELECT * FROM d1_page_views ORDER BY created_at DESC LIMIT 1000
+      )
       GROUP BY visitor_id
       ORDER BY last_seen DESC
       LIMIT 50
