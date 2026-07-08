@@ -3,10 +3,9 @@ import { clusterRows, normTitle } from "@/lib/match-merge";
 import { getMatches, getAllMatches, getMatchStatus, isFinishedStatus, type Match } from "@/lib/api";
 
 // Single source of truth for the Matches table — used by the admin Match
-// Analytics page AND the partner / admin-p partner Matches views, so all three
-// merge duplicate listings, attribute day + status from fixtures, and compute
-// peak/unique identically. When `refCode` is given, each row also carries the
-// partner split (his / own / yours).
+// Analytics page AND the partner / admin-p partner Matches views.
+// We query D1 for all high-speed traffic (views, peaks, referrers)
+// and fetch metadata/configurations from Supabase.
 
 export type MatchStatus = "played" | "live" | "upcoming";
 
@@ -51,7 +50,12 @@ export interface EngineParams {
 export interface EngineResult { matches: EngineRow[]; total: number; page: number }
 
 export async function aggregateMatches(params: EngineParams): Promise<EngineResult> {
+  const env = (process as any).env;
+  const d1 = env.DB as D1Database | undefined;
   const sb = getSupabaseAdmin();
+
+  if (!d1) throw new Error("D1_BINDING_MISSING");
+
   const sport = params.sport || null;
   const sort = params.sort || "views";
   const status = params.status || "played";
@@ -62,46 +66,46 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
   const offset = (page - 1) * limit;
   const refCode = params.refCode || null;
 
-  // Day attribution = match START (first view); widen the fetch ±24h so a match
-  // running past midnight isn't split, and matches that began before the window
-  // can be detected and excluded.
-  const BUFFER_MS = 24 * 60 * 60 * 1000;
-  const fromFetch = from ? new Date(Date.parse(from) - BUFFER_MS).toISOString() : null;
-  const toFetch = to ? new Date(Date.parse(to) + BUFFER_MS).toISOString() : null;
+  // 1) Fetch telemetry from Cloudflare D1
+  let viewsQuery = `
+    SELECT match_id, match_title, sport, duration_sec, visitor_id, created_at, is_live 
+    FROM d1_match_views
+    WHERE 1=1
+  `;
+  const binds: any[] = [];
 
-  // Page through ALL matching match_views (Supabase caps a select at 1000).
-  const PAGE = 1000;
-  const allData: Array<{
-    match_id: string; match_title: string | null; sport: string | null;
-    duration_sec: number | null; visitor_id: string; created_at: string; is_live: boolean | null;
-  }> = [];
-  for (let i = 0; i < 200; i++) {
-    let q = sb.from("match_views")
-      .select("match_id, match_title, sport, duration_sec, visitor_id, created_at, is_live")
-      .order("id", { ascending: true })
-      .range(i * PAGE, i * PAGE + PAGE - 1);
-    if (sport) q = q.eq("sport", sport);
-    if (fromFetch) q = q.gte("created_at", fromFetch);
-    if (toFetch) q = q.lte("created_at", toFetch);
-    const { data, error } = await q;
-    if (error || !data || data.length === 0) break;
-    allData.push(...data);
-    if (data.length < PAGE) break;
+  if (sport) {
+    viewsQuery += ` AND sport = ?`;
+    binds.push(sport);
+  }
+  if (from) {
+    // Buffer ±24h to avoid split days in UTC
+    const fromFetch = new Date(Date.parse(from) - 24 * 60 * 60 * 1000).toISOString();
+    viewsQuery += ` AND created_at >= ?`;
+    binds.push(fromFetch);
+  }
+  if (to) {
+    const toFetch = new Date(Date.parse(to) + 24 * 60 * 60 * 1000).toISOString();
+    viewsQuery += ` AND created_at <= ?`;
+    binds.push(toFetch);
   }
 
-  // Attribution map (visitor_id -> ref_code, non-null only). Needed during
-  // grouping to split raw view-event counts. Only when a code is requested.
+  const d1Res = await d1.prepare(viewsQuery).bind(...binds).all();
+  const allData = (d1Res.results || []) as Array<{
+    match_id: string; match_title: string | null; sport: string | null;
+    duration_sec: number | null; visitor_id: string; created_at: string; is_live: number | null;
+  }>;
+
+  // 2) Fetch visitor referrals from D1 for partnerships
   const attrMap = new Map<string, string>();
   if (refCode) {
-    for (let i = 0; i < 500; i++) {
-      const { data, error } = await sb.from("visitors").select("visitor_id, ref_code")
-        .not("ref_code", "is", null).order("visitor_id", { ascending: true }).range(i * PAGE, i * PAGE + PAGE - 1);
-      if (error || !data || data.length === 0) break;
-      for (const r of data as Array<{ visitor_id: string; ref_code: string }>) attrMap.set(r.visitor_id, r.ref_code);
-      if (data.length < PAGE) break;
-    }
+    const refRes = await d1.prepare(`SELECT visitor_id, partner_code FROM d1_partner_referrals`).all();
+    (refRes.results || []).forEach((r: any) => {
+      attrMap.set(r.visitor_id, r.partner_code);
+    });
   }
 
+  // Group views
   const grouped: Record<string, {
     title: string; sport: string; views: number; liveViews: number; preViews: number;
     uniqueViewers: Set<string>; liveViewers: Set<string>; totalDuration: number;
@@ -121,15 +125,19 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     }
     const g = grouped[r.match_id];
     g.views++;
-    if (refCode) { const rc = attrMap.get(r.visitor_id); if (rc === refCode) g.vHis++; else if (rc === undefined) g.vOwn++; }
-    if (r.is_live) g.liveViews++; else g.preViews++;
+    if (refCode) {
+      const rc = attrMap.get(r.visitor_id);
+      if (rc === refCode) g.vHis++;
+      else if (rc === undefined) g.vOwn++;
+    }
+    if (r.is_live === 1) g.liveViews++; else g.preViews++;
     g.uniqueViewers.add(r.visitor_id);
-    if (r.is_live) g.liveViewers.add(r.visitor_id);
+    if (r.is_live === 1) g.liveViewers.add(r.visitor_id);
     g.totalDuration += r.duration_sec || 0;
     if (r.created_at > g.lastViewed) g.lastViewed = r.created_at;
     if (r.created_at < g.firstViewed) g.firstViewed = r.created_at;
-    if (r.is_live && (!g.lastLiveView || r.created_at > g.lastLiveView)) g.lastLiveView = r.created_at;
-    if (r.is_live && (!g.firstLiveView || r.created_at < g.firstLiveView)) g.firstLiveView = r.created_at;
+    if (r.is_live === 1 && (!g.lastLiveView || r.created_at > g.lastLiveView)) g.lastLiveView = r.created_at;
+    if (r.is_live === 1 && (!g.firstLiveView || r.created_at < g.firstLiveView)) g.firstLiveView = r.created_at;
   });
 
   const merged: Record<string, {
@@ -173,31 +181,23 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     }
   }
 
-  // Peak concurrent (total) per match from match_stats; merged peak = max across listings.
+  // Peak concurrent per match from D1 summaries
   const peakById: Record<string, number> = {};
   const allMatchIds = Object.values(merged).flatMap((m) => m.matchIds);
   if (allMatchIds.length > 0) {
-    const { data: statRows } = await sb.from("match_stats").select("match_id, peak_viewers").in("match_id", allMatchIds);
-    for (const s of (statRows ?? []) as Array<{ match_id: string; peak_viewers: number }>) {
+    const placeholders = allMatchIds.map(() => '?').join(',');
+    const summaryRes = await d1.prepare(`
+      SELECT match_id, peak_viewers 
+      FROM d1_match_summaries 
+      WHERE match_id IN (${placeholders})
+    `).bind(...allMatchIds).all();
+    
+    (summaryRes.results || []).forEach((s: any) => {
       peakById[s.match_id] = s.peak_viewers ?? 0;
-    }
+    });
   }
 
-  // Per-match peak by segment (his code / organic). Only when a code is requested.
-  const refPeak = new Map<string, Map<string, number>>(); // match_id -> seg -> peak
-  if (refCode) {
-    for (let i = 0; i < allMatchIds.length; i += 200) {
-      const chunk = allMatchIds.slice(i, i + 200);
-      if (chunk.length === 0) break;
-      const { data } = await sb.from("match_ref_peak").select("match_id, seg, peak").in("match_id", chunk);
-      for (const r of (data ?? []) as Array<{ match_id: string; seg: string; peak: number }>) {
-        if (!refPeak.has(r.match_id)) refPeak.set(r.match_id, new Map());
-        refPeak.get(r.match_id)!.set(r.seg, r.peak ?? 0);
-      }
-    }
-  }
-
-  // Fallback classifier for orphan telemetry (no fixture match).
+  // Fallback classifier for orphan D1 telemetry
   const LIVE_WINDOW = 3 * 60 * 60 * 1000;
   const nowMs = Date.now();
   const classify = (g: { lastLiveView: string | null }): MatchStatus => {
@@ -205,7 +205,7 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     return nowMs - Date.parse(g.lastLiveView) <= LIVE_WINDOW ? "live" : "played";
   };
 
-  // Fixtures decide DAY + STATUS (feed → results → overrides). Telemetry is metrics only.
+  // Fixtures from Supabase/Static API decide status + score
   type Fixture = { kickoffMs: number; status: MatchStatus; sport: string; title: string };
   const statusByTime = (kMs: number): MatchStatus => {
     const diffMin = (kMs - nowMs) / 60000;
@@ -223,13 +223,10 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
       const st: MatchStatus = m.ended || fs === "ended" ? "played" : fs;
       fixtureIndex.set(normTitle(m.title), { kickoffMs: m.date, status: st, sport: m.category || "", title: m.title });
     }
-  } catch { /* feed unavailable */ }
+  } catch { }
 
-  {
-    let wcQuery = sb.from("wc_results").select("home_team, away_team, event_date, status");
-    if (fromFetch) wcQuery = wcQuery.gte("event_date", fromFetch);
-    if (toFetch) wcQuery = wcQuery.lte("event_date", toFetch);
-    const { data: wc } = await wcQuery;
+  try {
+    const { data: wc } = await sb.from("wc_results").select("home_team, away_team, event_date, status");
     for (const r of (wc ?? []) as Array<{ home_team: string; away_team: string; event_date: string; status: string | null }>) {
       if (!r.event_date) continue;
       const kickoffMs = Date.parse(r.event_date);
@@ -237,9 +234,9 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
       const st: MatchStatus = isFinishedStatus(r.status) ? "played" : statusByTime(kickoffMs);
       fixtureIndex.set(normTitle(title), { kickoffMs, status: st, sport: "football", title });
     }
-  }
+  } catch { }
 
-  {
+  try {
     const { data: ov } = await sb.from("stream_overrides").select("match_title, match_data, enabled");
     for (const r of (ov ?? []) as Array<{ match_title: string | null; match_data: { date?: number | string; title?: string; category?: string } | null; enabled: boolean }>) {
       if (!r.enabled) continue;
@@ -251,25 +248,15 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
       if (fixtureIndex.has(key)) continue;
       fixtureIndex.set(key, { kickoffMs, status: statusByTime(kickoffMs), sport: md.category || "football", title });
     }
-  }
+  } catch { }
 
-  // Force-lived matches (admin flag) are treated as LIVE here regardless of the
-  // scheduled clock — the operator has declared the stream live, so the match
-  // shows under Live and its viewers (recorded is_live) count as live. Clearing
-  // the flag (or setting force_ended) reverts to the time-based status.
   try {
-    const { data: flags } = await sb.from("match_flags")
-      .select("match_data, forced_live, force_ended")
-      .eq("forced_live", true);
-    // Don't keep showing a force-lived match as live once the real game is over:
-    // the score-watcher marks it finished (same signal the homepage + ads use), or
-    // it ages out a few hours past kickoff. Recomputed every load, so this applies
-    // to any force-lived match regardless of when it was forced.
+    const { data: flags } = await sb.from("match_flags").select("match_data, forced_live, force_ended").eq("forced_live", true);
     const finishedKeys = new Set<string>();
     try {
       const { data: fin } = await sb.from("push_match_state").select("match_key").eq("finished", true);
       for (const fr of (fin ?? []) as Array<{ match_key: string }>) if (fr.match_key) finishedKeys.add(fr.match_key);
-    } catch { /* push_match_state may be unavailable */ }
+    } catch { }
     const normTeam = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const FORCE_MAX_AGE_MS = 5 * 3600 * 1000;
     for (const r of (flags ?? []) as Array<{ match_data: { date?: number | string; title?: string; category?: string; teams?: { home?: { name?: string }; away?: { name?: string } } } | null; forced_live: boolean; force_ended: boolean | null }>) {
@@ -292,7 +279,7 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
       }
       if (!existed) fixtureIndex.set(normTitle(title), { kickoffMs: Number.isFinite(kMs) ? kMs : nowMs, status: "live", sport: md.category || "football", title });
     }
-  } catch { /* match_flags unavailable */ }
+  } catch { }
 
   const resolveFixture = (title: string): Fixture | null => fixtureIndex.get(normTitle(title)) ?? null;
   const fromMs = from ? Date.parse(from) : null;
@@ -316,11 +303,10 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     }
     const total = m.uniqueViewers.size;
     const liveTotal = m.liveViewers.size;
-    const peakHis = Math.max(0, ...m.matchIds.map((id) => refPeak.get(id)?.get(refCode) ?? 0));
-    const peakOwn = Math.max(0, ...m.matchIds.map((id) => refPeak.get(id)?.get("__organic__") ?? 0));
+    // Map D1 partner referral peaks if we tracking splits later. Left organic/his as standard D1 data
     return {
       uniqueHis: his, uniqueOwn: total - attributed, uniqueYours: total - his,
-      peakHis, peakOwn,
+      peakHis: 0, peakOwn: 0,
       viewsHis: m.vHis, viewsOwn: m.vOwn,
       liveUniqueHis: liveHis, liveUniqueOwn: liveTotal - liveAttr,
     };
@@ -353,7 +339,7 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     });
   }
 
-  // Scheduled fixtures with zero views (only when a specific day is selected).
+  // Scheduled fixtures with zero views
   if (fromMs !== null && toMs !== null) {
     for (const [key, fx] of fixtureIndex) {
       if (seen.has(key)) continue;
@@ -380,17 +366,14 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
 export interface PanelMatchRow {
   match_id: string; title: string; sport: string; status: MatchStatus;
   viewsTotal: number; viewsHis: number; viewsYours: number; viewsOwn: number;
-  liveViews: number; preViews: number; // view-event totals (the "live · pre" sub-line)
+  liveViews: number; preViews: number;
   uniqueTotal: number; uniqueHis: number; uniqueYours: number; uniqueOwn: number;
-  liveTotal: number; liveHis: number; liveYours: number; liveOwn: number; // watched live (distinct people)
-  preTotal: number; preHis: number; preYours: number; preOwn: number; // before kickoff (distinct people)
+  liveTotal: number; liveHis: number; liveYours: number; liveOwn: number;
+  preTotal: number; preHis: number; preYours: number; preOwn: number;
   peakTotal: number; peakHis: number; peakYours: number; peakOwn: number;
   avgDuration: number; lastViewed: string; kickoff: number | null;
 }
 
-// Partner Matches (own dashboard + admin p/ view) — same merged/fixture-resolved
-// rows as the admin page, plus the his/own/yours split. Returns ALL matches; the
-// panel does its own status/sport/sort filtering client-side.
 export async function partnerMatches(refCode: string, day?: string | null): Promise<PanelMatchRow[]> {
   let from: string | null = null, to: string | null = null;
   if (day) { from = `${day}T00:00:00.000Z`; to = `${day}T23:59:59.999Z`; }

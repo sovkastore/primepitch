@@ -61,8 +61,18 @@ export async function trackPageView(
       country ?? null
     ).run();
     
-    // Note: If you need to track partner referrals in D1, 
-    // we would add a d1_partner_referrals table later.
+    // Partner Referral attribution in D1
+    if (p_ref) {
+      try {
+        await d1.prepare(`
+          INSERT INTO d1_partner_referrals (visitor_id, partner_code)
+          VALUES (?, ?)
+          ON CONFLICT(visitor_id) DO UPDATE SET partner_code = excluded.partner_code
+        `).bind(visitor_id, p_ref.toLowerCase()).run();
+      } catch (e) {
+        // Ignore duplicate key errors if visitor is already tracked
+      }
+    }
     
     return { ok: true, source: "d1" };
   } catch (e: any) {
