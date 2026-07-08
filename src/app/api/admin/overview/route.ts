@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
+import { getD1 } from "@/lib/d1";
 
 export async function GET() {
   try {
-    const env = (process as any).env;
-    const d1 = env.DB as D1Database | undefined;
+    const d1 = await getD1();
 
     if (!d1) {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });

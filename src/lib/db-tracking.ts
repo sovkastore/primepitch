@@ -1,12 +1,12 @@
 import { getSupabaseAdmin } from "./supabase/admin";
+import { getD1 } from "./d1";
 
 /**
  * High-Speed DB Helper
  * This intelligently switches between Cloudflare D1 (Fast) and Supabase (Backup)
  */
 export async function trackHeartbeat(visitor_id: string, path: string, match_id?: string | null) {
-  const env = (process as any).env;
-  const d1 = env.DB as D1Database | undefined;
+  const d1 = await getD1();
 
   if (d1) {
     try {
@@ -59,8 +59,7 @@ export async function trackPageView(
   country?: string | null, 
   p_ref?: string | null
 ) {
-  const env = (process as any).env;
-  const d1 = env.DB as D1Database | undefined;
+  const d1 = await getD1();
 
   if (d1) {
     try {
@@ -105,8 +104,7 @@ export async function trackMatchView(
   country?: string | null,
   ref_code?: string | null
 ) {
-  const env = (process as any).env;
-  const d1 = env.DB as D1Database | undefined;
+  const d1 = await getD1();
 
   if (d1) {
     try {

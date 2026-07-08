@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { clusterRows, normTitle } from "@/lib/match-merge";
 import { getMatches, getAllMatches, getMatchStatus, isFinishedStatus, type Match } from "@/lib/api";
+import { getD1 } from "./d1";
+
 
 export type MatchStatus = "played" | "live" | "upcoming";
 
@@ -26,9 +28,9 @@ export interface EngineParams {
 export interface EngineResult { matches: EngineRow[]; total: number; page: number }
 
 export async function aggregateMatches(params: EngineParams): Promise<EngineResult> {
-  const env = (process as any).env;
-  const d1 = env.DB as D1Database | undefined;
+  const d1 = await getD1();
   if (!d1) throw new Error("D1_BINDING_MISSING");
+
 
   const sport = params.sport || null;
   const sort = params.sort || "views";

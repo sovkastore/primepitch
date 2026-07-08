@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getD1 } from "@/lib/d1";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export async function GET(request: NextRequest) {
   try {
-    const env = (process as any).env;
-    const d1 = env.DB as D1Database | undefined;
+    const d1 = await getD1();
 
     if (!d1) {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });

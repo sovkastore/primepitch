@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getD1 } from "@/lib/d1";
 
 const num = (v: unknown) => (v != null && !Number.isNaN(Number(v)) ? Number(v) : 0);
 
 export async function GET(request: NextRequest) {
   try {
-    const env = (process as any).env;
-    const d1 = env.DB as D1Database | undefined;
+    const d1 = await getD1();
 
     if (!d1) {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });

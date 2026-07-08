@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPartnerOverviewD1 } from "@/lib/partner-engine";
 import { requirePartnerSession, PARTNER_COOKIE } from "@/lib/partner-auth";
 import { partnerBalances, scopeToOwn } from "@/lib/partner-scope";
+import { getD1 } from "@/lib/d1";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,7 @@ export async function GET(request: NextRequest) {
   if (!sess) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   
   try {
-    const env = (process as any).env;
-    const d1 = env.DB as D1Database | undefined;
+    const d1 = await getD1();
     if (!d1) {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
     }

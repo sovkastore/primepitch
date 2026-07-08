@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
+import { getD1 } from "@/lib/d1";
 
 export async function GET() {
-  const env = (process as any).env;
-  const d1 = env.DB as D1Database | undefined;
+  const d1 = await getD1();
   
   if (!d1) {
     return NextResponse.json({ 
       status: "error", 
-      message: "D1 Database binding 'DB' not found in environment.",
-      env_keys: Object.keys(env).filter(k => !k.includes("KEY") && !k.includes("SECRET"))
+      message: "D1 Database binding 'DB' not found in environment."
     }, { status: 500 });
   }
 

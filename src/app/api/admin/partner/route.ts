@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { partnerMatches } from "@/lib/matches-engine";
 import { getPartnerOverviewD1, getPartnerPulseD1, getPartnerAnalyticsD1, getPartnerVisitorsD1 } from "@/lib/partner-engine";
 import { partnerBalances, scopeToOwn } from "@/lib/partner-scope";
+import { getD1 } from "@/lib/d1";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +24,7 @@ export async function GET(request: NextRequest) {
     if (!code) return NextResponse.json({ error: "code required" }, { status: 400 });
 
     if (stat === "overview") {
-      const env = (process as any).env;
-      const d1 = env.DB as D1Database | undefined;
+      const d1 = await getD1();
       if (!d1) return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
       const d1Overview = await getPartnerOverviewD1(d1, code);
       const { fullStats } = await partnerBalances(code);
@@ -32,8 +32,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(scoped);
     }
     if (stat === "pulse") {
-      const env = (process as any).env;
-      const d1 = env.DB as D1Database | undefined;
+      const d1 = await getD1();
       if (!d1) return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
       const d1Pulse = await getPartnerPulseD1(d1, code);
       const { fullStats } = await partnerBalances(code);
@@ -46,8 +45,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ matches });
     }
     if (stat === "analytics") {
-      const env = (process as any).env;
-      const d1 = env.DB as D1Database | undefined;
+      const d1 = await getD1();
       if (!d1) return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
       const now = new Date();
       const start = searchParams.get("start") ||
@@ -59,8 +57,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ start, end, ...scoped });
     }
     if (stat === "visitors") {
-      const env = (process as any).env;
-      const d1 = env.DB as D1Database | undefined;
+      const d1 = await getD1();
       if (!d1) return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
       const date = searchParams.get("date") || new Date().toISOString().slice(0, 10);
       const d1Visitors = await getPartnerVisitorsD1(d1, code, date);
