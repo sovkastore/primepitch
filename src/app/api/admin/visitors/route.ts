@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/request";
+import { NextRequest, NextResponse } from "next/server";
 
 const DAY = 24 * 60 * 60 * 1000;
 
