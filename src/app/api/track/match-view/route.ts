@@ -2,6 +2,21 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { countryFromRequest } from "@/lib/geo";
 import { isTrackingDisabled } from "@/lib/tracking";
+import { trackMatchView } from "@/lib/db-tracking";
+
+// Read a single cookie value from the raw request
+function readCookie(request: Request, name: string): string | null {
+  const header = request.headers.get("cookie");
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const idx = part.indexOf("=");
+    if (idx === -1) continue;
+    if (part.slice(0, idx).trim() === name) {
+      return decodeURIComponent(part.slice(idx + 1).trim());
+    }
+  }
+  return null;
+}
 
 export async function POST(request: Request) {
   if (await isTrackingDisabled()) {
@@ -16,10 +31,22 @@ export async function POST(request: Request) {
     }
 
     const country = countryFromRequest(request);
+    const ref_code = readCookie(request, "pp_ref");
 
-    // Run all tracking ops in parallel to reduce latency and sequential DB round-trips.
-    // record_match_join counts history so it's fine to run along with the insert.
-    await Promise.all([
+    // 1) High-speed D1 Tracking
+    await trackMatchView(
+      visitor_id,
+      match_id,
+      source,
+      match_title,
+      sport,
+      is_live,
+      country,
+      ref_code
+    );
+
+    // 2) Supabase Fallback (Parallel)
+    Promise.all([
       getSupabaseAdmin().from("match_views").insert({
         visitor_id,
         match_id,
@@ -51,10 +78,11 @@ export async function POST(request: Request) {
           /* optional/legacy function */
         }
       })(),
-    ]);
+    ]).catch(err => console.error("Supabase Track Error:", err));
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (e) {
+    console.error("MatchView API Error:", e);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

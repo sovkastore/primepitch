@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS d1_match_views (
     sport TEXT,
     is_live INTEGER DEFAULT 1,
     country TEXT,
+    ref_code TEXT,
     duration_sec INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS d1_page_views (
     referrer TEXT,
     device_type TEXT,
     country TEXT,
+    ref_code TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_page_views_created ON d1_page_views(created_at);

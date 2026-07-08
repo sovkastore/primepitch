@@ -65,14 +65,15 @@ export async function trackPageView(
   if (d1) {
     try {
       await d1.prepare(`
-        INSERT INTO d1_page_views (visitor_id, path, referrer, device_type, country)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO d1_page_views (visitor_id, path, referrer, device_type, country, ref_code)
+        VALUES (?, ?, ?, ?, ?, ?)
       `).bind(
         visitor_id, 
         path, 
         referrer ?? null, 
         device ?? null, 
-        country ?? null
+        country ?? null,
+        p_ref ?? null
       ).run();
       return { ok: true, source: "d1" };
     } catch (e) {
@@ -92,4 +93,40 @@ export async function trackPageView(
   */
   
   return { ok: false, source: "none (supa-disabled)" };
+}
+
+export async function trackMatchView(
+  visitor_id: string,
+  match_id: string,
+  source: string,
+  match_title?: string | null,
+  sport?: string | null,
+  is_live?: boolean,
+  country?: string | null,
+  ref_code?: string | null
+) {
+  const env = (process as any).env;
+  const d1 = env.DB as D1Database | undefined;
+
+  if (d1) {
+    try {
+      await d1.prepare(`
+        INSERT INTO d1_match_views (visitor_id, match_id, source, match_title, sport, is_live, country, ref_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        visitor_id,
+        match_id,
+        source,
+        match_title ?? null,
+        sport ?? null,
+        is_live ? 1 : 0,
+        country ?? null,
+        ref_code ?? null
+      ).run();
+      return { ok: true, source: "d1" };
+    } catch (e) {
+      console.error("D1 MatchView Error:", e);
+    }
+  }
+  return { ok: false };
 }
