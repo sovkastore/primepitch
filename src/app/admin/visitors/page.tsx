@@ -95,6 +95,14 @@ export default function VisitorsPage() {
         <div className="flex items-center justify-center h-64">
           <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
+      ) : (data as any).error ? (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center max-w-xl mx-auto my-8">
+          <h2 className="text-lg font-bold text-red-800">Visitors API Error</h2>
+          <p className="text-sm text-red-600 mt-2">{(data as any).error}</p>
+          <p className="text-xs text-red-500 mt-4">
+            Cloudflare D1 binding 'DB' might be missing or unreachable.
+          </p>
+        </div>
       ) : (
         <>
           {data.overall && (

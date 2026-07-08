@@ -115,6 +115,14 @@ export default function AnalyticsPage() {
 
       {loading || !data ? (
         <div className="py-20 text-center text-gray-400 text-sm">Loading…</div>
+      ) : (data as any).error ? (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center max-w-xl mx-auto mb-8">
+          <h2 className="text-lg font-bold text-red-800">Analytics API Error</h2>
+          <p className="text-sm text-red-600 mt-2">{(data as any).error}</p>
+          <p className="text-xs text-red-500 mt-4">
+            Cloudflare D1 binding 'DB' might be missing or unreachable.
+          </p>
+        </div>
       ) : (
         <>
           <p className="text-[12px] font-bold text-gray-400 uppercase tracking-wider">

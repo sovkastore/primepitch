@@ -155,22 +155,38 @@ export default function PulsePage() {
     );
   }
 
+  if ((data as any).error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center max-w-xl mx-auto my-8">
+        <h2 className="text-lg font-bold text-red-800">Pulse API Error</h2>
+        <p className="text-sm text-red-600 mt-2">{(data as any).error}</p>
+        <p className="text-xs text-red-500 mt-4">
+          This usually means the Cloudflare D1 database binding 'DB' is missing or could not be queried.
+        </p>
+      </div>
+    );
+  }
+
+  const activeMatchesList = data.activeMatches || [];
+  const activePagesList = data.activePages || [];
+  const recentActivityList = data.recentActivity || [];
+
   const endedViewers = feedStatus
-    ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "ended").reduce((sum, m) => sum + m.viewers, 0)
+    ? activeMatchesList.filter((m) => rowStatus(m.match_id) === "ended").reduce((sum, m) => sum + m.viewers, 0)
     : 0;
   // Exactly the sum of the "Watching live now" list: only matches whose status
   // resolves to live (feed-live or admin force-lived), nothing unidentified.
-  const trueLiveViewers = data.activeMatches
+  const trueLiveViewers = activeMatchesList
     .filter((m) => rowStatus(m.match_id) === "live")
     .reduce((sum, m) => sum + m.viewers, 0);
   // People sitting on a pre-kickoff (upcoming) match page — waiting, not watching.
   const waitingViewers = feedStatus
-    ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "upcoming").reduce((sum, m) => sum + m.viewers, 0)
+    ? activeMatchesList.filter((m) => rowStatus(m.match_id) === "upcoming").reduce((sum, m) => sum + m.viewers, 0)
     : 0;
 
   // Live matches get their own container; the "Live active page" list below
   // covers everyone else (including everyone on non-match pages).
-  const liveActive = data.activeMatches.filter((m) => rowStatus(m.match_id) === "live");
+  const liveActive = activeMatchesList.filter((m) => rowStatus(m.match_id) === "live");
 
   // Shared row used by both containers.
   const renderActiveRow = (m: { match_id: string; viewers: number; peak?: number; unique?: number | null }) => (
@@ -270,9 +286,9 @@ export default function PulsePage() {
       </ChartWrapper>
 
       <ChartWrapper title="Live active page">
-        {data.activePages.length > 0 ? (
+        {activePagesList.length > 0 ? (
           <div className="space-y-2">
-            {data.activePages.map((p) => (
+            {activePagesList.map((p) => (
               <div key={p.path} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50">
                 <span className="text-[13px] text-gray-700 truncate min-w-0">{pageLabel(p.path)}</span>
                 <span className="flex items-center gap-1.5 shrink-0">
@@ -288,9 +304,9 @@ export default function PulsePage() {
       </ChartWrapper>
 
       <ChartWrapper title="Recent Activity">
-        {data.recentActivity.length > 0 ? (
+        {recentActivityList.length > 0 ? (
           <div className="space-y-1.5 max-h-80 overflow-y-auto">
-            {data.recentActivity.map((a, i) => (
+            {recentActivityList.map((a, i) => (
               <div key={i} className="flex items-center justify-between py-1.5 text-[12px]">
                 <div className="flex items-center gap-2">
                   <span className="text-gray-400">{a.device_type === "mobile" ? "📱" : "💻"}</span>
