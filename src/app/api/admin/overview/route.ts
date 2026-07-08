@@ -9,23 +9,30 @@ export async function GET() {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
     }
 
-    // 1) Real-time presence from D1 only
-    const activeRes = await d1.prepare(`
-      SELECT visitor_id, match_id, path 
+    // 1) Real-time presence from D1 only (SQL aggregation)
+    const activeStats = await d1.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(match_id) as live_viewers,
+        SUM(CASE WHEN path = '/ppv' THEN 1 ELSE 0 END) as ppv_viewers
       FROM d1_active_viewers 
       WHERE last_seen >= datetime('now', '-6 minutes')
-    `).all();
+    `).first<any>();
     
-    const activeNow = activeRes.results || [];
-    const onlineNow = activeNow.length;
-    const liveViewers = activeNow.filter((r: any) => r.match_id).length;
-    const ppvWatchingNow = activeNow.filter((r: any) => r.path === "/ppv").length;
+    const onlineNow = activeStats?.total || 0;
+    const liveViewers = activeStats?.live_viewers || 0;
+    const ppvWatchingNow = activeStats?.ppv_viewers || 0;
 
-    const matchViewers: Record<string, number> = {};
-    activeNow.forEach((r: any) => {
-      if (r.match_id) matchViewers[r.match_id as string] = (matchViewers[r.match_id as string] || 0) + 1;
-    });
-    const activeMatches = Object.entries(matchViewers).map(([match_id, viewers]) => ({ match_id, viewers }));
+    const matchCounts = await d1.prepare(`
+      SELECT match_id, COUNT(*) as viewers
+      FROM d1_active_viewers
+      WHERE last_seen >= datetime('now', '-6 minutes') AND match_id IS NOT NULL
+      GROUP BY match_id
+    `).all();
+    const activeMatches = (matchCounts.results || []).map((r: any) => ({ 
+      match_id: r.match_id, 
+      viewers: r.viewers 
+    }));
 
     // 2) Volume stats from D1 only (Today/Week)
     // Note: Historical data before D1 migration will NOT show up here.

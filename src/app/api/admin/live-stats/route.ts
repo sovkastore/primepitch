@@ -9,38 +9,43 @@ export async function GET() {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
     }
 
-    // 1) Get Real-time Presence from Cloudflare ONLY
-    const activeRes = await d1.prepare(`
-      SELECT visitor_id, match_id, path, last_seen 
+    // 1) Get aggregated real-time counts from D1
+    const activeStats = await d1.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(match_id) as live_viewers
       FROM d1_active_viewers 
       WHERE last_seen >= datetime('now', '-6 minutes')
-    `).all();
-    const activeData = activeRes.results || [];
+    `).first<any>();
 
-    // 2) Get Recent Activity from Cloudflare ONLY
-    const recentRes = await d1.prepare(`
-      SELECT path, device_type, created_at 
-      FROM d1_page_views 
-      ORDER BY created_at DESC 
-      LIMIT 20
-    `).all();
-    const recentData = recentRes.results || [];
+    const onlineNow = activeStats?.total || 0;
+    const liveViewers = activeStats?.live_viewers || 0;
 
-    const onlineNow = activeData.length;
-    const liveViewers = activeData.filter((r: any) => r.match_id).length;
-    
-    // Per-match viewer counts
+    // 2) Per-match viewer counts (SQL aggregation)
+    const matchCounts = await d1.prepare(`
+      SELECT match_id, COUNT(*) as viewers
+      FROM d1_active_viewers
+      WHERE last_seen >= datetime('now', '-6 minutes') AND match_id IS NOT NULL
+      GROUP BY match_id
+      ORDER BY viewers DESC
+    `).all();
+
+    // 3) Per-page viewer counts (SQL aggregation)
+    const pageCounts = await d1.prepare(`
+      SELECT path, COUNT(*) as viewers
+      FROM d1_active_viewers
+      WHERE last_seen >= datetime('now', '-6 minutes')
+      GROUP BY path
+      ORDER BY viewers DESC
+      LIMIT 50
+    `).all();
+
+    // 4) Get peaks from match_summaries
     const matchViewers: Record<string, number> = {};
-    const pageViewers: Record<string, number> = {};
-
-    activeData.forEach((r: any) => {
-      if (r.match_id) {
-        matchViewers[r.match_id] = (matchViewers[r.match_id] || 0) + 1;
-      }
-      pageViewers[r.path] = (pageViewers[r.path] || 0) + 1;
+    (matchCounts.results || []).forEach((r: any) => {
+      matchViewers[r.match_id] = r.viewers;
     });
 
-    // Per-match traction (Peak from match_summaries in D1)
     const matchIds = Object.keys(matchViewers);
     let peaks: Record<string, number> = {};
     
@@ -61,18 +66,25 @@ export async function GET() {
       }
     }
 
-    const activeMatches = Object.entries(matchViewers)
-      .sort(([, a], [, b]) => b - a)
-      .map(([match_id, viewers]) => ({
-        match_id,
-        viewers,
-        peak: Math.max(viewers, peaks[match_id] || 0)
-      }));
+    const activeMatches = (matchCounts.results || []).map((r: any) => ({
+      match_id: r.match_id,
+      viewers: r.viewers,
+      peak: Math.max(r.viewers, peaks[r.match_id] || 0)
+    }));
 
-    const activePages = Object.entries(pageViewers)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 50)
-      .map(([path, viewers]) => ({ path, viewers }));
+    const activePages = (pageCounts.results || []).map((r: any) => ({
+      path: r.path,
+      viewers: r.viewers
+    }));
+
+    // 5) Get Recent Activity (limited to 20 for memory safety)
+    const recentRes = await d1.prepare(`
+      SELECT path, device_type, created_at 
+      FROM d1_page_views 
+      ORDER BY created_at DESC 
+      LIMIT 20
+    `).all();
+    const recentData = recentRes.results || [];
 
     return NextResponse.json({
       onlineNow,

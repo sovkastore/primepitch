@@ -99,13 +99,17 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     duration_sec: number | null; visitor_id: string; created_at: string; is_live: number | null;
   }>;
 
-  // 2) Fetch visitor referrals from D1 for partnerships
+  // 2) Fetch visitor referrals from D1 for partnerships (Safe check)
   const attrMap = new Map<string, string>();
   if (refCode) {
-    const refRes = await d1.prepare(`SELECT visitor_id, partner_code FROM d1_partner_referrals`).all();
-    (refRes.results || []).forEach((r: any) => {
-      attrMap.set(r.visitor_id, r.partner_code);
-    });
+    try {
+      const refRes = await d1.prepare(`SELECT visitor_id, partner_code FROM d1_partner_referrals`).all();
+      (refRes.results || []).forEach((r: any) => {
+        attrMap.set(r.visitor_id, r.partner_code);
+      });
+    } catch (e) {
+      console.warn("D1_PARTNER_REFERRALS_TABLE_MISSING - Run migrations");
+    }
   }
 
   // Group views

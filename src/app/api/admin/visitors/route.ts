@@ -29,30 +29,38 @@ export async function GET(request: NextRequest) {
     const pageviews = dailyRes?.total_views || 0;
     const unique = dailyRes?.unique_visitors || 0;
 
-    // 2) Hourly & Device Breakdown
-    const breakRes = await d1.prepare(`
+    // 2) Hourly Breakdown (SQL aggregation)
+    const hourlyRes = await d1.prepare(`
       SELECT 
         strftime('%H', created_at) as hour,
-        device_type,
-        visitor_id
+        COUNT(*) as views,
+        COUNT(DISTINCT visitor_id) as visitors
       FROM d1_page_views
       WHERE created_at >= ? AND created_at <= ?
+      GROUP BY hour
     `).bind(start, end).all();
 
-    const byDevice: Record<string, number> = {};
     const byHour = Array.from({ length: 24 }, (_, h) => ({ hour: h, views: 0, visitors: 0 }));
-    const hourSets = Array.from({ length: 24 }, () => new Set<string>());
-
-    (breakRes.results || []).forEach((r: any) => {
-      const dev = r.device_type || "unknown";
-      byDevice[dev] = (byDevice[dev] || 0) + 1;
+    (hourlyRes.results || []).forEach((r: any) => {
       const h = parseInt(r.hour);
       if (h >= 0 && h < 24) {
-        byHour[h].views++;
-        hourSets[h].add(r.visitor_id);
+        byHour[h].views = r.views;
+        byHour[h].visitors = r.visitors;
       }
     });
-    byHour.forEach((b, h) => { b.visitors = hourSets[h].size; });
+
+    // 2.5) Device Breakdown (SQL aggregation)
+    const deviceRes = await d1.prepare(`
+      SELECT device_type, COUNT(DISTINCT visitor_id) as visitors
+      FROM d1_page_views
+      WHERE created_at >= ? AND created_at <= ?
+      GROUP BY device_type
+    `).bind(start, end).all();
+    
+    const byDevice: Record<string, number> = {};
+    (deviceRes.results || []).forEach((r: any) => {
+      byDevice[r.device_type || 'unknown'] = r.visitors;
+    });
 
     // 3) Trend (30 Days)
     const trendRes = await d1.prepare(`
