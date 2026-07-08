@@ -1,0 +1,21 @@
+{
+  "name": "primepitch",
+  "pages_build_output_dir": ".open-next",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://lcahzqvrsqxievglvkib.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_pjCMeOEDhirgIYFS3ZsHlw_EJLphMcW",
+    "ADMIN_EMAILS": "akindunbisulaiman00040@gmail.com",
+    "BSD_API_KEY": "0170da071a072600419c7f8e0d30304e2fd6cf08"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "primepitch_db",
+      "database_id": "25e024c8-f8fa-4e64-b927-df0ae95b1147"
+    }
+  ]
+}
