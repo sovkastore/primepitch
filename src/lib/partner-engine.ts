@@ -126,3 +126,293 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
     activeMatches,
   };
 }
+
+import { type PulseData } from "@/components/partner/PulsePanel";
+
+export async function getPartnerPulseD1(d1: D1Database, refCode: string): Promise<PulseData> {
+  const split = (t: number, h: number) => ({ total: t, his: h, yours: Math.max(0, t - h) });
+
+  // 1) Fetch all active presence in the last 6 minutes
+  const activeRes = await d1.prepare(`
+    SELECT visitor_id, match_id, path, ref_code 
+    FROM d1_active_viewers 
+    WHERE last_seen >= datetime('now', '-6 minutes')
+  `).all();
+  const activeRows = (activeRes.results || []) as any[];
+
+  // 2) Online Now & Live Page splits
+  const onlineTotal = activeRows.length;
+  const onlineHis = activeRows.filter((r) => r.ref_code === refCode).length;
+
+  const liveTotal = activeRows.filter((r) => r.match_id).length;
+  const liveHis = activeRows.filter((r) => r.match_id && r.ref_code === refCode).length;
+
+  const onlineNow = split(onlineTotal, onlineHis);
+  const liveNow = split(liveTotal, liveHis);
+
+  // 3) Group Active Pages
+  const pageBuckets: Record<string, { total: number; his: number }> = {};
+  activeRows.forEach((r) => {
+    const path = r.path || "/";
+    if (!pageBuckets[path]) pageBuckets[path] = { total: 0, his: 0 };
+    pageBuckets[path].total++;
+    if (r.ref_code === refCode) pageBuckets[path].his++;
+  });
+
+  const pages = Object.entries(pageBuckets)
+    .sort(([, a], [, b]) => b.total - a.total)
+    .slice(0, 30)
+    .map(([path, counts]) => ({
+      path,
+      total: counts.total,
+      his: counts.his,
+      yours: Math.max(0, counts.total - counts.his),
+    }));
+
+  // 4) Group Active Matches
+  const matchBuckets: Record<string, { total: number; his: number }> = {};
+  activeRows.forEach((r) => {
+    if (!r.match_id) return;
+    if (!matchBuckets[r.match_id]) matchBuckets[r.match_id] = { total: 0, his: 0 };
+    matchBuckets[r.match_id].total++;
+    if (r.ref_code === refCode) matchBuckets[r.match_id].his++;
+  });
+
+  const activeMatchIds = Object.keys(matchBuckets);
+  let activeMatches: any[] = [];
+
+  if (activeMatchIds.length > 0) {
+    // Resolve peaks and titles for active matches
+    const peaksRes = await d1.prepare(`
+      SELECT match_id, peak_viewers 
+      FROM d1_match_summaries
+    `).all();
+    const peaksMap = new Map(peaksRes.results?.map((r: any) => [r.match_id, r.peak_viewers]) || []);
+
+    const titlesRes = await d1.prepare(`
+      SELECT match_id, MAX(match_title) as match_title 
+      FROM d1_match_views 
+      GROUP BY match_id
+    `).all();
+    const titlesMap = new Map(titlesRes.results?.map((r: any) => [r.match_id, r.match_title]) || []);
+
+    // Get uniques today for each active match
+    const nowStr = new Date().toISOString().slice(0,10);
+    const dayStart = `${nowStr}T00:00:00.000Z`;
+    const uniquesRes = await d1.prepare(`
+      SELECT 
+        match_id,
+        COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as uniques_his
+      FROM d1_match_views
+      WHERE created_at >= datetime(?)
+      GROUP BY match_id
+    `).bind(refCode, dayStart).all();
+    const uniquesMap = new Map((uniquesRes.results || []).map((r: any) => [r.match_id, r.uniques_his]));
+
+    activeMatches = activeMatchIds.map((matchId) => {
+      const counts = matchBuckets[matchId];
+      const peakTotal = peaksMap.get(matchId) || counts.total;
+      const uniquesHis = uniquesMap.get(matchId) || counts.his;
+      const peakHis = Math.max(counts.his, Math.round(uniquesHis * 0.65));
+
+      return {
+        match_id: matchId,
+        title: titlesMap.get(matchId) || matchId,
+        total: counts.total,
+        his: counts.his,
+        yours: Math.max(0, counts.total - counts.his),
+        peakTotal,
+        peakHis,
+        peakYours: Math.max(0, peakTotal - peakHis),
+      };
+    });
+  }
+
+  return {
+    onlineNow,
+    liveNow,
+    matches: activeMatches,
+    pages,
+  };
+}
+
+import { type AnalyticsData } from "@/components/partner/AnalyticsPanel";
+
+export async function getPartnerAnalyticsD1(
+  d1: D1Database,
+  refCode: string,
+  start: string,
+  end: string
+): Promise<AnalyticsData> {
+  const split = (t: number, h: number) => ({ total: t, his: h, yours: Math.max(0, t - h) });
+
+  // 1) Page Views (range)
+  const pvRes = await d1.prepare(`
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+    FROM d1_page_views
+    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+  `).bind(refCode, start, end).first<any>();
+
+  const pageViews = split(pvRes?.total || 0, pvRes?.his || 0);
+
+  // 2) Unique Visitors (range)
+  const uRes = await d1.prepare(`
+    SELECT 
+      COUNT(DISTINCT visitor_id) as total,
+      COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as his
+    FROM d1_page_views
+    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+  `).bind(refCode, start, end).first<any>();
+
+  const unique = split(uRes?.total || 0, uRes?.his || 0);
+
+  // 3) New Visitors (range)
+  const newRes = await d1.prepare(`
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+    FROM (
+      SELECT visitor_id, MAX(ref_code) as ref_code, MIN(created_at) as first_seen
+      FROM d1_page_views
+      GROUP BY visitor_id
+    )
+    WHERE first_seen BETWEEN datetime(?) AND datetime(?)
+  `).bind(refCode, start, end).first<any>();
+
+  const newVisitors = split(newRes?.total || 0, newRes?.his || 0);
+
+  // 4) Returning Visitors (range)
+  const returning = split(
+    Math.max(0, unique.total - newVisitors.total),
+    Math.max(0, unique.his - newVisitors.his)
+  );
+
+  // 5) Match Views / Watchers statistics (range)
+  const statsRes = await d1.prepare(`
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his,
+      
+      SUM(CASE WHEN is_live = 1 THEN 1 ELSE 0 END) as live_total,
+      SUM(CASE WHEN is_live = 1 AND ref_code = ? THEN 1 ELSE 0 END) as live_his,
+      
+      SUM(CASE WHEN is_live = 0 THEN 1 ELSE 0 END) as pre_total,
+      SUM(CASE WHEN is_live = 0 AND ref_code = ? THEN 1 ELSE 0 END) as pre_his,
+      
+      COUNT(DISTINCT visitor_id) as watchers_total,
+      COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as watchers_his,
+      
+      COUNT(DISTINCT match_id) as matches_watched_total,
+      COUNT(DISTINCT CASE WHEN ref_code = ? THEN match_id END) as matches_watched_his,
+      
+      COUNT(DISTINCT CASE WHEN is_live = 1 THEN visitor_id END) as watchers_live_total,
+      COUNT(DISTINCT CASE WHEN is_live = 1 AND ref_code = ? THEN visitor_id END) as watchers_live_his
+    FROM d1_match_views
+    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+  `).bind(refCode, refCode, refCode, refCode, refCode, refCode, start, end).first<any>();
+
+  const matchViews = split(statsRes?.total || 0, statsRes?.his || 0);
+  const liveViews = split(statsRes?.live_total || 0, statsRes?.live_his || 0);
+  const preViews = split(statsRes?.pre_total || 0, statsRes?.pre_his || 0);
+  
+  const uniqueWatchers = split(statsRes?.watchers_total || 0, statsRes?.watchers_his || 0);
+  const matchesWatched = split(statsRes?.matches_watched_total || 0, statsRes?.matches_watched_his || 0);
+  const watchersLive = split(statsRes?.watchers_live_total || 0, statsRes?.watchers_live_his || 0);
+
+  // 6) Device Breakdowns
+  const deviceRes = await d1.prepare(`
+    SELECT 
+      device_type as name,
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+    FROM d1_page_views
+    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+    GROUP BY name
+    ORDER BY total DESC
+    LIMIT 20
+  `).bind(refCode, start, end).all();
+
+  const byDevice = (deviceRes.results || []).map((r: any) => ({
+    name: r.name || "unknown",
+    total: r.total,
+    his: r.his || 0,
+  }));
+
+  // 7) Top Matches
+  const matchesRes = await d1.prepare(`
+    SELECT 
+      match_id,
+      MAX(match_title) as title,
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+    FROM d1_match_views
+    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+    GROUP BY match_id
+    ORDER BY total DESC
+    LIMIT 20
+  `).bind(refCode, start, end).all();
+
+  const topMatches = (matchesRes.results || []).map((r: any) => ({
+    match_id: r.match_id,
+    title: r.title || r.match_id,
+    total: r.total,
+    his: r.his || 0,
+  }));
+
+  // 8) Top Pages
+  const pagesRes = await d1.prepare(`
+    SELECT 
+      path,
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+    FROM d1_page_views
+    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+    GROUP BY path
+    ORDER BY total DESC
+    LIMIT 20
+  `).bind(refCode, start, end).all();
+
+  const topPages = (pagesRes.results || []).map((r: any) => ({
+    path: r.path,
+    total: r.total,
+    his: r.his || 0,
+  }));
+
+  // 9) Referrers
+  const referrersRes = await d1.prepare(`
+    SELECT 
+      referrer as source,
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+    FROM d1_page_views
+    WHERE created_at BETWEEN datetime(?) AND datetime(?) AND referrer IS NOT NULL AND referrer != ''
+    GROUP BY source
+    ORDER BY total DESC
+    LIMIT 20
+  `).bind(refCode, start, end).all();
+
+  const topReferrers = (referrersRes.results || []).map((r: any) => ({
+    source: r.source,
+    total: r.total,
+    his: r.his || 0,
+  }));
+
+  return {
+    unique,
+    newVisitors,
+    returning,
+    pageViews,
+    matchViews,
+    uniqueWatchers,
+    matchesWatched,
+    liveViews,
+    preViews,
+    watchersLive,
+    byDevice,
+    topMatches,
+    topPages,
+    topReferrers,
+  };
+}

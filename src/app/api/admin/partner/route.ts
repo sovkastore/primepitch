@@ -32,9 +32,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(scoped);
     }
     if (stat === "pulse") {
-      const { data, error } = await sb.rpc("partner_pulse", { p_ref: code });
-      if (error) throw error;
-      return NextResponse.json(data);
+      const env = (process as any).env;
+      const d1 = env.DB as D1Database | undefined;
+      if (!d1) return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
+      const d1Pulse = await getPartnerPulseD1(d1, code);
+      const { fullStats } = await partnerBalances(code);
+      const scoped = fullStats ? d1Pulse : scopeToOwn(d1Pulse);
+      return NextResponse.json({ full_stats: fullStats, ...scoped });
     }
     if (stat === "matches") {
       const day = searchParams.get("day");
@@ -42,13 +46,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ matches });
     }
     if (stat === "analytics") {
+      const env = (process as any).env;
+      const d1 = env.DB as D1Database | undefined;
+      if (!d1) return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
       const now = new Date();
       const start = searchParams.get("start") ||
         new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
       const end = searchParams.get("end") || now.toISOString();
-      const { data, error } = await sb.rpc("partner_analytics", { p_ref: code, p_start: start, p_end: end });
-      if (error) throw error;
-      return NextResponse.json({ start, end, ...data });
+      const d1Analytics = await getPartnerAnalyticsD1(d1, code, start, end);
+      const { fullStats } = await partnerBalances(code);
+      const scoped = fullStats ? d1Analytics : scopeToOwn(d1Analytics);
+      return NextResponse.json({ start, end, ...scoped });
     }
     if (stat === "visitors") {
       const date = searchParams.get("date") || new Date().toISOString().slice(0, 10);
