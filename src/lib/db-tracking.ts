@@ -81,14 +81,37 @@ export async function trackPageView(
     }
   }
 
-  // Fallback
-  await getSupabaseAdmin().rpc("track_visitor", {
+  const sb = getSupabaseAdmin();
+  
+  // 1) Record exact Page View (for counts)
+  await sb.from("page_views").insert({
+    visitor_id,
+    path,
+    referrer: referrer ?? null,
+    device_type: device ?? null,
+    user_agent: null // UA currently not passed to db-tracking
+  });
+
+  // 2) Update Visitors Roster (for unique/returning)
+  await sb.rpc("track_visitor", {
     p_vid: visitor_id,
     p_device: device ?? null,
     p_referrer: referrer ?? null,
-    p_path: path,
-    p_ref: p_ref ?? null
+    p_path: path
   });
+
+  // 3) Handle Partner Referral attribution
+  if (p_ref) {
+    try {
+      await sb.from("partner_referrals").insert({
+        partner_code: p_ref.toLowerCase(),
+        visitor_id,
+        path
+      });
+    } catch {
+      // Ignore duplicates (e.g. they refresh or click twice)
+    }
+  }
   
   return { ok: true, source: "supabase" };
 }
