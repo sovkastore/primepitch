@@ -45,15 +45,20 @@ export async function GET() {
     let peaks: Record<string, number> = {};
     
     if (matchIds.length > 0) {
-      const summaryRes = await d1.prepare(`
-        SELECT match_id, peak_viewers 
-        FROM d1_match_summaries 
-        WHERE match_id IN (${matchIds.map(() => '?').join(',')})
-      `).bind(...matchIds).all();
-      
-      (summaryRes.results || []).forEach((r: any) => {
-        peaks[r.match_id] = r.peak_viewers;
-      });
+      try {
+        const placeholders = matchIds.map(() => '?').join(',');
+        const summaryRes = await d1.prepare(`
+          SELECT match_id, peak_viewers 
+          FROM d1_match_summaries 
+          WHERE match_id IN (${placeholders})
+        `).bind(...matchIds).all();
+        
+        (summaryRes.results || []).forEach((r: any) => {
+          peaks[r.match_id] = r.peak_viewers;
+        });
+      } catch (e) {
+        console.error("D1 Summary Fetch Error:", e);
+      }
     }
 
     const activeMatches = Object.entries(matchViewers)
@@ -74,7 +79,7 @@ export async function GET() {
       liveViewers,
       totalActive: onlineNow,
       activeMatches,
-      matchRecords: [], // Historical match records skipped (would need Supabase or long-term D1 storage)
+      matchRecords: [], // Historical match records removed (Supabase-dependent)
       activePages,
       recentActivity: recentData || [],
     });
