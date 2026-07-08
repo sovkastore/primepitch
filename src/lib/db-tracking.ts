@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from "./supabase/admin";
 export async function trackHeartbeat(visitor_id: string, path: string, match_id?: string | null) {
   const env = (process as any).env;
   const d1 = env.DB as D1Database | undefined;
+  console.log(`[Track] Heartbeat check. D1 present: ${!!d1}`);
 
   if (d1) {
     try {
@@ -35,8 +36,7 @@ export async function trackHeartbeat(visitor_id: string, path: string, match_id?
     }
   }
 
-  // 2) Fallback to Supabase DISABLED for testing
-  /*
+  // 2) Fallback to Supabase
   await getSupabaseAdmin().from("active_viewers").upsert(
     {
       visitor_id,
@@ -46,9 +46,8 @@ export async function trackHeartbeat(visitor_id: string, path: string, match_id?
     },
     { onConflict: "visitor_id" }
   );
-  */
   
-  return { ok: false, source: "none (supa-disabled)" };
+  return { ok: true, source: "supabase" };
 }
 
 export async function trackPageView(
@@ -61,6 +60,8 @@ export async function trackPageView(
 ) {
   const env = (process as any).env;
   const d1 = env.DB as D1Database | undefined;
+
+  console.log(`[Track] PageView check. D1 present: ${!!d1}`);
 
   if (d1) {
     try {
@@ -80,8 +81,7 @@ export async function trackPageView(
     }
   }
 
-  // Fallback DISABLED for testing
-  /*
+  // Fallback
   await getSupabaseAdmin().rpc("track_visitor", {
     p_vid: visitor_id,
     p_device: device ?? null,
@@ -89,7 +89,6 @@ export async function trackPageView(
     p_path: path,
     p_ref: p_ref ?? null
   });
-  */
   
-  return { ok: false, source: "none (supa-disabled)" };
+  return { ok: true, source: "supabase" };
 }
