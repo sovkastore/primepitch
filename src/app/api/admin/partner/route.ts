@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { partnerMatches } from "@/lib/matches-engine";
-import { getPartnerOverviewD1 } from "@/lib/partner-engine";
+import { getPartnerOverviewD1, getPartnerPulseD1, getPartnerAnalyticsD1, getPartnerVisitorsD1 } from "@/lib/partner-engine";
 import { partnerBalances, scopeToOwn } from "@/lib/partner-scope";
 
 export const dynamic = "force-dynamic";
@@ -59,10 +59,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ start, end, ...scoped });
     }
     if (stat === "visitors") {
+      const env = (process as any).env;
+      const d1 = env.DB as D1Database | undefined;
+      if (!d1) return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
       const date = searchParams.get("date") || new Date().toISOString().slice(0, 10);
-      const { data, error } = await sb.rpc("partner_visitors", { p_ref: code, p_date: date });
-      if (error) throw error;
-      return NextResponse.json({ date, ...data });
+      const d1Visitors = await getPartnerVisitorsD1(d1, code, date);
+      const { fullStats } = await partnerBalances(code);
+      const scoped = fullStats ? d1Visitors : scopeToOwn(d1Visitors);
+      return NextResponse.json({ date, ...scoped });
     }
     return NextResponse.json({ error: "unknown stat" }, { status: 400 });
   } catch {

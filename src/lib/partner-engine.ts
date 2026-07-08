@@ -416,3 +416,183 @@ export async function getPartnerAnalyticsD1(
     topReferrers,
   };
 }
+
+import { type VisitorsData } from "@/components/partner/VisitorsPanel";
+
+export async function getPartnerVisitorsD1(
+  d1: D1Database,
+  refCode: string,
+  date: string
+): Promise<VisitorsData> {
+  const split = (t: number, h: number) => ({ total: t, his: h, yours: Math.max(0, t - h) });
+  const start = `${date}T00:00:00.000Z`;
+  const end = `${date}T23:59:59.999Z`;
+  
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const trendStart = new Date(Date.now() - 30 * DAY_MS).toISOString();
+
+  // 1) Lifetime stats (overall users ever joined)
+  const lifeRes = await d1.prepare(`
+    SELECT 
+      COUNT(DISTINCT visitor_id) as total,
+      COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as his
+    FROM d1_page_views
+  `).bind(refCode).first<any>();
+
+  const totalVisitors = split(lifeRes?.total || 0, lifeRes?.his || 0);
+
+  // 2) Came Back (visited on more than one calendar date)
+  const cbRes = await d1.prepare(`
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+    FROM (
+      SELECT visitor_id, MAX(ref_code) as ref_code
+      FROM d1_page_views
+      GROUP BY visitor_id
+      HAVING COUNT(DISTINCT strftime('%Y-%m-%d', created_at)) > 1
+    )
+  `).bind(refCode).first<any>();
+
+  const cameBack = split(cbRes?.total || 0, cbRes?.his || 0);
+
+  // 3) One Time Only
+  const oneTime = split(
+    Math.max(0, totalVisitors.total - cameBack.total),
+    Math.max(0, totalVisitors.his - cameBack.his)
+  );
+
+  // 4) Selected Day Details: Page Views
+  const pvRes = await d1.prepare(`
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+    FROM d1_page_views
+    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+  `).bind(refCode, start, end).first<any>();
+
+  const pageViews = split(pvRes?.total || 0, pvRes?.his || 0);
+
+  // 5) Selected Day Details: Unique Visitors
+  const uRes = await d1.prepare(`
+    SELECT 
+      COUNT(DISTINCT visitor_id) as total,
+      COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as his
+    FROM d1_page_views
+    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+  `).bind(refCode, start, end).first<any>();
+
+  const unique = split(uRes?.total || 0, uRes?.his || 0);
+
+  // 6) Selected Day Details: New Visitors
+  const newRes = await d1.prepare(`
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+    FROM (
+      SELECT visitor_id, MAX(ref_code) as ref_code, MIN(created_at) as first_seen
+      FROM d1_page_views
+      GROUP BY visitor_id
+    )
+    WHERE first_seen BETWEEN datetime(?) AND datetime(?)
+  `).bind(refCode, start, end).first<any>();
+
+  const newToday = split(newRes?.total || 0, newRes?.his || 0);
+
+  // 7) Selected Day Details: Returning Visitors
+  const returning = split(
+    Math.max(0, unique.total - newToday.total),
+    Math.max(0, unique.his - newToday.his)
+  );
+
+  // 8) Device Breakdowns (Selected Day)
+  const deviceRes = await d1.prepare(`
+    SELECT 
+      device_type as name,
+      COUNT(*) as total,
+      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+    FROM d1_page_views
+    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+    GROUP BY name
+    ORDER BY total DESC
+    LIMIT 20
+  `).bind(refCode, start, end).all();
+
+  const byDevice = (deviceRes.results || []).map((r: any) => ({
+    name: r.name || "unknown",
+    total: r.total,
+    his: r.his || 0,
+  }));
+
+  // 9) Trend unique (last 30 days)
+  const trendRes = await d1.prepare(`
+    SELECT 
+      strftime('%Y-%m-%d', created_at) as day_val,
+      COUNT(DISTINCT visitor_id) as total,
+      COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as his
+    FROM d1_page_views
+    WHERE created_at >= datetime(?)
+    GROUP BY day_val
+  `).bind(refCode, trendStart).all();
+
+  const trendMap = new Map((trendRes.results || []).map((r: any) => [
+    r.day_val, 
+    { total: r.total, his: r.his }
+  ]));
+
+  const trendUnique: { date: string; total: number; his: number }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i * DAY_MS).toISOString().slice(0, 10);
+    const val = trendMap.get(d) || { total: 0, his: 0 };
+    trendUnique.push({
+      date: d,
+      total: val.total,
+      his: val.his,
+    });
+  }
+
+  // 10) Roster (Referred joined members)
+  const rosterRes = await d1.prepare(`
+    SELECT 
+      visitor_id, 
+      first_seen, 
+      last_seen, 
+      visit_count,
+      device_type
+    FROM (
+      SELECT 
+        visitor_id,
+        MIN(created_at) as first_seen,
+        MAX(created_at) as last_seen,
+        COUNT(*) as visit_count,
+        MAX(device_type) as device_type,
+        (SELECT ref_code FROM d1_page_views pv WHERE pv.visitor_id = main.visitor_id ORDER BY pv.created_at ASC LIMIT 1) as first_ref
+      FROM d1_page_views main
+      GROUP BY visitor_id
+    )
+    WHERE first_ref = ?
+    ORDER BY last_seen DESC
+    LIMIT 50
+  `).bind(refCode).all();
+
+  const hisRoster = (rosterRes.results || []).map((r: any) => ({
+    visitor_id: r.visitor_id,
+    first_seen: r.first_seen,
+    last_seen: r.last_seen,
+    visit_count: r.visit_count,
+    device_type: r.device_type,
+  }));
+
+  return {
+    unique,
+    pageViews,
+    newToday,
+    returning,
+    totalVisitors,
+    cameBack,
+    oneTime,
+    byDevice,
+    trendUnique,
+    hisRoster,
+  };
+}
