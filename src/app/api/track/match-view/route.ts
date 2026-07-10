@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+// import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { countryFromRequest } from "@/lib/geo";
 import { isTrackingDisabled } from "@/lib/tracking";
 import { trackMatchView } from "@/lib/db-tracking";
@@ -45,7 +45,8 @@ export async function POST(request: Request) {
       ref_code
     );
 
-    // 2) Supabase Fallback (Parallel)
+    // 2) Supabase Fallback (Parallel) DISABLED
+    /*
     Promise.all([
       getSupabaseAdmin().from("match_views").insert({
         visitor_id,
@@ -75,10 +76,11 @@ export async function POST(request: Request) {
         try {
           await getSupabaseAdmin().rpc("bump_ref_peaks", { p_match_id: match_id });
         } catch {
-          /* optional/legacy function */
+          // optional/legacy function
         }
       })(),
     ]).catch(err => console.error("Supabase Track Error:", err));
+    */
 
     return NextResponse.json({ ok: true });
   } catch (e) {
