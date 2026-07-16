@@ -265,12 +265,14 @@ export default function CricketPage() {
           <div className="space-y-6">
             <div className="relative w-full bg-black rounded-2xl overflow-hidden shadow-2xl aspect-video border-2 md:border-4 border-emerald-500/20">
               <iframe
+                key={activeChannelId}
                 src={`https://playcrichd.st/update/fetch.php?hd=${activeChannelId}&embed=1`}
                 width="100%"
                 height="100%"
                 scrolling="no"
                 frameBorder="0"
                 allowFullScreen={true}
+                allow="encrypted-media; autoplay"
                 className="absolute inset-0 w-full h-full"
                 referrerPolicy="no-referrer"
               ></iframe>
