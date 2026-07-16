@@ -22,7 +22,7 @@ interface Match {
 
 const MASTER_CHANNELS: Record<number, string> = {
   2: "Sky Sports Cricket",
-  29: "Willow Cricket",
+  11: "Willow Cricket",
   25: "Star Sports 1",
   26: "Star Sports 1 Hindi",
   60: "Sky Sport 3 NZ",

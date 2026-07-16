@@ -6,7 +6,7 @@ import Link from "next/link";
 
 const MASTER_CHANNELS = [
   { name: "Sky Sports Cricket", id: 2 },
-  { name: "Willow Cricket", id: 29 },
+  { name: "Willow Cricket", id: 11 },
   { name: "Star Sports 1", id: 25 },
   { name: "Star Sports 1 Hindi", id: 26 },
   { name: "Sky Sports Main Event", id: 1 },
