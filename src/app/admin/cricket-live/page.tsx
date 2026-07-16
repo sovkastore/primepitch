@@ -41,6 +41,11 @@ export default function AdminCricketPage() {
   const [customId, setCustomId] = useState("");
   const [msg, setMsg] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
+  // Player appearance state
+  const [playerDescription, setPlayerDescription] = useState("Stream opens in a new window for the best viewing experience");
+  const [playerButtonText, setPlayerButtonText] = useState("Launch Stream");
+  const [playerBottomText, setPlayerBottomText] = useState("Click above to start watching");
+
   // Initialize client outside to ensure it's fresh
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,7 +54,26 @@ export default function AdminCricketPage() {
 
   useEffect(() => {
     fetchMatches();
+    fetchAppearanceSettings();
   }, []);
+
+  async function fetchAppearanceSettings() {
+    try {
+      const { data } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "cricket_player_text")
+        .maybeSingle();
+      if (data?.value) {
+        const val = data.value as any;
+        if (val.description) setPlayerDescription(val.description);
+        if (val.button_text) setPlayerButtonText(val.button_text);
+        if (val.bottom_text) setPlayerBottomText(val.bottom_text);
+      }
+    } catch (e: any) {
+      console.error("Error loading appearance settings:", e.message);
+    }
+  }
 
   useEffect(() => {
     if (msg) {
@@ -178,6 +202,30 @@ export default function AdminCricketPage() {
     }
   };
 
+  const handleSaveAppearance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg({ text: "Saving appearance settings...", type: "info" });
+    try {
+      const payload = {
+        description: playerDescription,
+        button_text: playerButtonText,
+        bottom_text: playerBottomText,
+      };
+
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ key: "cricket_player_text", value: payload }, { onConflict: "key" });
+
+      if (error) {
+        setMsg({ text: "Appearance save failed: " + error.message, type: "error" });
+      } else {
+        setMsg({ text: "SUCCESS! Player appearance settings saved.", type: "success" });
+      }
+    } catch (err: any) {
+      setMsg({ text: "Error saving appearance settings: " + err.message, type: "error" });
+    }
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto pb-32">
       <div className="flex items-center justify-between mb-8">
@@ -248,6 +296,27 @@ export default function AdminCricketPage() {
             <button type="submit" className="w-full py-3 bg-emerald-500 text-white rounded-xl text-[12px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">
               {editingMatch ? "Update Match" : "Save Match Now"}
             </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-12">
+        <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight mb-4">Player Appearance Settings</h2>
+        <form onSubmit={handleSaveAppearance} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Launch Button Text</label>
+            <input value={playerButtonText} onChange={e => setPlayerButtonText(e.target.value)} required placeholder="Launch Stream" className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 focus:ring-2 focus:ring-emerald-500/20 font-bold" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Stream Description</label>
+            <input value={playerDescription} onChange={e => setPlayerDescription(e.target.value)} required placeholder="Stream opens in a new window for the best viewing experience" className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 focus:ring-2 focus:ring-emerald-500/20 font-bold" />
+          </div>
+          <div className="flex flex-col justify-end">
+            <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Bottom Helper Text</label>
+            <div className="flex gap-2">
+              <input value={playerBottomText} onChange={e => setPlayerBottomText(e.target.value)} required placeholder="Click above to start watching" className="flex-1 px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 focus:ring-2 focus:ring-emerald-500/20 font-bold" />
+              <button type="submit" className="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 hover:text-black transition-colors shadow-md">SAVE</button>
+            </div>
           </div>
         </form>
       </div>

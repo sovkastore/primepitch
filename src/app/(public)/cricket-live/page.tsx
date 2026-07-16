@@ -41,6 +41,11 @@ export default function CricketPage() {
   const [loading, setLoading] = useState(true);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
+  const [playerText, setPlayerText] = useState({
+    description: "Stream opens in a new window for the best viewing experience",
+    button_text: "Launch Stream",
+    bottom_text: "Click above to start watching"
+  });
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,7 +54,28 @@ export default function CricketPage() {
 
   useEffect(() => {
     fetchMatches();
+    fetchPlayerText();
   }, []);
+
+  async function fetchPlayerText() {
+    try {
+      const { data } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "cricket_player_text")
+        .maybeSingle();
+      if (data?.value) {
+        const val = data.value as any;
+        setPlayerText({
+          description: val.description || playerText.description,
+          button_text: val.button_text || playerText.button_text,
+          bottom_text: val.bottom_text || playerText.bottom_text
+        });
+      }
+    } catch (e) {
+      console.error("Error fetching player text settings:", e);
+    }
+  }
 
   async function fetchMatches() {
     setLoading(true);
@@ -263,20 +289,20 @@ export default function CricketPage() {
 
         {activeChannelId ? (
           <div className="space-y-6">
-            <div className="relative w-full bg-gray-900 rounded-2xl overflow-hidden shadow-2xl aspect-video border-2 md:border-4 border-emerald-500/20 flex flex-col items-center justify-center text-center p-8">
-              <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6">
-                <svg className="w-10 h-10 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
+            <div className="relative w-full bg-gray-900 rounded-2xl overflow-hidden shadow-2xl min-h-[290px] md:aspect-video border-2 md:border-4 border-emerald-500/20 flex flex-col items-center justify-center text-center p-6 md:p-8">
+              <div className="w-14 h-14 md:w-20 md:h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4 md:mb-6">
+                <svg className="w-6 h-6 md:w-10 md:h-10 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
               </div>
-              <h3 className="text-white text-lg md:text-xl font-black mb-2">{MASTER_CHANNELS[activeChannelId] || `Channel ${activeChannelId}`}</h3>
-              <p className="text-gray-400 text-[12px] font-bold mb-6 max-w-sm">Stream opens in a new window for the best viewing experience</p>
+              <h3 className="text-white text-base md:text-xl font-black mb-1.5">{MASTER_CHANNELS[activeChannelId] || `Channel ${activeChannelId}`}</h3>
+              <p className="text-gray-400 text-[11px] md:text-[12px] font-bold mb-4 md:mb-6 max-w-xs md:max-w-sm px-4">{playerText.description}</p>
               <button
                 onClick={() => window.open(`https://playcrichd.st/update/fetch.php?hd=${activeChannelId}&embed=1`, '_blank', 'width=1000,height=600,scrollbars=no,resizable=yes')}
-                className="px-8 py-4 bg-emerald-500 text-black rounded-2xl text-[13px] font-black uppercase tracking-widest shadow-2xl shadow-emerald-500/30 hover:bg-emerald-400 active:scale-95 transition-all flex items-center gap-3"
+                className="px-6 md:px-8 py-3.5 md:py-4 bg-emerald-500 text-black rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-black uppercase tracking-widest shadow-2xl shadow-emerald-500/30 hover:bg-emerald-400 active:scale-95 transition-all flex items-center gap-2.5"
               >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
-                Launch Stream
+                <svg className="w-4 h-4 md:w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
+                {playerText.button_text}
               </button>
-              <p className="text-gray-600 text-[10px] font-bold mt-4 uppercase tracking-widest">Click above to start watching</p>
+              <p className="text-gray-600 text-[9px] md:text-[10px] font-bold mt-3 md:mt-4 uppercase tracking-widest">{playerText.bottom_text}</p>
             </div>
             
             <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800">
