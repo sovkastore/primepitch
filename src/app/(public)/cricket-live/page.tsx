@@ -272,6 +272,7 @@ export default function CricketPage() {
                 frameBorder="0"
                 allowFullScreen={true}
                 className="absolute inset-0 w-full h-full"
+                referrerPolicy="no-referrer"
               ></iframe>
             </div>
             
