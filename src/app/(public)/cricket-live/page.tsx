@@ -263,19 +263,20 @@ export default function CricketPage() {
 
         {activeChannelId ? (
           <div className="space-y-6">
-            <div className="relative w-full bg-black rounded-2xl overflow-hidden shadow-2xl aspect-video border-2 md:border-4 border-emerald-500/20">
-              <iframe
-                key={activeChannelId}
-                src={`https://stream.crichd.vip/update/fetch.php?hd=${activeChannelId}&embed=1`}
-                width="100%"
-                height="100%"
-                scrolling="no"
-                frameBorder="0"
-                allowFullScreen={true}
-                allow="encrypted-media; autoplay"
-                className="absolute inset-0 w-full h-full"
-                referrerPolicy="no-referrer"
-              ></iframe>
+            <div className="relative w-full bg-gray-900 rounded-2xl overflow-hidden shadow-2xl aspect-video border-2 md:border-4 border-emerald-500/20 flex flex-col items-center justify-center text-center p-8">
+              <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6">
+                <svg className="w-10 h-10 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
+              </div>
+              <h3 className="text-white text-lg md:text-xl font-black mb-2">{MASTER_CHANNELS[activeChannelId] || `Channel ${activeChannelId}`}</h3>
+              <p className="text-gray-400 text-[12px] font-bold mb-6 max-w-sm">Stream opens in a new window for the best viewing experience</p>
+              <button
+                onClick={() => window.open(`https://playcrichd.st/update/fetch.php?hd=${activeChannelId}&embed=1`, '_blank', 'width=1000,height=600,scrollbars=no,resizable=yes')}
+                className="px-8 py-4 bg-emerald-500 text-black rounded-2xl text-[13px] font-black uppercase tracking-widest shadow-2xl shadow-emerald-500/30 hover:bg-emerald-400 active:scale-95 transition-all flex items-center gap-3"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
+                Launch Stream
+              </button>
+              <p className="text-gray-600 text-[10px] font-bold mt-4 uppercase tracking-widest">Click above to start watching</p>
             </div>
             
             <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800">
