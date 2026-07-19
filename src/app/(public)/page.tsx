@@ -40,9 +40,6 @@ function filterBySport(matches: Match[], sport: string | null): Match[] {
 export default function HomePage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [liveMatches, setLiveMatches] = useState<Match[]>([]);
-  // Just-kicked-off matches that resolve to a stream but aren't in streamed.pk's
-  // curated live list yet — bridged in so they appear LIVE instantly (no gap).
-  const [bridged, setBridged] = useState<Match[]>([]);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [hiddenTitles, setHiddenTitles] = useState<Set<string>>(new Set());
   const [hotIds, setHotIds] = useState<Set<string>>(new Set());
@@ -108,48 +105,7 @@ export default function HomePage() {
     return visibleInterval(loadLive, 90_000);
   }, []);
 
-  // Seamless countdown→live: as soon as a match kicks off, resolve its stream
-  // directly and show it LIVE — instead of waiting for streamed.pk's live feed
-  // to catch up (which left a gap where the match vanished). Fires immediately
-  // at kickoff and re-checks every 20s while any match is in the gap. Costs
-  // nothing when there are no just-kicked-off matches.
-  useEffect(() => {
-    if (matches.length === 0) return;
-    let cancelled = false;
-    const liveKeySet = new Set(liveMatches.map(getMatchKey));
-    const candidatesNow = () =>
-      matches.filter(
-        (m) =>
-          getMatchStatus(m) === "live" &&
-          !liveKeySet.has(getMatchKey(m)) &&
-          !isFlagged(m, hiddenIds) &&
-          !hiddenTitles.has(normTeamKey(m))
-      );
-    const run = () => {
-      const cands = candidatesNow();
-      if (cands.length === 0) {
-        if (!cancelled) setBridged((prev) => (prev.length ? [] : prev));
-        return;
-      }
-      fetch("/api/live-bridge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ candidates: cands }),
-      })
-        .then((r) => r.json())
-        .then((d) => { if (!cancelled && Array.isArray(d.matches)) setBridged(d.matches); })
-        .catch(() => {});
-    };
-    run(); // immediate
-    const stopInterval = visibleInterval(run, 60_000);
-    
-    // Fire exactly at the next kickoff so the transition feels instant.
-    const now = Date.now();
-    const nextKick = matches.map((m) => m.date).filter((d) => d > now).sort((a, b) => a - b)[0];
-    let to: ReturnType<typeof setTimeout> | undefined;
-    if (nextKick && nextKick - now < 15 * 60_000) to = setTimeout(run, nextKick - now + 2000);
-    return () => { cancelled = true; stopInterval(); if (to) clearTimeout(to); };
-  }, [matches, liveMatches, hiddenIds, hiddenTitles]);
+
 
   // Hidden matches (admin) — keep them out of the upcoming list. Hot fixtures
   // (admin) get the red HOT badge.
@@ -180,13 +136,8 @@ export default function HomePage() {
     );
   }
 
-  // Curated live ∪ bridged (just-kicked-off, stream resolved), deduped.
-  const mergedLiveMap = new Map<string, Match>();
-  for (const m of liveMatches) mergedLiveMap.set(getMatchKey(m), m);
-  for (const m of bridged) if (!mergedLiveMap.has(getMatchKey(m))) mergedLiveMap.set(getMatchKey(m), m);
-  // Admin-hidden matches must drop out of LIVE too, not just Upcoming — once a
-  // hidden match kicks off it would otherwise reappear in the live row.
-  const mergedLive = Array.from(mergedLiveMap.values()).filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)));
+  // Filter out admin-hidden matches.
+  const mergedLive = liveMatches.filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)));
 
   // The matches actually shown as LIVE (after the premature-live guard). Build a
   // team-identity set from these so the same fixture can't also sit in Upcoming,
