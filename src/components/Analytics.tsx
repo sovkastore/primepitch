@@ -42,32 +42,37 @@ export default function Analytics() {
 
   // Heartbeat for active presence — Only runs when actively on a live stream watch page
   // to track people currently watching a live match.
+  // Re-runs on every navigation so entering a watch page fires an instant heartbeat.
   useEffect(() => {
     const visitor_id = getVisitorId();
     if (!visitor_id) return;
 
+    // Only set up heartbeat interval on watch pages
+    const watchMatch = pathname.match(/^\/watch\/([^/]+)/);
+    if (!watchMatch) return;
+
+    const matchId = decodeURIComponent(watchMatch[1]);
+
     const sendHeartbeat = () => {
-      const path = window.location.pathname;
-      const watchMatch = path.match(/^\/watch\/([^/]+)/);
       // The watch page raises this flag once its match has ended.
       const ended = (window as unknown as { __ppMatchEnded?: boolean }).__ppMatchEnded === true;
-
-      // Only send heartbeat if they are on an active watch page
-      if (!watchMatch || ended) return;
+      if (ended) return;
 
       fetch("/api/track/heartbeat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           visitor_id,
-          path,
-          match_id: decodeURIComponent(watchMatch[1]),
+          path: pathname,
+          match_id: matchId,
         }),
       }).catch(() => {});
     };
 
-    return visibleInterval(sendHeartbeat, 300_000);
-  }, []);
+    // Fire immediately + every 30s to keep the count accurate.
+    // This is safe: each heartbeat is a single UPSERT (no new rows created).
+    return visibleInterval(sendHeartbeat, 30_000);
+  }, [pathname]);
 
   return null;
 }
