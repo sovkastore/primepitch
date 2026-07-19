@@ -5,20 +5,21 @@ import { getD1 } from "./d1";
  * High-Speed DB Helper
  * This intelligently switches between Cloudflare D1 (Fast) and Supabase (Backup)
  */
-export async function trackHeartbeat(visitor_id: string, path: string, match_id?: string | null) {
+export async function trackHeartbeat(visitor_id: string, path: string, match_id?: string | null, ref_code?: string | null) {
   const d1 = await getD1();
 
   if (d1) {
     try {
       // 1) High-Speed Write to Cloudflare
       await d1.prepare(`
-        INSERT INTO d1_active_viewers (visitor_id, match_id, path, last_seen)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO d1_active_viewers (visitor_id, match_id, path, ref_code, last_seen)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(visitor_id) DO UPDATE SET
           match_id = excluded.match_id,
           path = excluded.path,
+          ref_code = excluded.ref_code,
           last_seen = CURRENT_TIMESTAMP
-      `).bind(visitor_id, match_id || null, path).run();
+      `).bind(visitor_id, match_id || null, path, ref_code || null).run();
 
       if (match_id) {
         // Track match-specific duration + local peaks

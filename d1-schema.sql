@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS d1_active_viewers (
     visitor_id TEXT PRIMARY KEY,
     match_id TEXT,
     path TEXT NOT NULL,
+    ref_code TEXT,
     last_seen DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_active_viewers_last_seen ON d1_active_viewers(last_seen);
