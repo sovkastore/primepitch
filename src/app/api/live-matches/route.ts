@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { getMatchStatus } from "@/lib/api";
+import { getMatchStatus, normTeamKey } from "@/lib/api";
 import type { Match } from "@/lib/api";
 
 // "LIVE" = actually watchable. Start from streamed.pk's curated live set, union in
@@ -179,6 +179,54 @@ export async function GET() {
     matches = matches.map((m) =>
       flags.hot.has(keyOf(m)) ? { ...m, hot: true } : m
     );
+
+    // Deduplicate live matches by category + normalized team names
+    const richness = (m: Match) =>
+      (m.teams?.home?.name ? 4 : 0) + (m.teams?.home?.badge ? 1 : 0) + (m.teams?.away?.badge ? 1 : 0);
+
+    const merged = new Map<string, Match>();
+    for (const m of matches) {
+      const teamKey = normTeamKey(m);
+      if (!teamKey) {
+        merged.set(keyOf(m), m);
+        continue;
+      }
+      const key = m.category ? `${m.category}|${teamKey}` : teamKey;
+      const existing = merged.get(key);
+      if (!existing) {
+        merged.set(key, m);
+      } else {
+        const mIsAdmin = !keyOf(m).includes("--") || m.forced;
+        const existIsAdmin = !keyOf(existing).includes("--") || existing.forced;
+
+        // Combine sources, prioritizing admin custom streams at the front
+        const primarySources = mIsAdmin ? m.sources : existing.sources;
+        const secondarySources = mIsAdmin ? existing.sources : m.sources;
+
+        const combinedSources = [...(primarySources ?? [])];
+        const seenSources = new Set(combinedSources.map(s => `${s.source}--${s.id}`));
+        for (const s of secondarySources ?? []) {
+          const sKey = `${s.source}--${s.id}`;
+          if (!seenSources.has(sKey)) {
+            seenSources.add(sKey);
+            combinedSources.push(s);
+          }
+        }
+
+        // Prefer admin/override metadata
+        const preferNew = mIsAdmin || (!existIsAdmin && richness(m) > richness(existing));
+        const mergedMatch: Match = {
+          ...(preferNew ? m : existing),
+          sources: combinedSources,
+          hot: existing.hot || m.hot,
+          forced: existing.forced || m.forced,
+          ended: existing.ended || m.ended,
+        };
+        merged.set(key, mergedMatch);
+      }
+    }
+    matches = Array.from(merged.values());
+
     // Featured first (stable otherwise)
     matches = matches
       .map((m, i) => ({ m, i, f: flags.featured.has(keyOf(m)) ? 1 : 0 }))
