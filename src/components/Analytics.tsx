@@ -13,6 +13,11 @@ export default function Analytics() {
     if (pathname === lastPath.current) return;
     lastPath.current = pathname;
 
+    // Only track the initial landing page view of the session to keep Visitors logs active
+    // without bloating the database with every page transition.
+    const isSessionTracked = sessionStorage.getItem("pp_session_tracked");
+    if (isSessionTracked) return;
+
     const visitor_id = getVisitorId();
     if (!visitor_id) return;
 
@@ -26,12 +31,17 @@ export default function Analytics() {
         user_agent: navigator.userAgent,
         device_type: getDeviceType(),
       }),
-    }).catch(() => {});
+    })
+      .then((res) => {
+        if (res.ok) {
+          sessionStorage.setItem("pp_session_tracked", "true");
+        }
+      })
+      .catch(() => {});
   }, [pathname]);
 
-  // Heartbeat for active presence — the ONLY heartbeat on the site (the watch
-  // page no longer runs its own). Every 2.5 min to keep request usage low; when
-  // on a watch page it includes the match_id so per-match presence still works.
+  // Heartbeat for active presence — Only runs when actively on a live stream watch page
+  // to track people currently watching a live match.
   useEffect(() => {
     const visitor_id = getVisitorId();
     if (!visitor_id) return;
@@ -39,16 +49,19 @@ export default function Analytics() {
     const sendHeartbeat = () => {
       const path = window.location.pathname;
       const watchMatch = path.match(/^\/watch\/([^/]+)/);
-      // The watch page raises this flag once its match has ended, so a person
-      // returning to an old tab counts as online — not as watching a stream.
+      // The watch page raises this flag once its match has ended.
       const ended = (window as unknown as { __ppMatchEnded?: boolean }).__ppMatchEnded === true;
+
+      // Only send heartbeat if they are on an active watch page
+      if (!watchMatch || ended) return;
+
       fetch("/api/track/heartbeat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           visitor_id,
           path,
-          match_id: watchMatch && !ended ? decodeURIComponent(watchMatch[1]) : null,
+          match_id: decodeURIComponent(watchMatch[1]),
         }),
       }).catch(() => {});
     };
