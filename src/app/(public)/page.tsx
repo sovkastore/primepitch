@@ -45,6 +45,7 @@ export default function HomePage() {
   const [hotIds, setHotIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activeSport, setActiveSport] = useState<string | null>("football");
+  const [showPopular, setShowPopular] = useState(true);
 
   // Restore the last-selected sport so returning to home keeps the tab the user
   // was on (instead of snapping back to Football). Runs after mount → no hydration
@@ -152,6 +153,7 @@ export default function HomePage() {
       if (isFlagged(m, hiddenIds) || hiddenTitles.has(normTeamKey(m))) return false;
       const tk = normTeamKey(m);
       if (tk.includes("|") && liveTeamKeys.has(tk)) return false; // already live
+      if (activeSport === "football" && showPopular && !m.popular) return false;
       return true;
     })
     .map((m) => (isFlagged(m, hotIds) ? { ...m, hot: true } : m));
@@ -164,6 +166,22 @@ export default function HomePage() {
       <div className="flex-1 pb-10">
         <SportsNav activeSport={activeSport} onSelect={selectSport} />
         {activeSport === "football" && <LeagueNav active="all" />}
+        {activeSport === "football" && (
+          <div className="max-w-[1400px] mx-auto px-4 lg:px-6 mb-4 flex gap-2">
+            <button 
+              onClick={() => setShowPopular(true)}
+              className={`px-4 py-1.5 text-xs font-bold rounded-full transition-colors ${showPopular ? 'bg-red-600 text-white shadow-md' : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'}`}
+            >
+              Popular
+            </button>
+            <button 
+              onClick={() => setShowPopular(false)}
+              className={`px-4 py-1.5 text-xs font-bold rounded-full transition-colors ${!showPopular ? 'bg-emerald-600 text-white shadow-md' : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'}`}
+            >
+              All Matches
+            </button>
+          </div>
+        )}
         <PromoBanner />
         <LiveNow matches={liveForSport} />
         <TodayMatches matches={filtered} excludeKeys={liveKeys} />
