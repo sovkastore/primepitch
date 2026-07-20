@@ -71,7 +71,12 @@ async function run() {
         }
         
         const cols = t.keys.join(', ');
-        const vals = t.keys.map(k => escapeSql(r[k])).join(', ');
+        const vals = t.keys.map(k => {
+          if (t.name === 'tv_channels' && k === 'embed_url' && (r[k] === null || r[k] === undefined)) {
+            return "''";
+          }
+          return escapeSql(r[k]);
+        }).join(', ');
         
         if (t.name === 'stream_overrides') {
           statements.push(`INSERT INTO ${t.d1Name} (${cols}) VALUES (${vals});`);
