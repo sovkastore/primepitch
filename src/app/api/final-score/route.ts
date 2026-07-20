@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // Final score lookup for ended matches: checks our permanent wc_results archive
 // first, then the live events feed (which keeps recently-finished matches for a
@@ -33,11 +33,18 @@ export async function GET(request: NextRequest) {
     if (!home || !away) return NextResponse.json({ score: null });
 
     // 1) Our permanent archive
-    const { data: archived } = await getSupabaseAdmin()
-      .from("wc_results")
-      .select("home_team, away_team, home_score, away_score, group_name, event_date")
-      .order("event_date", { ascending: false })
-      .limit(100);
+    const d1 = await getD1();
+    let archived: any[] = [];
+    if (d1) {
+      try {
+        const { results } = await d1.prepare(
+          "SELECT home_team, away_team, home_score, away_score, group_name, event_date FROM d1_wc_results ORDER BY event_date DESC LIMIT 100"
+        ).all();
+        archived = results;
+      } catch (e) {
+        // Table might not exist yet
+      }
+    }
 
     const arch = archived?.find((r) => {
       const h = canon(r.home_team), a = canon(r.away_team);

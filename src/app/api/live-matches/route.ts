@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { getMatchStatus, normTeamKey } from "@/lib/api";
 import type { Match } from "@/lib/api";
 import { resolveStreams } from "@/lib/streams";
@@ -30,7 +29,7 @@ interface FlagSets {
   hot: Set<string>;
 }
 
-import { withTimeout } from "@/lib/supabase/timeout";
+import { getD1 } from "@/lib/d1";
 
 async function getFlags(): Promise<FlagSets> {
   const hidden = new Set<string>();
@@ -41,29 +40,25 @@ async function getFlags(): Promise<FlagSets> {
   const forceEnded = new Set<string>();
   const hot = new Set<string>();
   try {
-    const { data } = (await withTimeout(
-      getSupabaseAdmin()
-        .from("match_flags")
-        .select("match_id, hidden, forced_live, featured, disable_auto, match_data, display_title, force_ended, hot") as any
-    )) as any;
-    for (const r of (data ?? []) as Array<{
-      match_id: string;
-      hidden: boolean;
-      forced_live: boolean;
-      featured: boolean;
-      disable_auto: boolean;
-      match_data: Match | null;
-      display_title?: string | null;
-      force_ended?: boolean | null;
-      hot?: boolean | null;
-    }>) {
-      if (r.hidden) hidden.add(r.match_id);
-      if (r.disable_auto) disableAuto.add(r.match_id);
-      if (r.featured) featured.add(r.match_id);
-      if (r.forced_live && r.match_data) forcedLive.set(r.match_id, r.match_data);
-      if (r.display_title) renames.set(r.match_id, r.display_title);
-      if (r.force_ended) forceEnded.add(r.match_id);
-      if (r.hot) hot.add(r.match_id);
+    const d1 = await getD1();
+    if (d1) {
+      const fetchFlags = (async () => {
+        const { results } = await d1.prepare("SELECT match_id, hidden, forced_live, featured, disable_auto, match_data, display_title, force_ended, hot FROM d1_match_flags").all();
+        return results;
+      })();
+      const data = await Promise.race([
+        fetchFlags,
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+      ]);
+      for (const r of data ?? []) {
+        if (r.hidden) hidden.add(r.match_id);
+        if (r.disable_auto) disableAuto.add(r.match_id);
+        if (r.featured) featured.add(r.match_id);
+        if (r.forced_live && r.match_data) forcedLive.set(r.match_id, typeof r.match_data === 'string' ? JSON.parse(r.match_data) : r.match_data);
+        if (r.display_title) renames.set(r.match_id, r.display_title);
+        if (r.force_ended) forceEnded.add(r.match_id);
+        if (r.hot) hot.add(r.match_id);
+      }
     }
   } catch {
     /* DB timeout or match_flags may not exist — degrade to no flags */
@@ -74,14 +69,19 @@ async function getFlags(): Promise<FlagSets> {
 async function getOverrideBacked(): Promise<Map<string, Match>> {
   const map = new Map<string, Match>();
   try {
-    const { data } = (await withTimeout(
-      getSupabaseAdmin()
-        .from("stream_overrides")
-        .select("match_id, match_data")
-        .eq("enabled", true) as any
-    )) as any;
-    for (const r of (data ?? []) as Array<{ match_id: string; match_data: Match | null }>) {
-      if (r.match_data && !map.has(r.match_id)) map.set(r.match_id, r.match_data);
+    const d1 = await getD1();
+    if (d1) {
+      const fetchOverrides = (async () => {
+        const { results } = await d1.prepare("SELECT match_id, match_data FROM d1_stream_overrides WHERE enabled = 1").all();
+        return results;
+      })();
+      const data = await Promise.race([
+        fetchOverrides,
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+      ]);
+      for (const r of data ?? []) {
+        if (r.match_data && !map.has(r.match_id)) map.set(r.match_id, typeof r.match_data === 'string' ? JSON.parse(r.match_data) : r.match_data);
+      }
     }
   } catch {
     /* DB timeout or match_data column may not exist — skip override-backed surfacing */
@@ -103,14 +103,19 @@ function isRealMatchOver(m: Match, finishedKeys: Set<string>): boolean {
 async function getFinishedWcKeys(): Promise<Set<string>> {
   const keys = new Set<string>();
   try {
-    const { data } = (await withTimeout(
-      getSupabaseAdmin()
-        .from("push_match_state")
-        .select("match_key")
-        .eq("finished", true) as any
-    )) as any;
-    for (const r of (data ?? []) as Array<{ match_key: string }>) {
-      if (r.match_key) keys.add(r.match_key);
+    const d1 = await getD1();
+    if (d1) {
+      const fetchFinished = (async () => {
+        const { results } = await d1.prepare("SELECT match_key FROM d1_push_match_state WHERE finished = 1").all();
+        return results;
+      })();
+      const data = await Promise.race([
+        fetchFinished,
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+      ]);
+      for (const r of data ?? []) {
+        if (r.match_key) keys.add(r.match_key);
+      }
     }
   } catch {
     /* DB timeout or push_match_state may not exist — skip early retire */

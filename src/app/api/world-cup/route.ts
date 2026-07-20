@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // FIFA World Cup 2026 = BSD league id 27. We expose its fixtures + ready-made group
 // standings to the public /world-cup page. Cached server-side so the page can poll.
@@ -98,51 +98,55 @@ export async function GET() {
     const canonKeyOf = (h: string, a: string, ts: number) => `${canon(h)}|${canon(a)}|${dayOf(ts)}`;
 
     try {
+      const d1 = await getD1();
+      if (!d1) throw new Error("DB down");
+
       // (1) Snapshot scored fixtures (live or finished) — final write wins.
       const scored = fixtures.filter((f) => f.home_score !== null && f.date > 0);
       if (scored.length > 0) {
-        await getSupabaseAdmin().from("wc_results").upsert(
-          scored.map((f) => ({
-            match_key: keyOf(f.home.name, f.away.name, f.date),
-            home_team: f.home.name,
-            away_team: f.away.name,
-            home_country: f.home.country,
-            away_country: f.away.country,
-            home_score: f.home_score,
-            away_score: f.away_score,
-            group_name: f.group,
-            round_number: f.round,
-            event_date: new Date(f.date).toISOString(),
-            status: f.status || "live",
-            updated_at: new Date().toISOString(),
-          })),
-          { onConflict: "match_key" }
-        );
+        for (const f of scored) {
+          await d1.prepare(`
+            INSERT OR REPLACE INTO d1_wc_results 
+            (match_key, home_team, away_team, home_country, away_country, home_score, away_score, group_name, round_number, event_date, status, updated_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            keyOf(f.home.name, f.away.name, f.date),
+            f.home.name,
+            f.away.name,
+            f.home.country,
+            f.away.country,
+            f.home_score,
+            f.away_score,
+            f.group,
+            f.round,
+            new Date(f.date).toISOString(),
+            f.status || "live",
+            new Date().toISOString()
+          ).run();
+        }
       }
 
       // (2) Merge archived results the feed no longer carries.
-      const { data: archived } = await getSupabaseAdmin()
-        .from("wc_results")
-        .select("*")
-        .order("event_date", { ascending: false })
-        .limit(200);
+      const { results: archived } = await d1.prepare(
+        "SELECT * FROM d1_wc_results ORDER BY event_date DESC LIMIT 200"
+      ).all();
 
       if (archived && archived.length > 0) {
         const present = new Set(fixtures.map((f) => canonKeyOf(f.home.name, f.away.name, f.date)));
         let syntheticId = -1;
-        for (const r of archived) {
-          const ts = r.event_date ? Date.parse(r.event_date) : 0;
-          if (present.has(canonKeyOf(r.home_team, r.away_team, ts))) continue;
+        for (const r of archived as any[]) {
+          const ts = r.event_date ? Date.parse(r.event_date as string) : 0;
+          if (present.has(canonKeyOf(r.home_team as string, r.away_team as string, ts))) continue;
           fixtures.push({
             id: syntheticId--,
-            group: r.group_name || null,
-            round: r.round_number ?? null,
+            group: (r.group_name as string) || null,
+            round: (r.round_number as number) ?? null,
             date: ts,
             status: "finished",
-            home: { name: r.home_team, country: r.home_country || r.home_team },
-            away: { name: r.away_team, country: r.away_country || r.away_team },
-            home_score: r.home_score,
-            away_score: r.away_score,
+            home: { name: r.home_team as string, country: (r.home_country as string) || (r.home_team as string) },
+            away: { name: r.away_team as string, country: (r.away_country as string) || (r.away_team as string) },
+            home_score: r.home_score as number,
+            away_score: r.away_score as number,
             minute: null,
             period: "",
           });

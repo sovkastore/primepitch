@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 /**
  * Global check to see if database-heavy tracking (visits, heartbeats, online status)
@@ -8,20 +8,26 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
  */
 export async function isTrackingDisabled(): Promise<boolean> {
   try {
-    const promise = getSupabaseAdmin()
-      .from("site_settings")
-      .select("value")
-      .eq("key", "maintenance")
-      .maybeSingle();
+    const d1 = await getD1();
+    if (!d1) return false;
+
+    const promise = d1.prepare(
+      `SELECT value FROM d1_site_settings WHERE key = 'maintenance'`
+    ).first<{ value: string }>();
 
     // 3s hard timeout
-    const res = await Promise.race([
+    const row = await Promise.race([
       promise,
       new Promise<any>((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 3000))
     ]);
 
-    const value = res?.data?.value as { disable_tracking?: boolean } | null;
-    return value?.disable_tracking === true;
+    if (!row?.value) return false;
+    try {
+      const parsed = JSON.parse(row.value);
+      return parsed?.disable_tracking === true;
+    } catch {
+      return false;
+    }
   } catch {
     // If DB is down or timing out, we should probably assume "disable tracking" 
     // to protect the DB from further load, but for now we follow safety.

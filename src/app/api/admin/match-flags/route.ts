@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // Admin: per-match flags (hide / force-live / featured / disable auto-fallback).
 export async function GET() {
   try {
-    const { data } = await getSupabaseAdmin().from("match_flags").select("*");
-    return NextResponse.json({ flags: data ?? [] });
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ flags: [] });
+
+    const { results } = await d1.prepare("SELECT * FROM d1_match_flags").all();
+    return NextResponse.json({ flags: results ?? [] });
   } catch {
     return NextResponse.json({ flags: [] });
   }
@@ -29,22 +32,36 @@ export async function POST(request: NextRequest) {
     if (typeof featured === "boolean") row.featured = featured;
     if (typeof disable_auto === "boolean") row.disable_auto = disable_auto;
     if (typeof auto_fallback === "boolean") row.auto_fallback = auto_fallback;
-    if (match_data) row.match_data = match_data;
+    if (match_data) row.match_data = typeof match_data === 'object' ? JSON.stringify(match_data) : match_data;
     if (typeof display_title === "string") row.display_title = display_title.trim() || null;
     if (typeof force_ended === "boolean") row.force_ended = force_ended;
     if (typeof hot === "boolean") row.hot = hot;
 
-    const { error } = await getSupabaseAdmin()
-      .from("match_flags")
-      .upsert(row, { onConflict: "match_id" });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+
+    const keys = Object.keys(row);
+    const values = Object.values(row);
+    const setClause = keys.map(k => `${k} = excluded.${k}`).join(", ");
+    
+    const query = `
+      INSERT INTO d1_match_flags (${keys.join(", ")})
+      VALUES (${keys.map(() => "?").join(", ")})
+      ON CONFLICT(match_id) DO UPDATE SET ${setClause};
+    `;
+
+    try {
+      await d1.prepare(query).bind(...values).run();
+    } catch (error: any) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     // Keep analytics labels in sync so renamed matches don't fragment in the
     // admin merge (labels only — no metrics are touched).
     if (typeof display_title === "string" && display_title.trim()) {
       const t = display_title.trim();
-      await getSupabaseAdmin().from("match_stats").update({ match_title: t }).eq("match_id", match_id);
-      await getSupabaseAdmin().from("match_views").update({ match_title: t }).eq("match_id", match_id);
+      await d1.prepare("UPDATE d1_match_summaries SET match_title = ? WHERE match_id = ?").bind(t, match_id).run();
+      await d1.prepare("UPDATE d1_match_views SET match_title = ? WHERE match_id = ?").bind(t, match_id).run();
     }
     return NextResponse.json({ ok: true });
   } catch {

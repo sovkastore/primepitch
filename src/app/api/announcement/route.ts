@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // Public: the site-wide announcement banner config the client reads. When
 // `enabled` is false (the default) nothing shows. The link is sanitised on
@@ -32,12 +32,14 @@ export async function GET() {
   }
 
   try {
-    const { data } = await Promise.race([
-      getSupabaseAdmin()
-        .from("site_settings")
-        .select("value")
-        .eq("key", "announcement")
-        .maybeSingle(),
+    const d1 = await getD1();
+    if (!d1) throw new Error("DB unavailable");
+    const fetchAnnouncement = (async () => {
+      const row = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind("announcement").first<{ value: string }>();
+      return row ? { value: JSON.parse(row.value) } : null;
+    })();
+    const data = await Promise.race([
+      fetchAnnouncement,
       new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
     ]);
     const cfg = { ...EMPTY, ...(data?.value ?? {}) } as Announcement;

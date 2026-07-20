@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 
 const MASTER_CHANNELS = [
@@ -46,12 +45,6 @@ export default function AdminCricketPage() {
   const [playerButtonText, setPlayerButtonText] = useState("Launch Stream");
   const [playerBottomText, setPlayerBottomText] = useState("Click above to start watching");
 
-  // Initialize client outside to ensure it's fresh
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   useEffect(() => {
     fetchMatches();
     fetchAppearanceSettings();
@@ -59,13 +52,10 @@ export default function AdminCricketPage() {
 
   async function fetchAppearanceSettings() {
     try {
-      const { data } = await supabase
-        .from("site_settings")
-        .select("value")
-        .eq("key", "cricket_player_text")
-        .maybeSingle();
+      const res = await fetch("/api/cricket?type=player-text");
+      const data = await res.json();
       if (data?.value) {
-        const val = data.value as any;
+        const val = data.value;
         if (val.description) setPlayerDescription(val.description);
         if (val.button_text) setPlayerButtonText(val.button_text);
         if (val.bottom_text) setPlayerBottomText(val.bottom_text);
@@ -85,25 +75,12 @@ export default function AdminCricketPage() {
   async function fetchMatches() {
     setLoading(true);
     try {
-      // Try fetching with starts_at (the new way)
-      let result = await supabase
-        .from("cricket_streams")
-        .select("*")
-        .order("starts_at", { ascending: true });
-      
-      // If it fails because column doesn't exist yet, fall back to created_at
-      if (result.error && result.error.message.includes("starts_at")) {
-        console.warn("Database column 'starts_at' not found. Falling back to 'created_at'. Please run the SQL migration.");
-        result = await supabase
-          .from("cricket_streams")
-          .select("*")
-          .order("created_at", { ascending: false });
-      }
-
-      if (result.error) {
-        setMsg({ text: "Fetch Error: " + result.error.message, type: "error" });
-      } else if (result.data) {
-        setMatches(result.data);
+      const res = await fetch("/api/cricket?admin=true");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setMatches(data);
+      } else {
+        setMsg({ text: "Fetch Error: " + (data.error || "Unknown error"), type: "error" });
       }
     } catch (e: any) {
       setMsg({ text: "System Error: " + e.message, type: "error" });
@@ -212,12 +189,15 @@ export default function AdminCricketPage() {
         bottom_text: playerBottomText,
       };
 
-      const { error } = await supabase
-        .from("site_settings")
-        .upsert({ key: "cricket_player_text", value: payload }, { onConflict: "key" });
+      const res = await fetch("/api/cricket?type=player-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
 
-      if (error) {
-        setMsg({ text: "Appearance save failed: " + error.message, type: "error" });
+      if (data.error) {
+        setMsg({ text: "Appearance save failed: " + data.error, type: "error" });
       } else {
         setMsg({ text: "SUCCESS! Player appearance settings saved.", type: "success" });
       }

@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // Per-match "Notify me": add or remove a follow for one fixture, keyed by an
 // accent-folded team pair (e.g. "japan|netherlands"). Reuses the same Web Push
-// subscription the subscribe flow uses, so it adds no Cloudflare load.
-//
-// A follow lives in `match_follows`; the push engine reads that table directly.
-// We also make sure a `push_subscriptions` row exists for this device (the
-// follow has a foreign key onto it). For a device that has never used the full
-// subscribe page, we seed minimal prefs (wcAll:false) so it ONLY gets the
-// matches it explicitly follows — never the whole World Cup.
+// subscription the subscribe flow uses.
 
 const DEFAULT_ALERTS = {
   startingSoon: true, almostKickoff: true, kickoff: true,
@@ -18,6 +12,9 @@ const DEFAULT_ALERTS = {
 
 export async function POST(request: NextRequest) {
   try {
+    const d1 = await getD1();
+    if (!d1) throw new Error("D1 database binding missing");
+
     const body = await request.json();
     const action = body?.action === "remove" ? "remove" : "add";
     const sub = body?.subscription;
@@ -30,10 +27,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
     const teamKey = rawKey.slice(0, 120);
-    const admin = getSupabaseAdmin();
 
     if (action === "remove") {
-      await admin.from("match_follows").delete().eq("team_key", teamKey).eq("endpoint", endpoint);
+      await d1.prepare(`
+        DELETE FROM d1_match_follows WHERE team_key = ? AND endpoint = ?
+      `).bind(teamKey, endpoint).run();
       return NextResponse.json({ ok: true });
     }
 
@@ -42,40 +40,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
 
-    const { data: existing } = await admin
-      .from("push_subscriptions")
-      .select("endpoint")
-      .eq("endpoint", endpoint)
-      .maybeSingle();
+    const existing = await d1.prepare(`
+      SELECT endpoint FROM d1_push_subscriptions WHERE endpoint = ?
+    `).bind(endpoint).first<{ endpoint: string }>();
+
+    const userAgent = typeof body?.ua === "string" ? (body.ua as string).slice(0, 300) : null;
+    const lastSeenAt = new Date().toISOString();
 
     if (existing) {
       // Keep this device's existing follow choices; just refresh keys/seen.
-      await admin
-        .from("push_subscriptions")
-        .update({
-          p256dh, auth,
-          last_seen_at: new Date().toISOString(),
-          user_agent: typeof body?.ua === "string" ? (body.ua as string).slice(0, 300) : undefined,
-        })
-        .eq("endpoint", endpoint);
+      await d1.prepare(`
+        UPDATE d1_push_subscriptions
+        SET p256dh = ?, auth = ?, last_seen_at = ?, user_agent = ?
+        WHERE endpoint = ?
+      `).bind(p256dh, auth, lastSeenAt, userAgent, endpoint).run();
     } else {
-      await admin.from("push_subscriptions").insert({
+      await d1.prepare(`
+        INSERT INTO d1_push_subscriptions (endpoint, p256dh, auth, topics, prefs, user_agent, last_seen_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(
         endpoint, p256dh, auth,
-        topics: [],
-        prefs: { wcAll: false, countries: [], alerts: { ...DEFAULT_ALERTS } },
-        user_agent: typeof body?.ua === "string" ? (body.ua as string).slice(0, 300) : null,
-        last_seen_at: new Date().toISOString(),
-      });
+        JSON.stringify([]),
+        JSON.stringify({ wcAll: false, countries: [], alerts: { ...DEFAULT_ALERTS } }),
+        userAgent, lastSeenAt
+      ).run();
     }
 
     const title = typeof body?.title === "string" ? (body.title as string).slice(0, 120) : null;
-    const { error } = await admin
-      .from("match_follows")
-      .upsert({ team_key: teamKey, endpoint, title }, { onConflict: "team_key,endpoint" });
-    if (error) throw error;
+    await d1.prepare(`
+      INSERT INTO d1_match_follows (team_key, endpoint, title, created_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(team_key, endpoint) DO UPDATE SET
+        title = excluded.title
+    `).bind(teamKey, endpoint, title, new Date().toISOString()).run();
 
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 500 });
+  } catch (err: any) {
+    console.error("POST notify-match error:", err);
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }

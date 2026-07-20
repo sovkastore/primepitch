@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { normTeamKey } from "@/lib/api";
 
 // Public: which matches are hidden / featured / hot, so the upcoming lists
@@ -16,20 +16,27 @@ export async function GET() {
   }
 
   try {
-    const fetchFlags = getSupabaseAdmin()
-      .from("match_flags")
-      .select("match_id, hidden, hide_one, featured, hot, match_data")
-      .eq("hidden", false)
-      .order("updated_at", { ascending: false })
-      .limit(1000);
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+
+    const fetchFlags = (async () => {
+      const res = await d1.prepare("SELECT match_id, hidden, hide_one, featured, hot, match_data FROM d1_match_flags WHERE hidden = 0 ORDER BY updated_at DESC LIMIT 1000").all();
+      // SQLite booleans are returned as 0 or 1, map them to boolean
+      return res.results.map((r: any) => ({
+        ...r,
+        hidden: Boolean(r.hidden),
+        hide_one: Boolean(r.hide_one),
+        featured: Boolean(r.featured),
+        hot: Boolean(r.hot),
+        match_data: typeof r.match_data === "string" ? JSON.parse(r.match_data) : r.match_data
+      }));
+    })();
       
     // Race against a 3s timeout to keep the site snappy during DB glitches
-    const { data, error } = await Promise.race([
+    const data = await Promise.race([
       fetchFlags,
       new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000))
     ]);
-
-    if (error) throw error;
       
     const hidden: string[] = [];
     const featured: string[] = [];

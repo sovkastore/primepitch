@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 const KEY = "help_content";
 const TTL = 300_000; // 5 minutes cache
@@ -12,13 +12,11 @@ export async function GET() {
   }
 
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("site_settings")
-      .select("value")
-      .eq("key", KEY)
-      .maybeSingle();
-    
-    const result = data?.value || null;
+    const d1 = await getD1();
+    if (!d1) throw new Error("DB unavailable");
+
+    const row = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind(KEY).first<{ value: string }>();
+    const result = row?.value ? JSON.parse(row.value) : null;
     cache = { data: result, ts: now };
     return NextResponse.json(result);
   } catch {

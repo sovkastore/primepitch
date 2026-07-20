@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 
 
@@ -47,11 +46,6 @@ export default function CricketPage() {
     bottom_text: "Click above to start watching"
   });
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   useEffect(() => {
     fetchMatches();
     fetchPlayerText();
@@ -59,13 +53,10 @@ export default function CricketPage() {
 
   async function fetchPlayerText() {
     try {
-      const { data } = await supabase
-        .from("site_settings")
-        .select("value")
-        .eq("key", "cricket_player_text")
-        .maybeSingle();
+      const res = await fetch("/api/cricket?type=player-text");
+      const data = await res.json();
       if (data?.value) {
-        const val = data.value as any;
+        const val = data.value;
         setPlayerText({
           description: val.description || playerText.description,
           button_text: val.button_text || playerText.button_text,
@@ -80,30 +71,17 @@ export default function CricketPage() {
   async function fetchMatches() {
     setLoading(true);
     try {
-      // Try with the new scheduling field
-      let result = await supabase
-        .from("cricket_streams")
-        .select("*")
-        .neq("status", "hidden")
-        .order("starts_at", { ascending: true });
-
-      // Fallback if column is missing
-      if (result.error && result.error.message.includes("starts_at")) {
-        result = await supabase
-          .from("cricket_streams")
-          .select("*")
-          .neq("status", "hidden")
-          .order("created_at", { ascending: false });
-      }
-
-      if (result.error) {
-        console.error("Supabase Error:", result.error.message);
+      const res = await fetch("/api/cricket");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setMatches(data);
+      } else {
+        console.error("Fetch matches error:", data.error || data);
         setMatches([]);
-      } else if (result.data) {
-        setMatches(result.data);
       }
     } catch (e) {
       console.error("Fetch Error:", e);
+      setMatches([]);
     }
     setLoading(false);
   }

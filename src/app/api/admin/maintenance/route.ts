@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { isAdminRequest } from "@/lib/admin-auth";
+
+export const dynamic = "force-dynamic";
 
 // Site-wide maintenance switch. Stored in site_settings under key "maintenance"
 // as { on: boolean, message: string }. The middleware reads it (via the
 // maintenance_state RPC) and turns non-admin visitors away when on.
-export const dynamic = "force-dynamic";
 
 const KEY = "maintenance";
 const DEFAULTS = { on: false, message: "", disable_tracking: false, timeouts_enabled: true };
 
 export async function GET() {
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("site_settings")
-      .select("value")
-      .eq("key", KEY)
-      .maybeSingle();
-    const value = { ...DEFAULTS, ...((data?.value as object) ?? {}) };
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json(DEFAULTS);
+
+    const data = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind(KEY).first<{ value: string }>();
+    const stored = data?.value ? JSON.parse(data.value) : DEFAULTS;
+    const value = { ...DEFAULTS, ...stored };
     return NextResponse.json(value);
   } catch {
     return NextResponse.json(DEFAULTS);
@@ -37,13 +38,16 @@ export async function POST(request: NextRequest) {
       disable_tracking: body.disable_tracking === true,
       timeouts_enabled: body.timeouts_enabled !== false,
     };
-    const { error } = await getSupabaseAdmin()
-      .from("site_settings")
-      .upsert(
-        { key: KEY, value, updated_at: new Date().toISOString() },
-        { onConflict: "key" }
-      );
-    if (error) throw error;
+    
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ ok: false, error: "DB unavailable" }, { status: 500 });
+
+    await d1.prepare(`
+      INSERT INTO d1_site_settings (key, value, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `).bind(KEY, JSON.stringify(value), new Date().toISOString()).run();
+
     return NextResponse.json({ ok: true, value });
   } catch {
     return NextResponse.json({ ok: false }, { status: 500 });

@@ -7,14 +7,12 @@
     "build": "if [ -z \"$OPENNEXT_IN_PROGRESS\" ]; then export OPENNEXT_IN_PROGRESS=true && npx @opennextjs/cloudflare build; else next build; fi",
     "build:cf": "npx @opennextjs/cloudflare build",
     "preview:cf": "npx @opennextjs/cloudflare build && npx wrangler dev",
-    "deploy": "npx @opennextjs/cloudflare build && npx wrangler deploy",
+    "deploy": "npx @opennextjs/cloudflare build && node -e \"const f='.open-next/cloudflare/next-env.mjs';const s=require('fs').readFileSync(f,'utf8');const lines=[...new Set(s.trim().split('\\n'))];require('fs').writeFileSync(f,lines.join('\\n')+'\\n')\" && npx wrangler deploy",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.19.11",
-    "@supabase/ssr": "^0.10.3",
-    "@supabase/supabase-js": "^2.108.0",
     "date-fns": "^4.4.0",
     "next": "16.2.6",
     "react": "19.2.4",

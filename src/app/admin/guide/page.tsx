@@ -117,7 +117,7 @@ export default function AdminGuidePage() {
       <Section title="Settings" subtitle="Account and data maintenance.">
         <Term name="Change Password">Update your admin login password.</Term>
         <Term name="Run Daily Aggregation">Processes raw visits into the daily summaries that power the Overview and Traffic charts. Run it if those charts look stale or empty.</Term>
-        <Term name="Connection Status">Confirms the database (Supabase) is connected.</Term>
+        <Term name="Connection Status">Confirms the database (Cloudflare D1) is connected.</Term>
       </Section>
 
       <p className="text-[11px] text-gray-400">

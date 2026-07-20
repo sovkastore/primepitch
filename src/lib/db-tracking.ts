@@ -1,9 +1,7 @@
-import { getSupabaseAdmin } from "./supabase/admin";
 import { getD1 } from "./d1";
 
 /**
- * High-Speed DB Helper
- * This intelligently switches between Cloudflare D1 (Fast) and Supabase (Backup)
+ * High-Speed DB Helper for Cloudflare D1
  */
 export async function trackHeartbeat(visitor_id: string, path: string, match_id?: string | null, ref_code?: string | null) {
   const d1 = await getD1();
@@ -36,20 +34,7 @@ export async function trackHeartbeat(visitor_id: string, path: string, match_id?
     }
   }
 
-  // 2) Fallback to Supabase DISABLED for testing
-  /*
-  await getSupabaseAdmin().from("active_viewers").upsert(
-    {
-      visitor_id,
-      match_id: match_id || null,
-      path,
-      last_seen: new Date().toISOString(),
-    },
-    { onConflict: "visitor_id" }
-  );
-  */
-  
-  return { ok: false, source: "none (supa-disabled)" };
+  return { ok: false, source: "none" };
 }
 
 export async function trackPageView(
@@ -81,18 +66,7 @@ export async function trackPageView(
     }
   }
 
-  // Fallback DISABLED for testing
-  /*
-  await getSupabaseAdmin().rpc("track_visitor", {
-    p_vid: visitor_id,
-    p_device: device ?? null,
-    p_referrer: referrer ?? null,
-    p_path: path,
-    p_ref: p_ref ?? null
-  });
-  */
-  
-  return { ok: false, source: "none (supa-disabled)" };
+  return { ok: false, source: "none" };
 }
 
 export async function trackMatchView(

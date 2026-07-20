@@ -14,8 +14,7 @@ type Announcement = {
 };
 
 const DISMISS_KEY = "pp_announce_dismissed_v2"; // stores { sig, ts }
-const TRACK_DISMISS_URL =
-  "https://lcahzqvrsqxievglvkib.supabase.co/functions/v1/track-dismiss";
+const TRACK_DISMISS_URL = "/api/track-dismiss";
 
 const STYLES: Record<Variant, { bar: string; chip: string; cta: string; close: string }> = {
   info: {

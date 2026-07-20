@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import ApplyForm from "./ApplyForm";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +12,10 @@ export const metadata: Metadata = {
 
 async function programOpen(): Promise<boolean> {
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("site_settings").select("value").eq("key", "partner_public_page").maybeSingle();
-    return data?.value === true || data?.value === "true";
+    const d1 = await getD1();
+    if (!d1) return false;
+    const row = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind("partner_public_page").first<{ value: string }>();
+    return row?.value === "true" || row?.value === "1";
   } catch {
     return false;
   }

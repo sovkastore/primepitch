@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { searchFallbackStreams } from "@/lib/fallback-streams";
 
 // Single source of truth for "what can actually play for this match", used by both
@@ -64,18 +64,21 @@ async function overrideStreams(
   matchId: string
 ): Promise<{ streams: ResolvedStream[]; replace_original: boolean }> {
   try {
-    const { data } = await Promise.race([
-      getSupabaseAdmin()
-        .from("stream_overrides")
-        .select("*")
-        .eq("match_id", matchId)
-        .eq("enabled", true)
-        .order("position", { ascending: true })
-        .order("created_at", { ascending: true }),
+    const d1 = await getD1();
+    if (!d1) return { streams: [], replace_original: false };
+
+    const promise = d1.prepare(`
+      SELECT * FROM d1_stream_overrides
+      WHERE match_id = ? AND enabled = 1
+      ORDER BY position ASC, created_at ASC
+    `).bind(matchId).all();
+
+    const { results } = await Promise.race([
+      promise,
       new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
     ]);
     
-    const rows = (data ?? []) as OverrideRow[];
+    const rows = (results ?? []) as OverrideRow[];
     const streams = rows.map((o, i) => ({
       id: `override-${i}`,
       streamNo: i + 1,
@@ -84,7 +87,7 @@ async function overrideStreams(
       embedUrl: o.embed_url,
       source: o.source || "fallback",
     }));
-    return { streams, replace_original: rows[0]?.replace_original ?? false };
+    return { streams, replace_original: Boolean(rows[0]?.replace_original) };
   } catch {
     return { streams: [], replace_original: false };
   }
@@ -92,11 +95,12 @@ async function overrideStreams(
 
 async function tvStreams(id: string): Promise<ResolvedStream[]> {
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("tv_channels")
-      .select("embed_url, name")
-      .eq("id", id)
-      .single();
+    const d1 = await getD1();
+    if (!d1) return [];
+
+    const data = await d1.prepare(`
+      SELECT embed_url, name FROM d1_tv_channels WHERE id = ?
+    `).bind(id).first<{ embed_url: string, name: string }>();
     
     if (data?.embed_url) {
       return [{

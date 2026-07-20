@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveStreams } from "@/lib/streams";
 import { getMatches } from "@/lib/api";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // Merged, playable streams for one match: manual overrides → echo → auto-fallback.
 // The watch page loads from here so an auto-found stream actually plays.
@@ -16,12 +16,14 @@ async function autoFlags(
 ): Promise<{ disableAuto: boolean; allowFootballAuto: boolean }> {
   const isFootball = sport.toLowerCase() === "football";
   try {
-    const { data } = await Promise.race([
-      getSupabaseAdmin()
-        .from("match_flags")
-        .select("disable_auto, auto_fallback")
-        .eq("match_id", matchId)
-        .maybeSingle(),
+    const d1 = await getD1();
+    if (!d1) throw new Error("DB unavailable");
+    const fetchFlags = (async () => {
+      const row = await d1.prepare("SELECT disable_auto, auto_fallback FROM d1_match_flags WHERE match_id = ?").bind(matchId).first();
+      return row;
+    })();
+    const data = await Promise.race([
+      fetchFlags,
       new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
     ]);
     const af = data?.auto_fallback as boolean | null | undefined;

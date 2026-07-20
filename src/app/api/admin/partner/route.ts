@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { partnerMatches } from "@/lib/matches-engine";
 import { getPartnerOverviewD1, getPartnerPulseD1, getPartnerAnalyticsD1, getPartnerVisitorsD1 } from "@/lib/partner-engine";
 import { partnerBalances, scopeToOwn } from "@/lib/partner-scope";
@@ -11,15 +10,15 @@ export const dynamic = "force-dynamic";
 // Same data the partner sees, but admin can pick any partner via ?code=.
 export async function GET(request: NextRequest) {
   try {
-    const sb = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const stat = searchParams.get("stat") || "overview";
     const code = searchParams.get("code") || "";
 
     if (stat === "list") {
-      const { data } = await sb.from("partners")
-        .select("code, name, active").order("created_at", { ascending: true });
-      return NextResponse.json({ partners: data ?? [] });
+      const d1 = await getD1();
+      if (!d1) return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
+      const { results } = await d1.prepare("SELECT code, name, active FROM d1_partners ORDER BY created_at ASC").all();
+      return NextResponse.json({ partners: results ?? [] });
     }
     if (!code) return NextResponse.json({ error: "code required" }, { status: 400 });
 

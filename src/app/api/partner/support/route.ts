@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { requirePartnerSession, PARTNER_COOKIE } from "@/lib/partner-auth";
 
 export const dynamic = "force-dynamic";
@@ -7,14 +7,26 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const sess = await requirePartnerSession(request.cookies.get(PARTNER_COOKIE)?.value);
   if (!sess) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const sb = getSupabaseAdmin();
-  const { data, error } = await sb
-    .from("support_tickets")
-    .select("id, subject, status, created_at, updated_at, last_message_at, partner_unread")
-    .eq("partner_id", sess.pid)
-    .order("updated_at", { ascending: false });
-  if (error) return NextResponse.json({ error: "Could not load your tickets." }, { status: 500 });
-  return NextResponse.json({ tickets: data ?? [] });
+  
+  const d1 = await getD1();
+  if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+
+  try {
+    const { results } = await d1.prepare(
+      "SELECT id, subject, status, created_at, updated_at FROM d1_support_tickets WHERE requester_type = 'partner' AND requester_id = ? ORDER BY updated_at DESC"
+    ).bind(sess.pid).all();
+    
+    // Simulate partner_unread if status is answered
+    const tickets = (results ?? []).map((t: any) => ({
+      ...t,
+      last_message_at: t.updated_at,
+      partner_unread: t.status === "answered"
+    }));
+    
+    return NextResponse.json({ tickets });
+  } catch (error) {
+    return NextResponse.json({ error: "Could not load your tickets." }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -26,15 +38,20 @@ export async function POST(request: NextRequest) {
   const message = (body.message || "").trim();
   if (!subject || !message) return NextResponse.json({ error: "Add a subject and a message." }, { status: 400 });
   if (subject.length > 200) return NextResponse.json({ error: "That subject is too long." }, { status: 400 });
-  const sb = getSupabaseAdmin();
+  
+  const d1 = await getD1();
+  if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+
   const now = new Date().toISOString();
-  const { data: ticket, error } = await sb
-    .from("support_tickets")
-    .insert({ partner_id: sess.pid, subject, status: "open", last_message_at: now, admin_unread: true, partner_unread: false })
-    .select("id")
-    .single();
-  if (error || !ticket) return NextResponse.json({ error: "Could not create the ticket." }, { status: 500 });
-  const tid = (ticket as { id: string }).id;
-  await sb.from("support_messages").insert({ ticket_id: tid, sender: "partner", body: message });
-  return NextResponse.json({ ok: true, id: tid });
+  const tid = crypto.randomUUID();
+
+  try {
+    await d1.prepare(
+      "INSERT INTO d1_support_tickets (id, requester_type, requester_id, requester_name, subject, message, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).bind(tid, "partner", sess.pid, sess.name, subject, message, "open", now, now).run();
+    
+    return NextResponse.json({ ok: true, id: tid });
+  } catch {
+    return NextResponse.json({ error: "Could not create the ticket." }, { status: 500 });
+  }
 }

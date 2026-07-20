@@ -1,0 +1,20 @@
+{
+  "name": "primepitch-push-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "primepitch_db",
+      "database_id": "25e024c8-f8fa-4e64-b927-df0ae95b1147"
+    }
+  ]
+}

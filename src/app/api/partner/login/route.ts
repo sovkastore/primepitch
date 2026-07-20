@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { signSession, PARTNER_COOKIE } from "@/lib/partner-auth";
 
 export async function POST(request: NextRequest) {
@@ -9,16 +9,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password required" }, { status: 400 });
     }
 
-    const { data, error } = await getSupabaseAdmin()
-      .rpc("verify_partner", { p_email: String(email).trim(), p_password: String(password) });
-    if (error) throw error;
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
 
-    const row = Array.isArray(data) ? data[0] : null;
+    const row = await d1.prepare(
+      "SELECT id, code, name FROM d1_partners WHERE email = ? AND password_hash = ? AND active = 1 AND suspended = 0 AND banned = 0"
+    ).bind(String(email).trim(), String(password)).first<{id: string; code: string; name: string}>();
+
     if (!row) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    const token = await signSession({ pid: row.id, code: row.code, name: row.name });
+    const token = await signSession({ pid: String(row.id), code: String(row.code), name: String(row.name) });
     const res = NextResponse.json({ ok: true });
     res.cookies.set(PARTNER_COOKIE, token, {
       httpOnly: true, sameSite: "lax", secure: true, path: "/",

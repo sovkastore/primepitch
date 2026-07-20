@@ -10,10 +10,10 @@
     "binding": "ASSETS"
   },
   "vars": {
-    "NEXT_PUBLIC_SUPABASE_URL": "https://lcahzqvrsqxievglvkib.supabase.co",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_pjCMeOEDhirgIYFS3ZsHlw_EJLphMcW",
     "ADMIN_EMAILS": "akindunbisulaiman00040@gmail.com",
-    "BSD_API_KEY": "0170da071a072600419c7f8e0d30304e2fd6cf08"
+    "BSD_API_KEY": "0170da071a072600419c7f8e0d30304e2fd6cf08",
+    "ADMIN_PASSWORD": "PrimePitch2026!",
+    "NEXT_PUBLIC_SITE_URL": "https://primepitch.daxonicstudios.workers.dev"
   },
   "d1_databases": [
     {

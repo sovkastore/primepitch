@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { getMatches, type Match } from "@/lib/api";
 
 // Public: ad configuration the client uses to decide whether to inject any ad
@@ -46,13 +46,18 @@ function pairKey(a?: string, b?: string): string | null {
 // kickoff window expires.
 async function finishedPairs(): Promise<Set<string>> {
   try {
+    const d1 = await getD1();
+    if (!d1) return new Set();
+
     const since = new Date(Date.now() - 12 * 3_600_000).toISOString();
-    const { data } = await Promise.race([
-      getSupabaseAdmin()
-        .from("push_match_state")
-        .select("home_team, away_team")
-        .eq("finished", true)
-        .gte("updated_at", since),
+    
+    const fetchFinished = (async () => {
+      const res = await d1.prepare("SELECT home_team, away_team FROM d1_push_match_state WHERE finished = 1 AND updated_at >= ?").bind(since).all();
+      return res.results;
+    })();
+
+    const data = await Promise.race([
+      fetchFinished,
       new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
     ]);
     const set = new Set<string>();
@@ -120,15 +125,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { data } = await Promise.race([
-      getSupabaseAdmin()
-        .from("site_settings")
-        .select("value")
-        .eq("key", "ads_config")
-        .maybeSingle(),
+    const d1 = await getD1();
+    if (!d1) throw new Error("DB unavailable");
+
+    const fetchConfig = (async () => {
+      const row = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind("ads_config").first<{ value: string }>();
+      if (!row) return null;
+      return typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+    })();
+
+    const dataValue = await Promise.race([
+      fetchConfig,
       new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
     ]);
-    const cfg = (data?.value ?? { master: false, domains: "all", formats: {} }) as {
+
+    const cfg = (dataValue ?? { master: false, domains: "all", formats: {} }) as {
       master?: boolean;
       domains?: string;
       formats?: Record<string, Fmt>;
@@ -159,20 +170,15 @@ export async function GET(request: NextRequest) {
     // ---- Partner popunder swap (manual switch: partner_ads) ----
     if (cfg.master && ref !== "none") {
       try {
-        const sb = getSupabaseAdmin();
-        const { data: ad } = await sb
-          .from("site_settings").select("value").eq("key", "partner_ads").maybeSingle();
-        if (ad?.value === true || ad?.value === "true") {
-          const { data: partner } = await sb
-            .from("partners")
-            .select("id, active, banned, partner_zones(zone_id, full_tag, format)")
-            .eq("code", ref)
-            .maybeSingle();
-          const pr = partner as
-            | { id: string; active: boolean; banned: boolean; partner_zones?: Array<{ zone_id: string; full_tag: string | null; format: string }> }
-            | null;
-          if (pr && pr.active && !pr.banned) {
-            const zone = (pr.partner_zones || []).find((z) => z.format === "popunder");
+        const adRow = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind("partner_ads").first<{ value: string }>();
+        const adValue = adRow?.value ? (typeof adRow.value === 'string' ? JSON.parse(adRow.value) : adRow.value) : null;
+        
+        if (adValue === true || adValue === "true") {
+          const pr: any = await d1.prepare("SELECT id, active, banned FROM d1_partners WHERE code = ?").bind(ref).first();
+          
+          if (pr && Boolean(pr.active) && !Boolean(pr.banned)) {
+            const { results: zones } = await d1.prepare("SELECT zone_id, full_tag, format FROM d1_partner_zones WHERE partner_id = ?").bind(pr.id).all();
+            const zone: any = zones.find((z: any) => z.format === "popunder");
             const target = formats["monetag_popunder"] as ({ enabled?: boolean; zone?: string; src?: string } & Fmt) | undefined;
             if (zone?.zone_id && target && target.enabled) {
               target.zone = zone.zone_id;

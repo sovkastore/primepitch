@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 const KEY = "ads_config";
 
@@ -191,12 +191,12 @@ function cleanPromoBanner(v: unknown): PromoBannerConfig {
 
 export async function GET() {
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("site_settings")
-      .select("value")
-      .eq("key", KEY)
-      .maybeSingle();
-    const stored = (data?.value as Partial<AdsConfig>) ?? DEFAULTS;
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json(DEFAULTS);
+
+    const data = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind(KEY).first<{ value: string }>();
+    const stored = data?.value ? JSON.parse(data.value) : DEFAULTS;
+    
     return NextResponse.json({
       ...DEFAULTS,
       ...stored,
@@ -261,10 +261,19 @@ export async function POST(request: NextRequest) {
       promoBanner: cleanPromoBanner(body.promoBanner),
     };
 
-    const { error } = await getSupabaseAdmin()
-      .from("site_settings")
-      .upsert({ key: KEY, value: clean, updated_at: new Date().toISOString() }, { onConflict: "key" });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+
+    try {
+      await d1.prepare(`
+        INSERT INTO d1_site_settings (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+      `).bind(KEY, JSON.stringify(clean), new Date().toISOString()).run();
+    } catch (error: any) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
     return NextResponse.json({ ok: true, config: clean });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });

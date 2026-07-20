@@ -1,4 +1,3 @@
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { clusterRows, normTitle } from "@/lib/match-merge";
 import { getMatches, getAllMatches, getMatchStatus, isFinishedStatus, type Match } from "@/lib/api";
 import { getD1 } from "./d1";

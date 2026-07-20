@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import type {
   CompetitionData,
   KnockoutRound,
@@ -11,7 +11,7 @@ import type {
 import { dayOf } from "@/lib/leagues";
 import { normTeamName } from "@/lib/api";
 
-// One competition's public data, all from the Supabase cache tables. Always
+// One competition's public data, all from the D1 cache tables. Always
 // scoped to the league's CURRENT season (max season_id) so August never mixes
 // 25/26 with 26/27.
 export const dynamic = "force-dynamic";
@@ -122,56 +122,59 @@ export async function GET(
   if (hit && now - hit.ts < TTL) return NextResponse.json(hit.data);
 
   try {
-    const sb = getSupabaseAdmin();
+    const d1 = await getD1();
+    if (!d1) throw new Error("D1 database binding missing");
 
-    const { data: cfgRow } = await sb
-      .from("league_config")
-      .select("league_id,label,enabled,display_order,has_table,default_tab")
-      .eq("league_id", leagueId)
-      .maybeSingle();
+    const cfgRow = await d1.prepare(`
+      SELECT league_id, label, enabled, display_order, has_table, default_tab
+      FROM d1_league_config
+      WHERE league_id = ?
+    `).bind(leagueId).first<any>();
     if (!cfgRow) return NextResponse.json({ error: "unknown league" }, { status: 404 });
-    const config = cfgRow as LeagueConfig;
+    const config: LeagueConfig = {
+      ...cfgRow,
+      enabled: cfgRow.enabled === 1,
+      has_table: cfgRow.has_table === 1,
+    };
 
     // Current season = highest season_id present for this league.
-    const { data: seasonRow } = await sb
-      .from("league_matches")
-      .select("season_id")
-      .eq("league_id", leagueId)
-      .order("season_id", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const seasonRow = await d1.prepare(`
+      SELECT season_id
+      FROM d1_league_matches
+      WHERE league_id = ?
+      ORDER BY season_id DESC
+      LIMIT 1
+    `).bind(leagueId).first<{ season_id: number }>();
     const seasonId: number | null = seasonRow?.season_id ?? null;
 
     let fixtures: LeagueMatchRow[] = [];
     let finishedRows: LeagueMatchRow[] = [];
     let koRows: LeagueMatchRow[] = [];
     if (seasonId != null) {
-      const [{ data: fx }, { data: fin }, { data: ko }] = await Promise.all([
-        sb
-          .from("league_matches")
-          .select(COLS)
-          .eq("league_id", leagueId)
-          .eq("season_id", seasonId)
-          .eq("status", "notstarted")
-          .order("event_date", { ascending: true }),
-        sb
-          .from("league_matches")
-          .select(COLS)
-          .eq("league_id", leagueId)
-          .eq("season_id", seasonId)
-          .eq("status", "finished")
-          .order("event_date", { ascending: false }),
-        sb
-          .from("league_matches")
-          .select(COLS)
-          .eq("league_id", leagueId)
-          .eq("season_id", seasonId)
-          .in("round_name", KO_ROUND_NAMES)
-          .order("event_date", { ascending: true }),
+      const [fxRes, finRes, koRes] = await Promise.all([
+        d1.prepare(`
+          SELECT match_key, league_id, season_id, home_team, away_team, home_score, away_score, group_name, round_number, round_name, event_date, status
+          FROM d1_league_matches
+          WHERE league_id = ? AND season_id = ? AND status = 'notstarted'
+          ORDER BY event_date ASC
+        `).bind(leagueId, seasonId).all(),
+        d1.prepare(`
+          SELECT match_key, league_id, season_id, home_team, away_team, home_score, away_score, group_name, round_number, round_name, event_date, status
+          FROM d1_league_matches
+          WHERE league_id = ? AND season_id = ? AND status = 'finished'
+          ORDER BY event_date DESC
+        `).bind(leagueId, seasonId).all(),
+        d1.prepare(`
+          SELECT match_key, league_id, season_id, home_team, away_team, home_score, away_score, group_name, round_number, round_name, event_date, status
+          FROM d1_league_matches
+          WHERE league_id = ? AND season_id = ? 
+            AND round_name IN ('Playoff round', 'Round of 16', 'Quarterfinals', 'Semifinals', 'Final')
+          ORDER BY event_date ASC
+        `).bind(leagueId, seasonId).all(),
       ]);
-      fixtures = (fx ?? []) as LeagueMatchRow[];
-      finishedRows = (fin ?? []) as LeagueMatchRow[];
-      koRows = (ko ?? []) as LeagueMatchRow[];
+      fixtures = (fxRes.results ?? []) as LeagueMatchRow[];
+      finishedRows = (finRes.results ?? []) as LeagueMatchRow[];
+      koRows = (koRes.results ?? []) as LeagueMatchRow[];
     }
 
     // Distinct result dates (most recent first), then the selected day's matches.
@@ -196,15 +199,23 @@ export async function GET(
     let grouped = false;
     let seasonName: string | null = null;
     if (config.has_table) {
-      const { data: stRow } = await sb
-        .from("league_standings")
-        .select("grouped,season_name,standings")
-        .eq("league_id", leagueId)
-        .maybeSingle();
+      const stRow = await d1.prepare(`
+        SELECT grouped, season_name, standings
+        FROM d1_league_standings
+        WHERE league_id = ?
+      `).bind(leagueId).first<any>();
       if (stRow) {
-        grouped = !!stRow.grouped;
+        grouped = stRow.grouped === 1;
         seasonName = stRow.season_name ?? null;
-        standings = Array.isArray(stRow.standings) ? (stRow.standings as StandingRow[]) : [];
+        let parsedStandings = [];
+        if (stRow.standings) {
+          try {
+            parsedStandings = JSON.parse(stRow.standings);
+          } catch {
+            parsedStandings = stRow.standings;
+          }
+        }
+        standings = Array.isArray(parsedStandings) ? (parsedStandings as StandingRow[]) : [];
         standings.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
       }
     }
@@ -217,11 +228,14 @@ export async function GET(
     const defaultTab = resolveDefaultTab(config, fixtures.length, config.has_table);
 
     // Team crests (TheSportsDB) keyed by normalized name -> standings + rows.
-    const { data: crestRows } = await sb.from("league_teams").select("name,crest_url");
+    const { results: crestRows } = await d1.prepare(`
+      SELECT name, crest_url FROM d1_league_teams
+    `).all();
     const crests: Record<string, string> = {};
-    for (const cr of crestRows ?? []) {
-      const c = cr as { name?: string; crest_url?: string };
-      if (c.name && c.crest_url) crests[normTeamName(c.name)] = c.crest_url;
+    for (const cr of (crestRows ?? []) as any[]) {
+      if (cr.name && cr.crest_url) {
+        crests[normTeamName(cr.name)] = cr.crest_url;
+      }
     }
 
     const data: CompetitionData = {

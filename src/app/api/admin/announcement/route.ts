@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 const KEY = "announcement";
 
@@ -67,24 +67,18 @@ function cleanAnnouncement(input: unknown): Announcement {
 
 export async function GET() {
   try {
-    const admin = getSupabaseAdmin();
-    const { data } = await admin
-      .from("site_settings")
-      .select("value")
-      .eq("key", KEY)
-      .maybeSingle();
-    const config = { ...DEFAULTS, ...(data?.value ?? {}) } as Announcement;
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ ...DEFAULTS, dismissCount: 0 });
 
-    // Unique devices that have dismissed the CURRENT message.
+    const row = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind(KEY).first<{ value: string }>();
+    const config = { ...DEFAULTS, ...(row?.value ? JSON.parse(row.value) : {}) } as Announcement;
+
     let dismissCount = 0;
     try {
-      const { count } = await admin
-        .from("announcement_dismissals")
-        .select("*", { count: "exact", head: true })
-        .eq("signature", signatureOf(config));
-      dismissCount = count ?? 0;
+      const cRow = await d1.prepare("SELECT COUNT(*) as count FROM d1_announcement_dismissals WHERE signature = ?").bind(signatureOf(config)).first() as any;
+      dismissCount = cRow?.count ?? 0;
     } catch {
-      /* ignore — count is best-effort */
+      /* ignore */
     }
 
     return NextResponse.json({ ...config, dismissCount });
@@ -97,13 +91,15 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const config = cleanAnnouncement(body);
-    const { error } = await getSupabaseAdmin()
-      .from("site_settings")
-      .upsert(
-        { key: KEY, value: config, updated_at: new Date().toISOString() },
-        { onConflict: "key" }
-      );
-    if (error) throw error;
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ ok: false }, { status: 500 });
+
+    await d1.prepare(`
+        INSERT INTO d1_site_settings (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `).bind(KEY, JSON.stringify(config), new Date().toISOString()).run();
+
     return NextResponse.json({ ok: true, config });
   } catch {
     return NextResponse.json({ ok: false }, { status: 500 });

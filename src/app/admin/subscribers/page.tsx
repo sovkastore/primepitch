@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import NotifyMatchesCard from "@/components/admin/NotifyMatchesCard";
 
 export const dynamic = "force-dynamic";
@@ -91,19 +91,47 @@ function Bar({ label, count, total }: { label: string; count: number; total: num
 }
 
 export default async function SubscribersPage() {
-  const sb = getSupabaseAdmin();
-  const { data, error } = await sb
-    .from("push_subscriptions")
-    .select("endpoint, user_agent, prefs, topics, created_at, last_seen_at, sent_count, open_count, last_opened_at")
-    .order("created_at", { ascending: false });
+  let data = null;
+  let followData = null;
+  let error = null;
+
+  try {
+    const d1 = await getD1();
+    if (!d1) throw new Error("D1 database binding missing");
+    const { results } = await d1.prepare(`
+      SELECT endpoint, user_agent, prefs, topics, created_at, last_seen_at, sent_count, open_count, last_opened_at
+      FROM d1_push_subscriptions
+      ORDER BY created_at DESC
+    `).all();
+
+    data = (results || []).map((r: any) => {
+      let topics = null;
+      let prefs = null;
+      if (r.topics) {
+        try { topics = JSON.parse(r.topics); } catch { topics = r.topics; }
+      }
+      if (r.prefs) {
+        try { prefs = JSON.parse(r.prefs); } catch { prefs = r.prefs; }
+      }
+      return {
+        ...r,
+        topics,
+        prefs
+      };
+    });
+
+    const { results: follows } = await d1.prepare(`
+      SELECT team_key, title, created_at
+      FROM d1_match_follows
+    `).all();
+    followData = follows;
+  } catch (err: any) {
+    console.error("Subscribers page load error:", err);
+    error = err.message;
+  }
 
   const rows = (data ?? []) as Row[];
   const now = currentMs();
-
-  // Per-match "Notify me" follows, aggregated per fixture (≥1 follower shows).
-  const { data: followData } = await sb
-    .from("match_follows")
-    .select("team_key, title, created_at");
   const followAgg = new Map<string, { title: string; count: number; latest: number }>();
   for (const f of (followData ?? []) as Array<{ team_key: string; title: string | null; created_at: string }>) {
     const cur = followAgg.get(f.team_key) ?? { title: f.title || f.team_key, count: 0, latest: 0 };

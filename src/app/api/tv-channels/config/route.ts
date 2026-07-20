@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { isAdminRequest } from "@/lib/admin-auth";
 
 const TTL = 60_000;
@@ -12,11 +12,15 @@ export async function GET() {
   }
 
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("tv_page_config")
-      .select("*")
-      .eq("id", "global")
-      .maybeSingle();
+    const d1 = await getD1();
+    if (!d1) throw new Error("DB unavailable");
+    
+    const row = await d1.prepare("SELECT * FROM d1_tv_page_config WHERE id = 'global'").first<any>();
+    const data = row ? {
+      ...row,
+      banner_json: typeof row.banner_json === 'string' ? JSON.parse(row.banner_json) : row.banner_json,
+      notification_json: typeof row.notification_json === 'string' ? JSON.parse(row.notification_json) : row.notification_json
+    } : null;
     
     const result = data || { 
       page_title: "Live TV Channels",
@@ -38,16 +42,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = getSupabaseAdmin();
-    const body = await request.json();
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
     
-    const { error } = await supabase
-      .from("tv_page_config")
-      .upsert({ ...body, id: "global", updated_at: new Date().toISOString() }, { onConflict: "id" });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
+    const body = await request.json();
+    const bannerJson = body.banner_json ? JSON.stringify(body.banner_json) : null;
+    const notificationJson = body.notification_json ? JSON.stringify(body.notification_json) : null;
+    
+    await d1.prepare(`
+      INSERT OR REPLACE INTO d1_tv_page_config (id, page_title, meta_description, banner_json, notification_json, updated_at) 
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind("global", body.page_title, body.meta_description, bannerJson, notificationJson, new Date().toISOString()).run();
 
     // Invalidate cache
     cache = null;

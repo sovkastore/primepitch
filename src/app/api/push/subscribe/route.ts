@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // Stores (or removes) a browser's Web Push subscription together with the
-// person's follow choices. Server-only table, reached with the service role.
+// person's follow choices. Server-only table, reached with D1 database binding.
 
 type AlertKey = "startingSoon" | "almostKickoff" | "kickoff" | "goal" | "halftime" | "secondHalf" | "fulltime";
 const ALERT_KEYS: AlertKey[] = ["startingSoon", "almostKickoff", "kickoff", "goal", "halftime", "secondHalf", "fulltime"];
@@ -31,6 +31,9 @@ function cleanPrefs(raw: unknown): {
 
 export async function POST(request: NextRequest) {
   try {
+    const d1 = await getD1();
+    if (!d1) throw new Error("D1 database binding missing");
+
     const body = await request.json();
     const sub = body?.subscription;
     const endpoint: unknown = sub?.endpoint;
@@ -46,41 +49,49 @@ export async function POST(request: NextRequest) {
     const prefs = cleanPrefs(body?.prefs);
     // Legacy topics column kept populated for backward compatibility.
     const topics = prefs.wcAll ? ["football:world-cup"] : [];
-    const { error } = await getSupabaseAdmin()
-      .from("push_subscriptions")
-      .upsert(
-        {
-          endpoint,
-          p256dh,
-          auth,
-          topics,
-          prefs,
-          user_agent:
-            typeof body?.ua === "string" ? (body.ua as string).slice(0, 300) : null,
-          last_seen_at: new Date().toISOString(),
-        },
-        { onConflict: "endpoint" }
-      );
-    if (error) throw error;
+
+    const userAgent = typeof body?.ua === "string" ? (body.ua as string).slice(0, 300) : null;
+    const lastSeenAt = new Date().toISOString();
+
+    await d1.prepare(`
+      INSERT INTO d1_push_subscriptions (endpoint, p256dh, auth, topics, prefs, user_agent, last_seen_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(endpoint) DO UPDATE SET
+        p256dh = excluded.p256dh,
+        auth = excluded.auth,
+        topics = excluded.topics,
+        prefs = excluded.prefs,
+        user_agent = excluded.user_agent,
+        last_seen_at = excluded.last_seen_at
+    `).bind(
+      endpoint, p256dh, auth,
+      JSON.stringify(topics), JSON.stringify(prefs),
+      userAgent, lastSeenAt
+    ).run();
+
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 500 });
+  } catch (err: any) {
+    console.error("POST subscribe error:", err);
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
+    const d1 = await getD1();
+    if (!d1) throw new Error("D1 database binding missing");
+
     const body = await request.json();
     const endpoint = body?.endpoint;
     if (typeof endpoint !== "string") {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
-    await getSupabaseAdmin()
-      .from("push_subscriptions")
-      .delete()
-      .eq("endpoint", endpoint);
+    await d1.prepare(`
+      DELETE FROM d1_push_subscriptions WHERE endpoint = ?
+    `).bind(endpoint).run();
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 500 });
+  } catch (err: any) {
+    console.error("DELETE subscribe error:", err);
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }

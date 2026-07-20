@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { resolveStreams } from "@/lib/streams";
 import { getMatchStatus, matchFlagKeys } from "@/lib/api";
 import type { Match } from "@/lib/api";
-
-// Admin Match Manager data: ALL live + upcoming matches (regardless of viewers/streams),
-// each annotated with serving status (echo / auto / override / none), its overrides, and flags.
 
 const SPORTS = [
   "football", "basketball", "american-football", "hockey", "baseball",
@@ -59,9 +56,6 @@ export async function GET() {
     );
     const all: Match[] = results.flat();
 
-    // streamed.pk's curated "live" set can contain PPV/special entries that aren't in
-    // the per-sport schedules (or whose scheduled time is still in the future). Union
-    // them in and key off it so the admin's Live tab matches the public LIVE NOW.
     let curatedLiveKeys = new Set<string>();
     try {
       const lr = await fetch("https://streamed.pk/api/matches/live", { signal: AbortSignal.timeout(8000) });
@@ -83,33 +77,41 @@ export async function GET() {
       .sort((a, b) => a.date - b.date)
       .slice(0, 200);
 
-    // Bulk flags + overrides
     const flagsByMatch = new Map<string, FlagRow>();
-    try {
-      const { data } = await getSupabaseAdmin().from("match_flags").select("*");
-      for (const r of (data ?? []) as FlagRow[]) flagsByMatch.set(r.match_id, r);
-    } catch {
-      /* table may not exist yet */
-    }
     const overridesByMatch = new Map<string, OverrideRow[]>();
+    
     try {
-      const { data } = await getSupabaseAdmin()
-        .from("stream_overrides")
-        .select("id, match_id, embed_url, source, server_label, replace_original, enabled, created_at")
-        .order("created_at", { ascending: true });
-      for (const r of (data ?? []) as OverrideRow[]) {
-        const arr = overridesByMatch.get(r.match_id) ?? [];
-        arr.push(r);
-        overridesByMatch.set(r.match_id, arr);
+      const d1 = await getD1();
+      if (d1) {
+        const { results: flagsData } = await d1.prepare("SELECT * FROM d1_match_flags").all();
+        for (const r of (flagsData ?? []) as any[]) {
+          flagsByMatch.set(r.match_id, {
+            ...r,
+            hidden: !!r.hidden,
+            forced_live: !!r.forced_live,
+            featured: !!r.featured,
+            disable_auto: !!r.disable_auto
+          });
+        }
+        
+        const { results: overridesData } = await d1
+          .prepare("SELECT id, match_id, embed_url, source, server_label, replace_original, enabled, created_at FROM d1_stream_overrides ORDER BY created_at ASC")
+          .all();
+          
+        for (const r of (overridesData ?? []) as any[]) {
+          const arr = overridesByMatch.get(r.match_id) ?? [];
+          arr.push({
+            ...r,
+            replace_original: r.replace_original === null ? null : !!r.replace_original,
+            enabled: !!r.enabled
+          });
+          overridesByMatch.set(r.match_id, arr);
+        }
       }
     } catch {
-      /* ignore */
+      // Ignore DB errors
     }
 
-    // Match a flag to a fixture by ANY of its ids, not just sources[0], so a flag
-    // saved earlier still attaches after streamed.pk reshuffles the sources. The
-    // returned row keeps its real stored match_id, so an admin toggle targets and
-    // clears the actual row (no orphaned duplicate left hiding the match).
     const findFlag = (m: Match): FlagRow | null => {
       const keys = matchFlagKeys(m);
       for (const k of keys) {

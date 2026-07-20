@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // Match details for listings that don't exist in the public feed (admin/ppv
 // customs). Sourced from the match_data stored alongside stream overrides and
 // match flags. Lets the watch page show a real countdown before kickoff and a
 // real FULL TIME state after — instead of guessing.
-
-import { withTimeout } from "@/lib/supabase/timeout";
 
 export async function GET(
   request: NextRequest,
@@ -16,29 +14,25 @@ export async function GET(
     const { id: raw } = await params;
     const matchId = decodeURIComponent(raw);
 
-    const { data: ov } = (await withTimeout(
-      getSupabaseAdmin()
-        .from("stream_overrides")
-        .select("match_data")
-        .eq("match_id", matchId)
-        .not("match_data", "is", null)
-        .order("id", { ascending: false })
-        .limit(1) as any
-    )) as any;
-    if (ov?.[0]?.match_data) {
-      return NextResponse.json({ match: ov[0].match_data });
-    }
+    const d1 = await getD1();
+    if (d1) {
+      const ovPromise = d1.prepare("SELECT match_data FROM d1_stream_overrides WHERE match_id = ? AND enabled = 1 ORDER BY position ASC LIMIT 1").bind(matchId).first() as any;
+      const ov = await Promise.race([
+        ovPromise,
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 3000))
+      ]).catch(() => null);
+      if (ov?.match_data) {
+        return NextResponse.json({ match: typeof ov.match_data === 'string' ? JSON.parse(ov.match_data) : ov.match_data });
+      }
 
-    const { data: fl } = (await withTimeout(
-      getSupabaseAdmin()
-        .from("match_flags")
-        .select("match_data")
-        .eq("match_id", matchId)
-        .not("match_data", "is", null)
-        .limit(1) as any
-    )) as any;
-    if (fl?.[0]?.match_data) {
-      return NextResponse.json({ match: fl[0].match_data });
+      const flPromise = d1.prepare("SELECT match_data FROM d1_match_flags WHERE match_id = ? AND match_data IS NOT NULL LIMIT 1").bind(matchId).first() as any;
+      const fl = await Promise.race([
+        flPromise,
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 3000))
+      ]).catch(() => null);
+      if (fl?.match_data) {
+        return NextResponse.json({ match: typeof fl.match_data === 'string' ? JSON.parse(fl.match_data) : fl.match_data });
+      }
     }
 
     return NextResponse.json({ match: null });

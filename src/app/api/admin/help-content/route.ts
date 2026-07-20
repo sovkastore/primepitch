@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { isAdminRequest } from "@/lib/admin-auth";
 
 const KEY = "help_content";
 
 export async function GET() {
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("site_settings")
-      .select("value")
-      .eq("key", KEY)
-      .maybeSingle();
-    return NextResponse.json(data?.value || null);
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json(null);
+
+    const data = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind(KEY).first<{ value: string }>();
+    return NextResponse.json(data?.value ? JSON.parse(data.value) : null);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -24,13 +23,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { error } = await getSupabaseAdmin()
-      .from("site_settings")
-      .upsert(
-        { key: KEY, value: body, updated_at: new Date().toISOString() },
-        { onConflict: "key" }
-      );
-    if (error) throw error;
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+
+    await d1.prepare(`
+        INSERT INTO d1_site_settings (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `).bind(KEY, JSON.stringify(body), new Date().toISOString()).run();
+    
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

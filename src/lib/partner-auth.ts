@@ -1,9 +1,9 @@
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // Lightweight, self-contained auth for the read-only partner portal.
 // A session is an HMAC-signed token stored in the `pp_session` cookie.
-// The signing secret lives in site_settings (server-only) — independent of
-// your Supabase admin auth, so the two portals never interfere.
+// The signing secret lives in d1_site_settings (server-only) — independent of
+// your admin auth, so the two portals never interfere.
 
 export const PARTNER_COOKIE = "pp_session";
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -12,9 +12,17 @@ let cachedSecret: { at: number; val: string } | null = null;
 
 async function getSecret(): Promise<string> {
   if (cachedSecret && Date.now() - cachedSecret.at < 5 * 60 * 1000) return cachedSecret.val;
-  const { data } = await getSupabaseAdmin()
-    .from("site_settings").select("value").eq("key", "partner_session_secret").maybeSingle();
-  const val = typeof data?.value === "string" ? data.value : String(data?.value ?? "");
+  const d1 = await getD1();
+  if (!d1) throw new Error("D1_BINDING_MISSING");
+  const row = await d1.prepare(`SELECT value FROM d1_site_settings WHERE key = 'partner_session_secret'`).first<{ value: string }>();
+  const val = typeof row?.value === "string" ? row.value : "";
+  if (!val) {
+    // Auto-generate a secret on first use
+    const newSecret = crypto.randomUUID() + "-" + crypto.randomUUID();
+    await d1.prepare(`INSERT OR REPLACE INTO d1_site_settings (key, value, updated_at) VALUES ('partner_session_secret', ?, datetime('now'))`).bind(newSecret).run();
+    cachedSecret = { at: Date.now(), val: newSecret };
+    return newSecret;
+  }
   cachedSecret = { at: Date.now(), val };
   return val;
 }
@@ -70,8 +78,11 @@ export async function verifySession(token: string | null | undefined): Promise<P
 export async function requirePartnerSession(token: string | null | undefined): Promise<PartnerSession | null> {
   const sess = await verifySession(token);
   if (!sess) return null;
-  const { data } = await getSupabaseAdmin()
-    .from("partners").select("suspended, banned").eq("code", sess.code).maybeSingle();
-  if (!data || data.suspended || data.banned) return null;
+  const d1 = await getD1();
+  if (!d1) return null;
+  const row = await d1.prepare(
+    `SELECT suspended, banned FROM d1_partners WHERE code = ?`
+  ).bind(sess.code).first<{ suspended: number; banned: number }>();
+  if (!row || row.suspended || row.banned) return null;
   return sess;
 }

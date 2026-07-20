@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // Admin API for manual sports live streams management.
-// Backed by the 'sports_live_streams' table in Supabase.
-// Schema: id (uuid), title (text), category (text), starts_at (timestamp), status (text), streams (jsonb[])
+// Backed by the 'd1_sports_live_streams' table in D1.
+// Schema: id (uuid), title (text), category (text), starts_at (timestamp), status (text), streams (jsonb string)
 // streams format: { label: string, url: string, type: 'hls' | 'embed' }
 
 const TTL = 60_000;
@@ -16,32 +16,30 @@ export async function GET() {
   }
 
   try {
-    const supabase = getSupabaseAdmin();
+    const d1 = await getD1();
+    if (!d1) throw new Error("DB unavailable");
 
-    const { data, error } = await Promise.race([
-      supabase
-        .from("sports_live_streams")
-        .select("*")
-        .order("starts_at", { ascending: true }),
+    const fetchStreams = (async () => {
+      try {
+        const { results } = await d1.prepare("SELECT * FROM d1_sports_live_streams ORDER BY starts_at ASC").all();
+        return results;
+      } catch {
+        const { results } = await d1.prepare("SELECT * FROM d1_sports_live_streams ORDER BY created_at DESC").all();
+        return results;
+      }
+    })();
+
+    const data = await Promise.race([
+      fetchStreams,
       new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
     ]);
 
-    if (error) {
-      // Re-try with created_at if starts_at fails (compatibility)
-      const fallback = await Promise.race([
-        supabase
-          .from("sports_live_streams")
-          .select("*")
-          .order("created_at", { ascending: false }),
-        new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
-      ]);
-      
-      const result = { matches: fallback.data ?? [] };
-      cache = { data: result, ts: now };
-      return NextResponse.json(result);
-    }
+    const parsedData = (data ?? []).map((row: any) => ({
+      ...row,
+      streams: typeof row.streams === 'string' ? JSON.parse(row.streams) : row.streams
+    }));
 
-    const result = { matches: data ?? [] };
+    const result = { matches: parsedData };
     cache = { data: result, ts: now };
     return NextResponse.json(result);
   } catch (err: any) {
@@ -52,20 +50,20 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = getSupabaseAdmin();
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ error: "DB down" }, { status: 500 });
 
     const body = await request.json();
     const { id, ...payload } = body;
+    const streamsStr = payload.streams ? JSON.stringify(payload.streams) : '[]';
 
-    let result;
     if (id) {
-      result = await supabase.from("sports_live_streams").update(payload).eq("id", id);
+      await d1.prepare("UPDATE d1_sports_live_streams SET title = ?, category = ?, starts_at = ?, status = ?, streams = ? WHERE id = ?")
+        .bind(payload.title || '', payload.category || '', payload.starts_at || null, payload.status || '', streamsStr, id).run();
     } else {
-      result = await supabase.from("sports_live_streams").insert([payload]);
-    }
-
-    if (result.error) {
-      return NextResponse.json({ error: result.error.message }, { status: 400 });
+      const newId = crypto.randomUUID();
+      await d1.prepare("INSERT INTO d1_sports_live_streams (id, title, category, starts_at, status, streams) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(newId, payload.title || '', payload.category || '', payload.starts_at || null, payload.status || '', streamsStr).run();
     }
 
     return NextResponse.json({ success: true });
@@ -76,15 +74,15 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = getSupabaseAdmin();
+    const d1 = await getD1();
+    if (!d1) return NextResponse.json({ error: "DB down" }, { status: 500 });
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
     if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 
-    const { error } = await supabase.from("sports_live_streams").delete().eq("id", id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    await d1.prepare("DELETE FROM d1_sports_live_streams WHERE id = ?").bind(id).run();
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

@@ -1,18 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 type SocialLink = { id: string; label: string; enabled: boolean; url: string };
 
 export default function AdminSettingsPage() {
   const [aggregating, setAggregating] = useState(false);
   const [aggregateResult, setAggregateResult] = useState<string | null>(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [passwordMsg, setPasswordMsg] = useState("");
-  const [changingPassword, setChangingPassword] = useState(false);
-
-  const supabase = createClient();
 
   const [socials, setSocials] = useState<SocialLink[]>([]);
   const [savingSocials, setSavingSocials] = useState(false);
@@ -77,55 +71,9 @@ export default function AdminSettingsPage() {
       setAggregating(false);
     }
   }
-
-  async function changePassword() {
-    if (!newPassword || newPassword.length < 6) {
-      setPasswordMsg("Password must be at least 6 characters.");
-      return;
-    }
-    setChangingPassword(true);
-    setPasswordMsg("");
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) {
-      setPasswordMsg(error.message);
-    } else {
-      setPasswordMsg("Password updated successfully.");
-      setNewPassword("");
-    }
-    setChangingPassword(false);
-  }
-
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-4xl">
       <h1 className="text-xl font-bold text-gray-900">Settings</h1>
-
-      {/* Change password */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-        <h2 className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">
-          Change Password
-        </h2>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="New password"
-            className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          />
-          <button
-            onClick={changePassword}
-            disabled={changingPassword}
-            className="px-4 py-2.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors"
-          >
-            {changingPassword ? "..." : "Update"}
-          </button>
-        </div>
-        {passwordMsg && (
-          <p className={`text-[12px] font-medium ${passwordMsg.includes("success") ? "text-emerald-500" : "text-red-500"}`}>
-            {passwordMsg}
-          </p>
-        )}
-      </div>
 
       {/* Data management */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
@@ -213,19 +161,11 @@ export default function AdminSettingsPage() {
         </h2>
         <div className="space-y-2 text-[13px]">
           <div className="flex items-center justify-between">
-            <span className="text-gray-600">Supabase</span>
+            <span className="text-gray-600">Database</span>
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-emerald-600 font-medium">Connected</span>
+              <span className="text-emerald-600 font-medium">Cloudflare D1</span>
             </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">Project</span>
-            <span className="text-gray-900 font-medium font-mono text-[12px]">primepitch</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">Region</span>
-            <span className="text-gray-900 font-medium">eu-west-1 (Ireland)</span>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { requirePartnerSession, PARTNER_COOKIE } from "@/lib/partner-auth";
 import { partnerBalances } from "@/lib/partner-scope";
 
@@ -12,11 +12,14 @@ export async function GET(request: NextRequest) {
     const bal = await partnerBalances(sess.code);
     let payouts: unknown[] = [];
     if (bal.partnerId) {
-      const { data } = await getSupabaseAdmin().from("partner_payouts")
-        .select("id, amount, currency, from_address, to_address, status, proof_link, proof_image, note, fail_reason, created_at")
-        .eq("partner_id", bal.partnerId)
-        .order("created_at", { ascending: false });
-      payouts = data ?? [];
+      const d1 = await getD1();
+      if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+
+      const { results } = await d1.prepare(
+        "SELECT id, amount, currency, from_address, to_address, status, proof_link, proof_image, note, fail_reason, created_at FROM d1_partner_payouts WHERE partner_id = ? ORDER BY created_at DESC"
+      ).bind(bal.partnerId).all();
+      
+      payouts = results ?? [];
     }
     return NextResponse.json({
       balances: { earned: bal.earned, hold: bal.hold, paid: bal.paid, balance: bal.balance },

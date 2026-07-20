@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 
 // Per-partner flags used by the dashboard data routes.
 // - fullStats: may this partner see whole-platform numbers (grandfathered) or
@@ -8,16 +8,20 @@ export async function partnerFlags(
   code: string,
 ): Promise<{ fullStats: boolean; earned: number; paid: number }> {
   try {
-    const { data } = await getSupabaseAdmin()
-      .from("partners")
-      .select("full_stats, earned_total, paid_total")
-      .eq("code", code)
-      .maybeSingle();
-    return {
-      fullStats: data?.full_stats === true,
-      earned: Number(data?.earned_total) || 0,
-      paid: Number(data?.paid_total) || 0,
-    };
+    const d1 = await getD1();
+    if (!d1) return { fullStats: false, earned: 0, paid: 0 };
+    const row = await d1.prepare(
+      `SELECT full_stats, earned_total, paid_total FROM d1_partners WHERE code = ?`
+    ).bind(code).first<{ full_stats: number; earned_total: number; paid_total: number }>();
+    // Fallback: if earned_total / paid_total columns don't exist, try partner_balances
+    if (row) {
+      return {
+        fullStats: row.full_stats === 1,
+        earned: Number(row.earned_total) || 0,
+        paid: Number(row.paid_total) || 0,
+      };
+    }
+    return { fullStats: false, earned: 0, paid: 0 };
   } catch {
     return { fullStats: false, earned: 0, paid: 0 };
   }
@@ -73,26 +77,25 @@ export async function partnerBalances(code: string): Promise<{
   earned: number; hold: number; paid: number; balance: number;
   payoutCurrency: string | null; payoutAddress: string | null;
 }> {
-  const sb = getSupabaseAdmin();
-  const { data: p } = await sb
-    .from("partners")
-    .select("id, full_stats, payout_currency, payout_address")
-    .eq("code", code)
-    .maybeSingle();
-  const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const d1 = await getD1();
+  if (!d1) return { partnerId: null, fullStats: false, earned: 0, hold: 0, paid: 0, balance: 0, payoutCurrency: null, payoutAddress: null };
+
+  const p = await d1.prepare(
+    `SELECT id, full_stats, payout_currency, payout_address FROM d1_partners WHERE code = ?`
+  ).bind(code).first<{ id: string; full_stats: number; payout_currency: string | null; payout_address: string | null }>();
+
   if (!p) return { partnerId: null, fullStats: false, earned: 0, hold: 0, paid: 0, balance: 0, payoutCurrency: null, payoutAddress: null };
-  const rec = p as { id: string; full_stats: boolean; payout_currency: string | null; payout_address: string | null };
-  const { data: b } = await sb
-    .from("partner_balances")
-    .select("earned, hold, paid, balance")
-    .eq("partner_id", rec.id)
-    .maybeSingle();
-  const bb = (b ?? {}) as { earned?: unknown; hold?: unknown; paid?: unknown; balance?: unknown };
+
+  const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const b = await d1.prepare(
+    `SELECT earned, hold, paid, balance FROM d1_partner_balances WHERE partner_id = ?`
+  ).bind(p.id).first<{ earned: number; hold: number; paid: number; balance: number }>();
+
   return {
-    partnerId: rec.id,
-    fullStats: rec.full_stats === true,
-    earned: num(bb.earned), hold: num(bb.hold), paid: num(bb.paid), balance: num(bb.balance),
-    payoutCurrency: rec.payout_currency ?? null,
-    payoutAddress: rec.payout_address ?? null,
+    partnerId: p.id,
+    fullStats: p.full_stats === 1,
+    earned: num(b?.earned), hold: num(b?.hold), paid: num(b?.paid), balance: num(b?.balance),
+    payoutCurrency: p.payout_currency ?? null,
+    payoutAddress: p.payout_address ?? null,
   };
 }

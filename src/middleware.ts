@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { isAdminRequest } from "@/lib/admin-auth";
+import { isAdminRequest, ADMIN_COOKIE, verifyAdminSession } from "@/lib/admin-auth";
 
 // ---------------------------------------------------------------------------
 // Partner referral capture
@@ -27,17 +26,20 @@ async function getActiveCodes(): Promise<Set<string>> {
   const now = Date.now();
   if (now - codesCache.at < CODES_TTL_MS) return codesCache.codes;
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const res = await fetch(`${url}/rest/v1/rpc/active_partner_codes`, {
-      method: "POST",
-      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: "{}",
-    });
-    if (res.ok) {
-      const arr = (await res.json()) as string[] | null;
-      codesCache = { at: now, codes: new Set((arr || []).map((c) => String(c).toLowerCase())) };
-      return codesCache.codes;
+    // Use the D1 REST API through our own API route
+    // In middleware, we can't use getD1() directly (edge runtime limitations),
+    // so we use a lightweight fetch to our own endpoint
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || process.env.CF_PAGES_URL || "";
+    if (origin) {
+      const res = await fetch(`${origin}/api/partner-codes`, { 
+        headers: { "x-internal": "1" },
+        next: { revalidate: 60 } 
+      });
+      if (res.ok) {
+        const arr = (await res.json()) as string[];
+        codesCache = { at: now, codes: new Set((arr || []).map((c) => String(c).toLowerCase())) };
+        return codesCache.codes;
+      }
     }
   } catch {
     /* keep stale cache on error */
@@ -55,21 +57,21 @@ async function getMaintenance(): Promise<{ on: boolean; message: string }> {
   const now = Date.now();
   if (now - maintCache.at < MAINT_TTL_MS) return maintCache;
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const res = await fetch(`${url}/rest/v1/rpc/maintenance_state`, {
-      method: "POST",
-      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: "{}",
-    });
-    if (res.ok) {
-      const v = (await res.json()) as { on?: boolean; message?: string } | null;
-      maintCache = {
-        at: now,
-        on: !!v?.on,
-        message: typeof v?.message === "string" ? v.message : "",
-      };
-      return maintCache;
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || process.env.CF_PAGES_URL || "";
+    if (origin) {
+      const res = await fetch(`${origin}/api/maintenance-status`, {
+        headers: { "x-internal": "1" },
+        next: { revalidate: 15 }
+      });
+      if (res.ok) {
+        const v = (await res.json()) as { on?: boolean; message?: string } | null;
+        maintCache = {
+          at: now,
+          on: !!v?.on,
+          message: typeof v?.message === "string" ? v.message : "",
+        };
+        return maintCache;
+      }
     }
   } catch {
     /* keep stale cache on error — never take the site down over a read failure */
@@ -143,8 +145,8 @@ export async function middleware(request: NextRequest) {
   if (!pathname.startsWith("/admin")) {
     const maint = await getMaintenance();
     if (maint.on) {
-      const hasAuthCookie = request.cookies.getAll().some((c) => c.name.startsWith("sb-"));
-      const admin = hasAuthCookie ? await isAdminRequest(request) : false;
+      const hasAdminCookie = !!request.cookies.get(ADMIN_COOKIE)?.value;
+      const admin = hasAdminCookie ? await isAdminRequest(request) : false;
       if (!admin) return maintenancePage(maint.message);
     }
   }
@@ -201,39 +203,18 @@ export async function middleware(request: NextRequest) {
     return withRef(NextResponse.next());
   }
 
-  const response = withRef(NextResponse.next());
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return request.cookies.getAll(); },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  // Check admin session via HMAC cookie (no Supabase needed)
+  const adminToken = request.cookies.get(ADMIN_COOKIE)?.value;
+  const session = await verifyAdminSession(adminToken);
+  if (!session) {
     return withRef(NextResponse.redirect(new URL("/admin/login", request.url)));
   }
 
-  const adminEmails = (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase());
-  if (!adminEmails.includes(user.email?.toLowerCase() || "")) {
-    return withRef(NextResponse.redirect(new URL("/", request.url)));
-  }
-
-  return response;
+  return withRef(NextResponse.next());
 }
 
 export const config = {
   // Runs on all pages (for referral capture) + /admin (for auth),
   // excluding api, _next internals, and any file with an extension.
-  matcher: ["/((?!api|_next|.*\\..*).*)"],
+  matcher: ["/((?!api|_next|.*\\..*).*)" ],
 };

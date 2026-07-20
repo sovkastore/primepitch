@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getD1 } from "@/lib/d1";
 import { resolveStreams } from "@/lib/streams";
 import type { Match } from "@/lib/api";
 
@@ -28,23 +28,22 @@ async function getFlags(): Promise<Flags> {
   const renames = new Map<string, string>();
   const forceEnded = new Set<string>();
   try {
-    const { data } = await Promise.race([
-      getSupabaseAdmin()
-        .from("match_flags")
-        .select("match_id, hidden, disable_auto, display_title, force_ended"),
-      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
-    ]);
-    for (const r of (data ?? []) as Array<{
-      match_id: string;
-      hidden: boolean;
-      disable_auto: boolean;
-      display_title?: string | null;
-      force_ended?: boolean | null;
-    }>) {
-      if (r.hidden) hidden.add(r.match_id);
-      if (r.disable_auto) disableAuto.add(r.match_id);
-      if (r.display_title) renames.set(r.match_id, r.display_title);
-      if (r.force_ended) forceEnded.add(r.match_id);
+    const d1 = await getD1();
+    if (d1) {
+      const fetchFlags = (async () => {
+        const { results } = await d1.prepare("SELECT match_id, hidden, disable_auto, display_title, force_ended FROM d1_match_flags").all();
+        return results;
+      })();
+      const data = await Promise.race([
+        fetchFlags,
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
+      ]);
+      for (const r of data ?? []) {
+        if (r.hidden) hidden.add(r.match_id);
+        if (r.disable_auto) disableAuto.add(r.match_id);
+        if (r.display_title) renames.set(r.match_id, r.display_title);
+        if (r.force_ended) forceEnded.add(r.match_id);
+      }
     }
   } catch {
     /* DB timeout — degrade to no flags */
