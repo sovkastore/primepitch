@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 type Cap = number | string; // minutes (number); legacy string keys still tolerated
 type FmtPlacement = string; // Comma-separated page IDs or "all"
-type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string; placement?: FmtPlacement };
+type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string; placement?: FmtPlacement; type?: "script" | "direct_link"; targets?: Record<string, boolean>; };
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
