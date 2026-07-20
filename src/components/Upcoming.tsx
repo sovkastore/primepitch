@@ -12,8 +12,7 @@ export default function TodayMatches({
 }) {
   const upcoming = matches
     .filter((m) => getMatchStatus(m) === "upcoming" && !excludeKeys?.has(getMatchKey(m)))
-    .sort((a, b) => a.date - b.date)
-    .slice(0, 15);
+    .sort((a, b) => a.date - b.date);
 
   if (upcoming.length === 0) return null;
 
