@@ -36,6 +36,12 @@ function kickoffTime(iso: string): string {
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
+function kickoffDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 function fmtDateLabel(day: string): string {
   const d = new Date(`${day}T12:00:00`);
   if (Number.isNaN(d.getTime())) return day;
@@ -118,7 +124,10 @@ function MatchRow({
           </>
         ) : (
           <>
-            <span className="text-[13px] font-extrabold text-gray-900 tabular-nums">{kickoffTime(row.event_date)}</span>
+            <div className="flex flex-col items-center leading-tight">
+              <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">{kickoffDate(row.event_date)}</span>
+              <span className="text-[13px] font-extrabold text-gray-900 tabular-nums">{kickoffTime(row.event_date)}</span>
+            </div>
             {href ? (
               <Link
                 href={href}
