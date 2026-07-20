@@ -179,7 +179,20 @@ export async function GET(request: NextRequest) {
           if (pr && Boolean(pr.active) && !Boolean(pr.banned)) {
             const { results: zones } = await d1.prepare("SELECT zone_id, full_tag, format FROM d1_partner_zones WHERE partner_id = ?").bind(pr.id).all();
             const zone: any = zones.find((z: any) => z.format === "popunder");
-            const target = formats["monetag_popunder"] as ({ enabled?: boolean; zone?: string; src?: string } & Fmt) | undefined;
+            
+            // Find the active Monetag popunder ad to swap the zone ID into
+            let targetKey = "monetag_popunder";
+            if (!formats[targetKey]?.enabled) {
+              const customTarget = Object.keys(formats).find(k => {
+                 const f = formats[k];
+                 return f?.enabled && 
+                        String(f.network).toLowerCase().includes("monetag") && 
+                        String(f.label).toLowerCase().includes("popunder");
+              });
+              if (customTarget) targetKey = customTarget;
+            }
+
+            const target = formats[targetKey] as ({ enabled?: boolean; zone?: string; src?: string } & Fmt) | undefined;
             if (zone?.zone_id && target && target.enabled) {
               target.zone = zone.zone_id;
               if (zone.full_tag) {
