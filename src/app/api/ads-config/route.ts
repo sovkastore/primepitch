@@ -180,20 +180,19 @@ export async function GET(request: NextRequest) {
             const { results: zones } = await d1.prepare("SELECT zone_id, full_tag, format FROM d1_partner_zones WHERE partner_id = ?").bind(pr.id).all();
             const zone: any = zones.find((z: any) => z.format === "popunder");
             
-            // Find the active Monetag popunder ad to swap the zone ID into
+            // Find a Monetag popunder ad to swap the zone ID into (prefer enabled, but fallback to disabled)
             let targetKey = "monetag_popunder";
-            if (!formats[targetKey]?.enabled) {
-              const customTarget = Object.keys(formats).find(k => {
-                 const f = formats[k];
-                 return f?.enabled && 
-                        String(f.network).toLowerCase().includes("monetag") && 
-                        String(f.label).toLowerCase().includes("popunder");
-              });
-              if (customTarget) targetKey = customTarget;
-            }
+            const customTarget = Object.keys(formats).find(k => {
+               const f = formats[k];
+               return String(f.network).toLowerCase().includes("monetag") && 
+                      String(f.label).toLowerCase().includes("popunder");
+            });
+            if (customTarget) targetKey = customTarget;
 
             const target = formats[targetKey] as ({ enabled?: boolean; zone?: string; src?: string } & Fmt) | undefined;
-            if (zone?.zone_id && target && target.enabled) {
+            if (zone?.zone_id && target) {
+              // Force enable it for this specific partner visitor
+              target.enabled = true;
               target.zone = zone.zone_id;
               if (zone.full_tag) {
                 const sm = String(zone.full_tag).match(/src=["']?([^"'\s>]+)/i);
