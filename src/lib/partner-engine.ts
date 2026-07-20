@@ -130,7 +130,7 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
 import { type PulseData } from "@/components/partner/PulsePanel";
 
 export async function getPartnerPulseD1(d1: D1Database, refCode: string): Promise<PulseData> {
-  const split = (t: number, h: number) => ({ total: t, his: h, yours: Math.max(0, t - h) });
+  const split = (t: number, h: number, o: number) => ({ total: t, his: h, yours: Math.max(0, t - h), own: o });
 
   // 1) Fetch all active presence in the last 6 minutes
   const activeRes = await d1.prepare(`
@@ -140,23 +140,28 @@ export async function getPartnerPulseD1(d1: D1Database, refCode: string): Promis
   `).all();
   const activeRows = (activeRes.results || []) as any[];
 
+  const isOwn = (r: any) => !r.ref_code || r.ref_code === "none" || r.ref_code === "";
+
   // 2) Online Now & Live Page splits
   const onlineTotal = activeRows.length;
   const onlineHis = activeRows.filter((r) => r.ref_code === refCode).length;
+  const onlineOwn = activeRows.filter(isOwn).length;
 
   const liveTotal = activeRows.filter((r) => r.match_id).length;
   const liveHis = activeRows.filter((r) => r.match_id && r.ref_code === refCode).length;
+  const liveOwn = activeRows.filter((r) => r.match_id && isOwn(r)).length;
 
-  const onlineNow = split(onlineTotal, onlineHis);
-  const liveNow = split(liveTotal, liveHis);
+  const onlineNow = split(onlineTotal, onlineHis, onlineOwn);
+  const liveNow = split(liveTotal, liveHis, liveOwn);
 
   // 3) Group Active Pages
-  const pageBuckets: Record<string, { total: number; his: number }> = {};
+  const pageBuckets: Record<string, { total: number; his: number; own: number }> = {};
   activeRows.forEach((r) => {
     const path = r.path || "/";
-    if (!pageBuckets[path]) pageBuckets[path] = { total: 0, his: 0 };
+    if (!pageBuckets[path]) pageBuckets[path] = { total: 0, his: 0, own: 0 };
     pageBuckets[path].total++;
     if (r.ref_code === refCode) pageBuckets[path].his++;
+    if (isOwn(r)) pageBuckets[path].own++;
   });
 
   const pages = Object.entries(pageBuckets)
@@ -167,15 +172,17 @@ export async function getPartnerPulseD1(d1: D1Database, refCode: string): Promis
       total: counts.total,
       his: counts.his,
       yours: Math.max(0, counts.total - counts.his),
+      own: counts.own,
     }));
 
   // 4) Group Active Matches
-  const matchBuckets: Record<string, { total: number; his: number }> = {};
+  const matchBuckets: Record<string, { total: number; his: number; own: number }> = {};
   activeRows.forEach((r) => {
     if (!r.match_id) return;
-    if (!matchBuckets[r.match_id]) matchBuckets[r.match_id] = { total: 0, his: 0 };
+    if (!matchBuckets[r.match_id]) matchBuckets[r.match_id] = { total: 0, his: 0, own: 0 };
     matchBuckets[r.match_id].total++;
     if (r.ref_code === refCode) matchBuckets[r.match_id].his++;
+    if (isOwn(r)) matchBuckets[r.match_id].own++;
   });
 
   const activeMatchIds = Object.keys(matchBuckets);
@@ -215,15 +222,19 @@ export async function getPartnerPulseD1(d1: D1Database, refCode: string): Promis
       const uniquesHis = uniquesMap.get(matchId) || counts.his;
       const peakHis = Math.max(counts.his, Math.round(uniquesHis * 0.65));
 
+      const peakOwn = Math.round(peakTotal * (counts.own / (counts.total || 1)));
+
       return {
         match_id: matchId,
         title: titlesMap.get(matchId) || matchId,
         total: counts.total,
         his: counts.his,
         yours: Math.max(0, counts.total - counts.his),
+        own: counts.own,
         peakTotal,
         peakHis,
         peakYours: Math.max(0, peakTotal - peakHis),
+        peakOwn,
       };
     });
   }
