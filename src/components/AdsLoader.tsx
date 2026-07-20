@@ -154,9 +154,18 @@ export default function AdsLoader() {
           timers.push(t);
         }
 
-        // ── Adsterra Smart Link Interceptor ──────────────────
+        // ── Direct Link / Smart Link Interceptor ──────────────────
+        const directLinks: { url: string; targets: Record<string, boolean> }[] = [];
         if (cfg.smartLinks?.enabled && cfg.smartLinks.url) {
-          const sl = cfg.smartLinks;
+          directLinks.push({ url: cfg.smartLinks.url, targets: cfg.smartLinks.targets });
+        }
+        for (const f of Object.values(cfg.formats || {})) {
+          if (f?.enabled && f.type === "direct_link" && f.src) {
+            directLinks.push({ url: f.src, targets: f.targets || {} });
+          }
+        }
+
+        if (directLinks.length > 0) {
           const handleGlobalClick = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             const link = target.closest("a");
@@ -167,9 +176,13 @@ export default function AdsLoader() {
             // Handle Buttons (like on /cricket-live)
             if (btn && path === "/cricket-live") {
               const text = btn.innerText?.toUpperCase() || "";
-              if (text.includes("WATCH") && sl.targets["cricket_watch"]) {
-                window.open(sl.url, "_blank");
-                return;
+              if (text.includes("WATCH")) {
+                for (const sl of directLinks) {
+                  if (sl.targets["cricket_watch"]) {
+                    window.open(sl.url, "_blank");
+                    return; // only open the first matched direct link
+                  }
+                }
               }
             }
 
@@ -184,11 +197,17 @@ export default function AdsLoader() {
             else if (href.startsWith("/watch/")) key = "watch_buttons";
             else if (href.startsWith("/") && !href.includes(".")) {
                const s = href.slice(1);
-               if (sl.targets[s]) key = s;
+               // We need to check if ANY direct link targets this 's' to assign it as the key
+               if (directLinks.some(sl => sl.targets[s])) key = s;
             }
 
-            if (key && sl.targets[key]) {
-               window.open(sl.url, "_blank");
+            if (key) {
+               for (const sl of directLinks) {
+                  if (sl.targets[key]) {
+                     window.open(sl.url, "_blank");
+                     return; // only open the first matched direct link
+                  }
+               }
             }
           };
           document.addEventListener("click", handleGlobalClick, { capture: true });

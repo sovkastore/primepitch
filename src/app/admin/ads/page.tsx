@@ -18,6 +18,8 @@ type Format = {
   mode?: "off" | "on" | "auto";
   autoScope?: "all" | "selected";
   autoMatches?: string[];
+  type?: "script" | "direct_link";
+  targets?: Record<string, boolean>;
 };
 type PopMode = "off" | "on" | "auto";
 type Trigger = "visit" | "interval" | "match" | "server";
@@ -236,6 +238,8 @@ export default function AdminAdsPage() {
                 | "all"
                 | "selected",
               autoMatches: Array.isArray(f.autoMatches) ? f.autoMatches : [],
+              type: (f.type ?? seed?.type ?? "script") as "script" | "direct_link",
+              targets: f.targets ?? seed?.targets ?? {},
             };
             u[id] = m === 0 ? "off" : m % 60 === 0 ? "hours" : "minutes";
           }
@@ -376,6 +380,8 @@ export default function AdminAdsPage() {
           src: "",
           cap: 0,
           delay: "0",
+          type: "script",
+          targets: {},
         },
       },
     }));
@@ -443,6 +449,118 @@ export default function AdminAdsPage() {
         smartLinks: { ...prev.smartLinks, targets, enabled: nextEnabled },
       };
     });
+  }
+
+  function toggleFormatTarget(id: string, key: string) {
+    setCfg((prev) => {
+      const f = prev.formats[id];
+      const targets = { ...(f.targets ?? {}) };
+      targets[key] = !targets[key];
+      return {
+        ...prev,
+        formats: { ...prev.formats, [id]: { ...f, targets } },
+      };
+    });
+  }
+
+  function TargetToggles({ targets, onToggle }: { targets: Record<string, boolean>; onToggle: (key: string) => void }) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Common Actions</h4>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => onToggle("watch_buttons")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                targets["watch_buttons"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+              }`}
+            >
+              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${targets["watch_buttons"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                {targets["watch_buttons"] ? "✓" : ""}
+              </span>
+              ALL "WATCH" BUTTONS
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggle("cricket_watch")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                targets["cricket_watch"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+              }`}
+            >
+              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${targets["cricket_watch"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                {targets["cricket_watch"] ? "✓" : ""}
+              </span>
+              LIVE CRICKET WATCH (MANUAL PAGE)
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggle("tv_channels")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                targets["tv_channels"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+              }`}
+            >
+              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${targets["tv_channels"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                {targets["tv_channels"] ? "✓" : ""}
+              </span>
+              LIVE TV CHANNELS
+            </button>
+          </div>
+          <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Sports</h4>
+          <div className="grid grid-cols-2 gap-2">
+            {["football", "basketball", "american-football", "ufc", "wwe", "boxing", "motor-sports", "tennis", "cricket", "hockey", "baseball", "rugby"].map(s => {
+              const active = !!targets[s];
+              const label = s === "american-football" ? "NFL" : s.toUpperCase();
+              return (
+                <button key={s} type="button" onClick={() => onToggle(s)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${active ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"}`}>
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                    {active ? "✓" : ""}
+                  </span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Leagues (Football)</h4>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onToggle("wc")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                targets["wc"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+              }`}
+            >
+              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${targets["wc"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                {targets["wc"] ? "✓" : ""}
+              </span>
+              WORLD CUP 2026
+            </button>
+            {leagues.map(l => {
+              const key = l.league_id.toString();
+              const active = !!targets[key];
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onToggle(key)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                    active ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                    {active ? "✓" : ""}
+                  </span>
+                  {l.label.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   async function save() {
@@ -657,6 +775,17 @@ export default function AdminAdsPage() {
               <div className="px-5 pb-5 pt-1 space-y-4 border-t border-gray-100">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-gray-800">Ad Type</label>
+                    <select
+                      value={f.type || "script"}
+                      onChange={(e) => updateFormat(id, { type: e.target.value as "script" | "direct_link" })}
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    >
+                      <option value="script">Script Tag</option>
+                      <option value="direct_link">Direct Link (Popup on Click)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
                     <label className="text-[13px] font-semibold text-gray-800">Ad name</label>
                     <input
                       type="text"
@@ -678,7 +807,8 @@ export default function AdminAdsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                {f.type !== "direct_link" && (
+                <div className="space-y-2 mt-4">
                   <label className="text-[13px] font-semibold text-gray-800">Show on these pages</label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <button
@@ -713,29 +843,40 @@ export default function AdminAdsPage() {
                     })}
                   </div>
                 </div>
+                )}
 
-                <div className="space-y-1.5">
+                {f.type !== "direct_link" && (
+                <div className="space-y-1.5 mt-4">
                   <label className="text-[13px] font-semibold text-gray-800">Zone ID <span className="font-normal text-gray-400">(Monetag only — leave blank for Adsterra)</span></label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={f.zone}
-                onChange={(e) => updateFormat(id, { zone: e.target.value })}
-                placeholder="e.g. 11143361"
-                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              />
-            </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={f.zone}
+                    onChange={(e) => updateFormat(id, { zone: e.target.value })}
+                    placeholder="e.g. 11143361"
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  />
+                </div>
+                )}
 
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-gray-800">Script URL</label>
-              <input
-                type="text"
-                value={f.src}
-                onChange={(e) => updateFormat(id, { src: e.target.value })}
-                placeholder="https://nap5k.com/tag.min.js"
-                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              />
-            </div>
+                <div className="space-y-1.5 mt-4">
+                  <label className="text-[13px] font-semibold text-gray-800">
+                    {f.type === "direct_link" ? "Direct Link URL" : "Script URL"}
+                  </label>
+                  <input
+                    type="text"
+                    value={f.src}
+                    onChange={(e) => updateFormat(id, { src: e.target.value })}
+                    placeholder={f.type === "direct_link" ? "https://omg10.com/..." : "https://nap5k.com/tag.min.js"}
+                    className={`w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${f.type === "direct_link" ? "font-mono text-[11px]" : ""}`}
+                  />
+                </div>
+
+                {f.type === "direct_link" && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <TargetToggles targets={f.targets || {}} onToggle={(k) => toggleFormatTarget(id, k)} />
+                  </div>
+                )}
 
             {isPopunder && (
               <div className="space-y-3">
@@ -975,102 +1116,7 @@ export default function AdminAdsPage() {
                   </div>
 
                   <div className="space-y-4">
-                    <div>
-                        <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Common Actions</h4>
-                        <div className="grid grid-cols-2 gap-2 mb-4">
-                          <button
-                            type="button"
-                            onClick={() => toggleSmartTarget("watch_buttons")}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
-                              cfg.smartLinks.targets["watch_buttons"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["watch_buttons"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
-                              {cfg.smartLinks.targets["watch_buttons"] ? "✓" : ""}
-                            </span>
-                            ALL "WATCH" BUTTONS
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => toggleSmartTarget("cricket_watch")}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
-                              cfg.smartLinks.targets["cricket_watch"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["cricket_watch"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
-                              {cfg.smartLinks.targets["cricket_watch"] ? "✓" : ""}
-                            </span>
-                            LIVE CRICKET WATCH (MANUAL PAGE)
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => toggleSmartTarget("tv_channels")}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
-                              cfg.smartLinks.targets["tv_channels"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["tv_channels"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
-                              {cfg.smartLinks.targets["tv_channels"] ? "✓" : ""}
-                            </span>
-                            LIVE TV CHANNELS
-                          </button>
-                        </div>
-                        <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Sports</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          {["football", "basketball", "american-football", "ufc", "wwe", "boxing", "motor-sports", "tennis", "cricket", "hockey", "baseball", "rugby"].map(s => {
-                            const active = !!cfg.smartLinks.targets[s];
-                            const label = s === "american-football" ? "NFL" : s.toUpperCase();
-                            return (
-                              <button key={s} type="button" onClick={() => toggleSmartTarget(s)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${active ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"}`}>
-                                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
-                                  {active ? "✓" : ""}
-                                </span>
-                                {label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Target Leagues (Football)</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleSmartTarget("wc")}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
-                              cfg.smartLinks.targets["wc"] ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.smartLinks.targets["wc"] ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
-                              {cfg.smartLinks.targets["wc"] ? "✓" : ""}
-                            </span>
-                            WORLD CUP 2026
-                          </button>
-                          {leagues.map(l => {
-                            const key = l.league_id.toString();
-                            const active = !!cfg.smartLinks.targets[key];
-                            return (
-                              <button
-                                key={key}
-                                type="button"
-                                onClick={() => toggleSmartTarget(key)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
-                                  active ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
-                                }`}
-                              >
-                                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${active ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
-                                  {active ? "✓" : ""}
-                                </span>
-                                {l.label.toUpperCase()}
-                              </button>
-                            );
-                          })}
-                        </div>
-                    </div>
+                    <TargetToggles targets={cfg.smartLinks.targets || {}} onToggle={toggleSmartTarget} />
                   </div>
                 </div>
               )}
