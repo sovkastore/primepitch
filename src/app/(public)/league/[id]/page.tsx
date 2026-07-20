@@ -101,33 +101,33 @@ function MatchRow({
   );
 
   return (
-    <div className="flex items-stretch bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 transition-colors">
-      <div className="flex-1 min-w-0 px-3.5 py-2.5 space-y-2">
+    <div className="group flex items-stretch bg-white/60 backdrop-blur-xl border border-gray-100 rounded-2xl overflow-hidden hover:bg-white hover:shadow-xl hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all duration-300">
+      <div className="flex-1 min-w-0 px-4 py-3.5 space-y-2.5">
         {teamLine(row.home_team, hBadge, homeWin, hs)}
         {teamLine(row.away_team, aBadge, awayWin, as)}
       </div>
-      <div className="shrink-0 w-[84px] border-l border-gray-100 flex flex-col items-center justify-center gap-1 px-1.5">
+      <div className="shrink-0 w-[90px] border-l border-gray-100/80 bg-gray-50/30 group-hover:bg-emerald-50/30 flex flex-col items-center justify-center gap-1.5 px-2 transition-colors duration-300">
         {finished ? (
           <>
-            <span className="text-[9px] font-black text-gray-300 tracking-widest">FT</span>
+            <span className="text-[10px] font-black text-gray-400 tracking-widest">FT</span>
             {href && (
-              <Link href={href} className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700">
+              <Link href={href} className="text-[12px] font-bold text-emerald-600 hover:text-emerald-700 transition-colors">
                 Watch
               </Link>
             )}
           </>
         ) : (
           <>
-            <span className="text-[12px] font-bold text-gray-900 tabular-nums">{kickoffTime(row.event_date)}</span>
+            <span className="text-[13px] font-extrabold text-gray-900 tabular-nums">{kickoffTime(row.event_date)}</span>
             {href ? (
               <Link
                 href={href}
-                className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-lg transition-colors"
+                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-xl shadow-md shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95"
               >
                 Watch
               </Link>
             ) : (
-              <span className="text-[8.5px] text-gray-400 text-center leading-tight">near kick-off</span>
+              <span className="text-[9px] font-bold text-gray-400 text-center leading-tight uppercase tracking-wide">Soon</span>
             )}
           </>
         )}
@@ -221,20 +221,21 @@ export default function CompetitionPage() {
           <p className="text-gray-500 py-10">This competition isn’t available right now.</p>
         ) : (
           <>
-            <div className="mb-4">
-              <h1 className="text-xl font-black text-gray-900">{data.config.label}</h1>
-              {data.seasonName && <p className="text-[12px] text-gray-400 font-medium">{data.seasonName}</p>}
+            <div className="mb-6 relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500/10 via-white to-white border border-emerald-100/50 p-6 shadow-sm">
+              <div className="absolute -top-10 -right-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+              <h1 className="text-2xl lg:text-3xl font-black text-gray-900 tracking-tight">{data.config.label}</h1>
+              {data.seasonName && <p className="text-[13px] text-emerald-600 font-bold mt-1 tracking-wide uppercase">{data.seasonName}</p>}
             </div>
 
-            <div className="flex gap-1 border-b border-gray-200 mb-4 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide p-1 bg-gray-100/50 backdrop-blur-md rounded-2xl w-max">
               {data.tabs.map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className={`px-3 py-2 text-[13px] font-bold -mb-px border-b-2 transition-colors ${
+                  className={`px-4 py-2.5 text-[13px] font-bold rounded-xl transition-all duration-300 ${
                     tab === t
-                      ? "border-emerald-500 text-emerald-600"
-                      : "border-transparent text-gray-400 hover:text-gray-600"
+                      ? "bg-white text-emerald-600 shadow-sm ring-1 ring-black/5 scale-[1.02]"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
                   }`}
                 >
                   {TAB_LABEL[t]}
@@ -284,7 +285,7 @@ function FixturesTab({
     );
   }
   return (
-    <div className="space-y-2">
+    <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
       {rows.map((m) => (
         <MatchRow key={m.match_key} row={m} badgeMap={badgeMap} crests={crests} href={watchHref(m)} />
       ))}
@@ -331,40 +332,40 @@ function ResultsCalendar({
   const canNext = idx >= 0 && idx < monthKeys.length - 1;
 
   return (
-    <div className="mb-4 bg-white border border-gray-200 rounded-xl p-3 w-full sm:max-w-[320px]">
-      <div className="flex items-center justify-between mb-2">
+    <div className="mb-5 bg-white/70 backdrop-blur-xl border border-gray-100/80 rounded-2xl p-4 w-full sm:max-w-[340px] shadow-lg shadow-gray-200/20 transition-all">
+      <div className="flex items-center justify-between mb-3">
         <button
           onClick={() => canPrev && setView(monthKeys[idx - 1])}
           disabled={!canPrev}
-          className={`w-7 h-7 rounded-lg flex items-center justify-center text-[18px] text-gray-500 ${
-            canPrev ? "hover:bg-gray-100" : "opacity-30"
+          className={`w-8 h-8 rounded-xl flex items-center justify-center text-[20px] transition-all ${
+            canPrev ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:scale-105 active:scale-95" : "text-gray-300"
           }`}
           aria-label="Previous month"
         >
           &#8249;
         </button>
-        <span className="text-[13px] font-bold text-gray-900">
+        <span className="text-[14px] font-black text-gray-900 tracking-wide">
           {CAL_MONTHS[m]} {y}
         </span>
         <button
           onClick={() => canNext && setView(monthKeys[idx + 1])}
           disabled={!canNext}
-          className={`w-7 h-7 rounded-lg flex items-center justify-center text-[18px] text-gray-500 ${
-            canNext ? "hover:bg-gray-100" : "opacity-30"
+          className={`w-8 h-8 rounded-xl flex items-center justify-center text-[20px] transition-all ${
+            canNext ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:scale-105 active:scale-95" : "text-gray-300"
           }`}
           aria-label="Next month"
         >
           &#8250;
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1 mb-1">
+      <div className="grid grid-cols-7 gap-1.5 mb-2">
         {CAL_WD.map((w) => (
-          <span key={w} className="text-[9px] font-bold text-gray-300 text-center">
+          <span key={w} className="text-[10px] font-extrabold text-gray-400 text-center uppercase tracking-wider">
             {w}
           </span>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1.5">
         {cells.map((d, i) => {
           if (d === null) return <span key={`e${i}`} />;
           const key = ymd(y, m, d);
@@ -375,11 +376,11 @@ function ResultsCalendar({
               key={key}
               onClick={() => has && onPick(key)}
               disabled={!has}
-              className={`h-8 rounded-lg text-[12px] font-bold flex items-center justify-center transition-colors ${
+              className={`h-9 rounded-xl text-[13px] font-bold flex items-center justify-center transition-all duration-300 ${
                 isSel
-                  ? "bg-emerald-500 text-white"
+                  ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/30 scale-110"
                   : has
-                  ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  ? "bg-emerald-50/50 text-emerald-700 hover:bg-emerald-100 hover:scale-105"
                   : "text-gray-300"
               }`}
             >
@@ -427,13 +428,13 @@ function ResultsTab({
 
 function FormPips({ form }: { form: string }) {
   const items = (form || "").slice(-5).split("");
-  const color = (c: string) => (c === "W" ? "bg-emerald-500" : c === "L" ? "bg-red-500" : "bg-gray-300");
+  const color = (c: string) => (c === "W" ? "bg-emerald-500 shadow-emerald-500/30" : c === "L" ? "bg-red-500 shadow-red-500/30" : "bg-gray-400 shadow-gray-400/30");
   return (
-    <span className="inline-flex flex-wrap gap-0.5">
+    <span className="inline-flex flex-wrap gap-1">
       {items.map((c, i) => (
         <span
           key={i}
-          className={`w-3.5 h-3.5 rounded-[3px] text-white text-[8px] font-black flex items-center justify-center ${color(c)}`}
+          className={`w-4 h-4 rounded-md text-white text-[9px] font-black flex items-center justify-center shadow-sm ${color(c)}`}
         >
           {c}
         </span>
@@ -457,48 +458,54 @@ function TableTab({ rows, crests }: { rows: StandingRow[]; crests?: Record<strin
     ["Pts", "pts"],
   ];
   return (
-    <table className="w-full table-fixed text-[10.5px]">
-      <thead>
-        <tr className="text-gray-400 text-[9px] uppercase tracking-wide border-b border-gray-200">
-          <th className="text-left font-bold py-1.5 w-[16px]">#</th>
-          <th className="text-left font-bold py-1.5 pl-1">Team</th>
-          {cols.map(([h]) => (
-            <th key={h} className={`text-center font-bold py-1.5 ${h === "Pts" ? "w-[26px]" : h === "GD" ? "w-[24px]" : "w-[20px]"}`}>
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr key={r.team_id ?? r.position} className="border-b border-gray-100">
-            <td className="py-1.5 text-gray-400 font-bold tabular-nums align-middle">{r.position}</td>
-            <td className="py-1.5 pl-1 pr-1 align-middle">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Crest crestUrl={crestForName(r.team, crests)} name={r.team} />
-                <div className="min-w-0">
-                  <div className="font-bold text-gray-900 truncate leading-tight">{shortTeamName(r.team)}</div>
-                  <div className="mt-0.5">
-                    <FormPips form={r.form} />
+    <div className="bg-white/60 backdrop-blur-xl border border-gray-100 rounded-2xl overflow-hidden shadow-xl shadow-emerald-500/5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px] min-w-[500px]">
+          <thead>
+            <tr className="bg-gray-50/80 border-b border-gray-100/80">
+              <th className="text-left font-black text-gray-400 uppercase tracking-wider py-3 pl-4 w-[40px]">#</th>
+              <th className="text-left font-black text-gray-400 uppercase tracking-wider py-3 pl-1">Team</th>
+              {cols.map(([h]) => (
+                <th key={h} className={`text-center font-black text-gray-400 uppercase tracking-wider py-3 ${h === "Pts" ? "w-[40px] text-gray-900" : h === "GD" ? "w-[36px]" : "w-[30px]"}`}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100/60">
+            {rows.map((r) => (
+              <tr key={r.team_id ?? r.position} className="hover:bg-white/80 transition-colors group">
+                <td className="py-2.5 pl-4 text-gray-400 font-bold tabular-nums align-middle">{r.position}</td>
+                <td className="py-2.5 pl-1 pr-2 align-middle">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="transform transition-transform group-hover:scale-110 duration-300">
+                      <Crest crestUrl={crestForName(r.team, crests)} name={r.team} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-extrabold text-gray-900 truncate tracking-tight text-[13px]">{shortTeamName(r.team)}</div>
+                      <div className="mt-1">
+                        <FormPips form={r.form} />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </td>
-            {cols.map(([h, key]) => {
-              const neg = h === "GD" && r.gd < 0;
-              return (
-                <td
-                  key={h}
-                  className={`text-center tabular-nums align-middle ${h === "Pts" ? "font-black text-gray-900" : neg ? "text-red-500 font-semibold" : "text-gray-600"}`}
-                >
-                  {h === "GD" ? (r.gd > 0 ? `+${r.gd}` : r.gd) : (r[key] as number)}
                 </td>
-              );
-            })}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                {cols.map(([h, key]) => {
+                  const neg = h === "GD" && r.gd < 0;
+                  return (
+                    <td
+                      key={h}
+                      className={`text-center tabular-nums align-middle text-[12.5px] ${h === "Pts" ? "font-black text-emerald-600 text-[14px]" : neg ? "text-red-500 font-bold" : "text-gray-600 font-semibold"}`}
+                    >
+                      {h === "GD" ? (r.gd > 0 ? `+${r.gd}` : r.gd) : (r[key] as number)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -527,40 +534,42 @@ function TieCard({
     { team: teamB, win: winner === "B", agg: aggB },
   ];
   return (
-    <div className="bg-white border border-gray-200 rounded-xl px-3 py-2">
-      <div className="flex items-center text-[8.5px] font-bold text-gray-300 uppercase tracking-wider mb-1">
+    <div className="bg-white/70 backdrop-blur-xl border border-gray-100 rounded-2xl p-4 shadow-lg shadow-gray-200/20 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
+      <div className="flex items-center text-[9px] font-black text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">
         <span className="flex-1" />
         {legs.map((_, i) => (
-          <span key={i} className="w-[24px] text-center">{single ? "FT" : `L${i + 1}`}</span>
+          <span key={i} className="w-[32px] text-center">{single ? "FT" : `L${i + 1}`}</span>
         ))}
-        {!single && <span className="w-[30px] text-center">Agg</span>}
+        {!single && <span className="w-[36px] text-center text-emerald-600">Agg</span>}
       </div>
-      {teamRows.map(({ team, win, agg }) => (
-        <div key={team} className="flex items-center py-0.5">
-          <span className="flex-1 flex items-center gap-2 min-w-0">
-            <Crest crestUrl={crestForName(team, crests)} badge={badgeForName(team, badgeMap)} name={team} />
-            <span className={`truncate text-[12.5px] ${win ? "font-extrabold text-gray-900" : "font-semibold text-gray-600"}`}>
-              {shortTeamName(team)}
+      <div className="space-y-2.5">
+        {teamRows.map(({ team, win, agg }) => (
+          <div key={team} className="flex items-center">
+            <span className="flex-1 flex items-center gap-3 min-w-0">
+              <Crest crestUrl={crestForName(team, crests)} badge={badgeForName(team, badgeMap)} name={team} />
+              <span className={`truncate text-[13.5px] ${win ? "font-extrabold text-gray-900" : "font-bold text-gray-500"}`}>
+                {shortTeamName(team)}
+              </span>
             </span>
-          </span>
-          {legs.map((lg, i) => (
-            <span
-              key={i}
-              className={`w-[24px] text-center tabular-nums text-[12.5px] ${win ? "font-bold text-gray-900" : "text-gray-500"}`}
-            >
-              {goalsFor(team, lg) ?? "-"}
-            </span>
-          ))}
-          {!single && (
-            <span
-              className={`w-[30px] text-center tabular-nums text-[13px] ${win ? "font-black text-gray-900" : "font-bold text-gray-400"}`}
-            >
-              {agg ?? "-"}
-            </span>
-          )}
-        </div>
-      ))}
-      <div className="text-[8.5px] text-gray-300 mt-1 truncate">
+            {legs.map((lg, i) => (
+              <span
+                key={i}
+                className={`w-[32px] text-center tabular-nums text-[13.5px] ${win ? "font-bold text-gray-900" : "text-gray-400"}`}
+              >
+                {goalsFor(team, lg) ?? "-"}
+              </span>
+            ))}
+            {!single && (
+              <span
+                className={`w-[36px] bg-gray-50 rounded-lg py-1 text-center tabular-nums text-[14px] ${win ? "font-black text-emerald-600" : "font-bold text-gray-400"}`}
+              >
+                {agg ?? "-"}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="text-[10px] font-semibold text-gray-400 mt-3 pt-2 border-t border-gray-50 truncate text-center">
         {legs.map((lg, i) => `${i > 0 ? " · " : ""}${single ? "" : `L${i + 1} `}${fmtKO(lg.event_date)}`).join("")}
       </div>
     </div>
@@ -591,21 +600,21 @@ function KnockoutTab({
   const idx = Math.min(sel, rounds.length - 1);
   const active = rounds[idx];
   return (
-    <div>
-      <div className="flex gap-1.5 mb-4 overflow-x-auto scrollbar-hide">
+    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide p-1 bg-gray-100/50 backdrop-blur-md rounded-2xl w-max">
         {rounds.map((r, i) => (
           <button
             key={r.name}
             onClick={() => setSel(i)}
-            className={`px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-colors ${
-              i === idx ? "bg-emerald-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            className={`px-4 py-2.5 rounded-xl text-[13px] font-bold whitespace-nowrap transition-all duration-300 ${
+              i === idx ? "bg-white text-emerald-600 shadow-sm ring-1 ring-black/5 scale-[1.02]" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
             }`}
           >
             {r.short}
           </button>
         ))}
       </div>
-      <div className="space-y-2.5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {active.ties.map((t, i) => (
           <TieCard key={i} tie={t} badgeMap={badgeMap} crests={crests} />
         ))}

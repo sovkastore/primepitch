@@ -26,23 +26,19 @@ async function getActiveCodes(): Promise<Set<string>> {
   const now = Date.now();
   if (now - codesCache.at < CODES_TTL_MS) return codesCache.codes;
   try {
-    // Use the D1 REST API through our own API route
-    // In middleware, we can't use getD1() directly (edge runtime limitations),
-    // so we use a lightweight fetch to our own endpoint
-    const origin = process.env.NEXT_PUBLIC_SITE_URL || process.env.CF_PAGES_URL || "";
-    if (origin) {
-      const res = await fetch(`${origin}/api/partner-codes`, { 
-        headers: { "x-internal": "1" },
-        next: { revalidate: 60 } 
-      });
-      if (res.ok) {
-        const arr = (await res.json()) as string[];
-        codesCache = { at: now, codes: new Set((arr || []).map((c) => String(c).toLowerCase())) };
-        return codesCache.codes;
-      }
+    const { getD1 } = await import("@/lib/d1");
+    const d1 = await getD1();
+    if (d1) {
+      const res = await d1.prepare(
+        `SELECT code FROM d1_partners WHERE active = 1 AND suspended = 0 AND banned = 0`
+      ).all();
+      const arr = (res.results || []).map((r: any) => String(r.code).toLowerCase());
+      codesCache = { at: now, codes: new Set(arr) };
+      return codesCache.codes;
     }
-  } catch {
+  } catch (e) {
     /* keep stale cache on error */
+    console.error("Middleware getActiveCodes error:", e);
   }
   codesCache.at = now; // don't hammer on repeated failure
   return codesCache.codes;
