@@ -40,28 +40,6 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
     console.error("Failed to fetch DO stats:", e);
   }
 
-  // Fall back to D1 active_viewers table if DO returns 0
-  if (onlineTotal === 0 && d1) {
-    try {
-      const pRes = await d1.prepare(`
-        SELECT 
-          COUNT(*) as online_total,
-          SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as online_his,
-          SUM(CASE WHEN match_id IS NOT NULL THEN 1 ELSE 0 END) as live_total,
-          SUM(CASE WHEN match_id IS NOT NULL AND ref_code = ? THEN 1 ELSE 0 END) as live_his
-        FROM d1_active_viewers
-        WHERE last_seen >= datetime('now', '-3 minutes')
-      `).bind(refCode, refCode).first<any>();
-
-      onlineTotal = pRes?.online_total || 0;
-      onlineHis = pRes?.online_his || 0;
-      liveTotal = pRes?.live_total || 0;
-      liveHis = pRes?.live_his || 0;
-    } catch (e) {
-      console.error("Failed to fetch D1 partner active stats:", e);
-    }
-  }
-
   // 3) New Today
   const newRes = await d1.prepare(`
     SELECT 
@@ -183,26 +161,24 @@ export async function getPartnerPulseD1(d1: D1Database, refCode: string): Promis
             match_id = path.split("/").pop();
           }
           for (const [ref, count] of Object.entries<any>(refs)) {
-            for (let i = 0; i < count; i++) {
+            for (let i = 0; i < (count as number); i++) {
               activeRows.push({ path, ref_code: ref, match_id });
             }
           }
         }
       }
+      if (stats.matches) {
+        for (const [match_id, data] of Object.entries<any>(stats.matches)) {
+          const refs = data.refs || {};
+          for (const [ref, count] of Object.entries<any>(refs)) {
+            for (let i = 0; i < (count as number); i++) {
+              activeRows.push({ path: `/watch/${match_id}`, ref_code: ref, match_id });
+            }
+          }
+        }
+      }
     }
-  // Fall back to D1 active_viewers table if DO returns no active rows
-  if (activeRows.length === 0 && d1) {
-    try {
-      const d1Rows = await d1.prepare(`
-        SELECT visitor_id, path, match_id, ref_code
-        FROM d1_active_viewers
-        WHERE last_seen >= datetime('now', '-3 minutes')
-      `).all();
-      activeRows = (d1Rows.results || []) as any[];
-    } catch (e) {
-      console.error("Failed to fetch D1 activeRows for pulse:", e);
-    }
-  }
+  } catch (e) {}
 
   const isOwn = (r: any) => !r.ref_code || r.ref_code === "none" || r.ref_code === "";
 

@@ -10,7 +10,7 @@ export async function GET() {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
     }
 
-    // 1) Get Real-time Presence from D1 (with DO fallback)
+    // 1) Get Real-time Presence from Durable Object (100% RAM)
     let onlineNow = 0;
     let liveViewers = 0;
     let totalActive = 0;
@@ -22,7 +22,7 @@ export async function GET() {
       const res = await fetch(doUrl, { next: { revalidate: 15 } });
       if (res.ok) {
         const stats = await res.json() as any;
-        onlineNow = stats.total_online || 0;
+        onlineNow = stats.total_online || stats.total || 0;
         liveViewers = stats.watchers_total || 0;
         totalActive = onlineNow;
 
@@ -40,17 +40,6 @@ export async function GET() {
         }
       }
     } catch(e) {}
-
-    // Fall back to D1 active_viewers table if DO returns 0
-    if (onlineNow === 0 && d1) {
-      const { getRealtimePresence } = await import("@/lib/db-tracking");
-      const real = await getRealtimePresence(d1);
-      onlineNow = real.onlineNow;
-      liveViewers = real.liveViewers;
-      totalActive = real.onlineNow;
-      activeMatches = real.activeMatches;
-      activePages = real.activePages;
-    }
 
     // 3) Get Peaks & Uniques (For active matches enrichment + Bottom Table)
     const statsRes = await d1.prepare(`

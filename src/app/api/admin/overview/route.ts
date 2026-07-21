@@ -9,7 +9,7 @@ export async function GET() {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
     }
 
-    // 1) Real-time Presence (from D1 active_viewers with DO fallback)
+    // 1) Real-time Presence (from Durable Object RAM)
     let onlineNow = 0;
     let liveViewers = 0;
     let ppvWatchingNow = 0;
@@ -20,7 +20,7 @@ export async function GET() {
       const res = await fetch(doUrl, { next: { revalidate: 15 } });
       if (res.ok) {
         const stats = await res.json() as any;
-        onlineNow = stats.total_online || 0;
+        onlineNow = stats.total_online || stats.total || 0;
         liveViewers = stats.watchers_total || 0;
         
         if (stats.pages && stats.pages["/ppv"]) {
@@ -39,17 +39,6 @@ export async function GET() {
         }
       }
     } catch(e) {}
-
-    // Fall back to D1 active_viewers table if DO returns 0
-    if (onlineNow === 0 && d1) {
-      const { getRealtimePresence } = await import("@/lib/db-tracking");
-      const real = await getRealtimePresence(d1);
-      onlineNow = real.onlineNow;
-      liveViewers = real.liveViewers;
-      activeMatches = real.activeMatches;
-      const ppvPage = real.activePages.find((p: any) => p.path === "/ppv");
-      ppvWatchingNow = ppvPage?.viewers || 0;
-    }
 
     // 2) Volume Today (Since midnight UTC)
     const volumeToday = await d1.prepare(`
