@@ -17,12 +17,28 @@ export async function trackHeartbeat(visitor_id: string, path: string, match_id?
   return { ok: false, source: "none" };
 }
 
-export async function trackPageView() {
+export async function trackPageView(
+  visitor_id?: string, 
+  path?: string, 
+  referrer?: string | null, 
+  device?: string | null, 
+  country?: string | null, 
+  p_ref?: string | null
+) {
   // Tracking removed in favor of GA4
   return { ok: true, source: "ga4" };
 }
 
-export async function trackMatchView() {
+export async function trackMatchView(
+  visitor_id?: string,
+  match_id?: string,
+  source?: string,
+  match_title?: string | null,
+  sport?: string | null,
+  is_live?: boolean,
+  country?: string | null,
+  ref_code?: string | null
+) {
   // Tracking removed in favor of GA4
   return { ok: true, source: "ga4" };
 }

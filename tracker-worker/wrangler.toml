@@ -9,7 +9,7 @@ bindings = [
 
 [[migrations]]
 tag = "v1"
-new_classes = ["TrackerObject"]
+new_sqlite_classes = ["TrackerObject"]
 
 [observability]
 enabled = true
