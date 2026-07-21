@@ -145,7 +145,11 @@ export default function HomePage() {
   // even when the live stream carries a different id or name. Using the shown
   // (post-suppression) list — not mergedLive — means a fixture whose early stream
   // got suppressed still stays in Upcoming rather than vanishing from both.
-  const liveForSport = filterBySport(suppressPrematureLive(mergedLive, matches), activeSport);
+  const liveForSportBase = filterBySport(suppressPrematureLive(mergedLive, matches), activeSport);
+  const liveForSport = liveForSportBase.filter((m) => {
+    if (activeSport === "football" && showPopular && !m.popular) return false;
+    return true;
+  });
   const liveTeamKeys = new Set(liveForSport.map(normTeamKey).filter((k) => k.includes("|")));
 
   const filtered = filterBySport(matches, activeSport)
