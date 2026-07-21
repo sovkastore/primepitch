@@ -10,41 +10,36 @@ export async function GET() {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
     }
 
-    // 1) Get Real-time Presence from Cloudflare D1
-    const activeRes = await d1.prepare(`
-      SELECT visitor_id, match_id, path, last_seen 
-      FROM d1_active_viewers 
-      WHERE last_seen >= datetime('now', '-6 minutes')
-    `).all();
-    const activeData = activeRes.results || [];
+    // 1) Get Real-time Presence from Durable Object
+    let onlineNow = 0;
+    let liveViewers = 0;
+    let totalActive = 0;
+    let activeMatches: any[] = [];
+    let activePages: any[] = [];
 
-    // 2) Get Recent Activity from Cloudflare D1
-    const recentRes = await d1.prepare(`
-      SELECT path, device_type, created_at 
-      FROM d1_page_views 
-      ORDER BY created_at DESC 
-      LIMIT 20
-    `).all();
-    const recentData = recentRes.results || [];
+    try {
+      const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
+      const res = await fetch(doUrl, { next: { revalidate: 15 } });
+      if (res.ok) {
+        const stats = await res.json() as any;
+        onlineNow = stats.total_online || 0;
+        liveViewers = stats.watchers_total || 0;
+        totalActive = onlineNow;
 
-    // Online Now / Live Viewers calculations
-    const onlineNow = activeData.length;
-    const liveViewers = activeData.filter((r: any) => r.match_id).length;
-    const totalActive = onlineNow;
+        if (stats.matches) {
+          activeMatches = Object.entries(stats.matches)
+            .map(([match_id, data]: any) => ({ match_id, viewers: data.total || 0 }))
+            .sort((a, b) => b.viewers - a.viewers);
+        }
 
-    const matchViewers: Record<string, number> = {};
-    const pageViewers: Record<string, number> = {};
-
-    activeData.forEach((r: any) => {
-      if (r.match_id) {
-        matchViewers[r.match_id] = (matchViewers[r.match_id] || 0) + 1;
+        if (stats.pages) {
+          activePages = Object.entries(stats.pages)
+            .map(([path, data]: any) => ({ path, viewers: data.total || 0 }))
+            .sort((a, b) => b.viewers - a.viewers)
+            .slice(0, 50);
+        }
       }
-      pageViewers[r.path] = (pageViewers[r.path] || 0) + 1;
-    });
-
-    const activeMatches = Object.entries(matchViewers)
-      .sort(([, a], [, b]) => b - a)
-      .map(([match_id, viewers]) => ({ match_id, viewers }));
+    } catch(e) {}
 
     // 3) Get Peaks & Uniques (For active matches enrichment + Bottom Table)
     const statsRes = await d1.prepare(`
@@ -76,11 +71,6 @@ export async function GET() {
       unique: statsById[m.match_id]?.unique ?? null,
     }));
 
-    const activePages = Object.entries(pageViewers)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 50)
-      .map(([path, viewers]) => ({ path, viewers }));
-
     // Merging / Clustering Logic (to handle duplicate listings in feed)
     const groups = clusterRows(statsData, {
       title: (r) => r.match_title,
@@ -108,7 +98,7 @@ export async function GET() {
       activeMatches: enrichedMatches,
       matchRecords: mergedRecords,
       activePages,
-      recentActivity: recentData || [],
+      recentActivity: [],
     });
 
   } catch (e) {

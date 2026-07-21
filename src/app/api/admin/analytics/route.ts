@@ -16,30 +16,16 @@ export async function GET(request: NextRequest) {
     const start = searchParams.get("start") || new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
     const end = searchParams.get("end") || now.toISOString();
 
-    // 1) Total Page Views & Unique Visitors in window
-    const pvRes = await d1.prepare(`
-      SELECT 
-        COUNT(*) as page_views,
-        COUNT(DISTINCT visitor_id) as unique_people
-      FROM d1_page_views 
-      WHERE created_at BETWEEN datetime(?) AND datetime(?)
+    // 1) Total Page Views, Unique Visitors, and New Visitors from GA4 Cache
+    const cacheRes = await d1.prepare(`
+      SELECT SUM(page_views) as page_views, SUM(unique_visitors) as unique_people, SUM(new_visitors) as new_visitors
+      FROM d1_ga4_cache 
+      WHERE date >= date(?) AND date <= date(?)
     `).bind(start, end).first<any>();
 
-    const pageViews = pvRes?.page_views || 0;
-    const uniquePeople = pvRes?.unique_people || 0;
-
-    // 2) New Visitors in window (Users whose MIN seen timestamp is in the window)
-    const newRes = await d1.prepare(`
-      SELECT COUNT(*) as new_visitors
-      FROM (
-        SELECT min(created_at) as first_seen
-        FROM d1_page_views
-        GROUP BY visitor_id
-      )
-      WHERE first_seen BETWEEN datetime(?) AND datetime(?)
-    `).bind(start, end).first<any>();
-
-    const newVisitors = newRes?.new_visitors || 0;
+    const pageViews = cacheRes?.page_views || 0;
+    const uniquePeople = cacheRes?.unique_people || 0;
+    const newVisitors = cacheRes?.new_visitors || 0;
     const returningVisitors = Math.max(0, uniquePeople - newVisitors);
 
     // 3) Match Watch Activity
@@ -82,18 +68,34 @@ export async function GET(request: NextRequest) {
 
     const watchersPreOnly = watchersPreOnlyRes?.watchers_pre_only || 0;
 
-    // 5) Device Breakdown
-    const deviceRes = await d1.prepare(`
-      SELECT device_type, COUNT(*) as views
-      FROM d1_page_views
-      WHERE created_at BETWEEN datetime(?) AND datetime(?)
-      GROUP BY device_type
+    // 5) Device, Pages, Referrers Breakdown
+    const advancedCacheRes = await d1.prepare(`
+      SELECT devices_json, pages_json, referrers_json
+      FROM d1_ga4_cache
+      WHERE date >= date(?) AND date <= date(?)
     `).bind(start, end).all();
 
-    const byDevice: Record<string, number> = {};
-    (deviceRes.results || []).forEach((r: any) => {
-      byDevice[r.device_type || "unknown"] = r.views;
+    const devMap: Record<string, number> = {};
+    const pgMap: Record<string, number> = {};
+    const refMap: Record<string, number> = {};
+
+    const addMap = (target: any, jsonStr: string) => {
+      if (!jsonStr) return;
+      try {
+        const obj = JSON.parse(jsonStr);
+        for (const [k, v] of Object.entries(obj)) {
+          target[k] = (target[k] || 0) + (v as number);
+        }
+      } catch (e) {}
+    };
+
+    (advancedCacheRes.results || []).forEach((row: any) => {
+      addMap(devMap, row.devices_json);
+      addMap(pgMap, row.pages_json);
+      addMap(refMap, row.referrers_json);
     });
+
+    const byDevice = devMap;
 
     // 6) Top Matches (Limit 5)
     const topMatchesRes = await d1.prepare(`
@@ -112,42 +114,13 @@ export async function GET(request: NextRequest) {
     }));
 
     // 7) Top Pages (Limit 5)
-    const topPagesRes = await d1.prepare(`
-      SELECT path, COUNT(*) as views
-      FROM d1_page_views
-      WHERE created_at BETWEEN datetime(?) AND datetime(?)
-      GROUP BY path
-      ORDER BY views DESC
-      LIMIT 5
-    `).bind(start, end).all();
-
-    const topPages = (topPagesRes.results || []).map((r: any) => ({
-      path: r.path,
-      views: r.views,
-    }));
+    const topPages = Object.entries(pgMap)
+      .sort(([, a], [, b]) => b - a).slice(0, 5)
+      .map(([path, views]) => ({ path, views }));
 
     // 8) Referrer Breakdown
-    const referrerRes = await d1.prepare(`
-      SELECT referrer as source, COUNT(*) as views
-      FROM d1_page_views
-      WHERE created_at BETWEEN datetime(?) AND datetime(?) AND referrer IS NOT NULL AND referrer != ''
-      GROUP BY referrer
-    `).bind(start, end).all();
-
-    const refCounts: Record<string, number> = {};
-    (referrerRes.results || []).forEach((r: any) => {
-      let host = r.source;
-      try {
-        host = new URL(r.source).hostname.replace(/^www\./, "");
-      } catch {
-        // Keep raw if invalid URL
-      }
-      refCounts[host] = (refCounts[host] || 0) + r.views;
-    });
-
-    const topReferrers = Object.entries(refCounts)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 8)
+    const topReferrers = Object.entries(refMap)
+      .sort(([, a], [, b]) => b - a).slice(0, 8)
       .map(([source, views]) => ({ source, views }));
 
     // Calculations

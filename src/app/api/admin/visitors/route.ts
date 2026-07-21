@@ -17,30 +17,19 @@ export async function GET(request: NextRequest) {
     const end = `${date}T23:59:59.999Z`;
     const trendStart = new Date(Date.now() - 30 * DAY_MS).toISOString();
 
-    // 1) Page Views (count) + Unique Visitors (count) for selected day
+    // 1) Page Views (count) + Unique Visitors (count) + New Visitors for selected day
     const dayStats = await d1.prepare(`
       SELECT 
-        COUNT(*) as pageviews,
-        COUNT(DISTINCT visitor_id) as uniques
-      FROM d1_page_views 
-      WHERE created_at BETWEEN datetime(?) AND datetime(?)
+        SUM(page_views) as pageviews,
+        SUM(unique_visitors) as uniques,
+        SUM(new_visitors) as new_count
+      FROM d1_ga4_cache 
+      WHERE date >= date(?) AND date <= date(?)
     `).bind(start, end).first<any>();
 
     const pageviews = dayStats?.pageviews || 0;
     const unique = dayStats?.uniques || 0;
-
-    // 2) New Visitors in that day (whose first ever hit is in the window)
-    const newStats = await d1.prepare(`
-      SELECT COUNT(*) as new_count
-      FROM (
-        SELECT MIN(created_at) as first_seen
-        FROM d1_page_views
-        GROUP BY visitor_id
-      )
-      WHERE first_seen BETWEEN datetime(?) AND datetime(?)
-    `).bind(start, end).first<any>();
-
-    const newVisitors = newStats?.new_count || 0;
+    const newVisitors = dayStats?.new_count || 0;
     const returning = Math.max(0, unique - newVisitors);
 
     // 3) Lifetime Stats (overall split)
@@ -89,14 +78,20 @@ export async function GET(request: NextRequest) {
 
     // 5) Device mapping for that day
     const deviceRes = await d1.prepare(`
-      SELECT device_type, COUNT(*) as count
-      FROM d1_page_views
-      WHERE created_at BETWEEN datetime(?) AND datetime(?)
-      GROUP BY device_type
+      SELECT devices_json
+      FROM d1_ga4_cache
+      WHERE date >= date(?) AND date <= date(?)
     `).bind(start, end).all();
 
     (deviceRes.results || []).forEach((r: any) => {
-      byDevice[r.device_type || "unknown"] = r.count;
+      if (r.devices_json) {
+        try {
+          const obj = JSON.parse(r.devices_json);
+          for (const [k, v] of Object.entries(obj)) {
+            byDevice[k] = (byDevice[k] || 0) + (v as number);
+          }
+        } catch (e) {}
+      }
     });
 
     // 6) Roster: Recently Joined / Seen users (derived from page views)
@@ -124,35 +119,20 @@ export async function GET(request: NextRequest) {
     }));
 
     // 7) 30-Day trends (uniques vs new)
-    const dailyUniquesRes = await d1.prepare(`
+    const dailyStatsRes = await d1.prepare(`
       SELECT 
-        strftime('%Y-%m-%d', created_at) as day_val,
-        COUNT(DISTINCT visitor_id) as uniques
-      FROM d1_page_views
-      WHERE created_at >= datetime(?)
+        date as day_val,
+        SUM(unique_visitors) as uniques,
+        SUM(new_visitors) as new_count
+      FROM d1_ga4_cache
+      WHERE date >= date('now', '-30 days')
       GROUP BY day_val
-    `).bind(trendStart).all();
-
-    const dailyNewRes = await d1.prepare(`
-      SELECT 
-        strftime('%Y-%m-%d', first_seen) as day_val,
-        COUNT(*) as new_count
-      FROM (
-        SELECT visitor_id, MIN(created_at) as first_seen
-        FROM d1_page_views
-        GROUP BY visitor_id
-      )
-      WHERE first_seen >= datetime(?)
-      GROUP BY day_val
-    `).bind(trendStart).all();
+    `).all();
 
     const dayUniqueMap: Record<string, number> = {};
-    (dailyUniquesRes.results || []).forEach((r: any) => {
-      dayUniqueMap[r.day_val] = r.uniques;
-    });
-
     const dayNewMap: Record<string, number> = {};
-    (dailyNewRes.results || []).forEach((r: any) => {
+    (dailyStatsRes.results || []).forEach((r: any) => {
+      dayUniqueMap[r.day_val] = r.uniques;
       dayNewMap[r.day_val] = r.new_count;
     });
 

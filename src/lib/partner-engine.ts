@@ -358,26 +358,7 @@ export async function getPartnerAnalyticsD1(
   const matchesWatched = split(statsRes?.matches_watched_total || 0, statsRes?.matches_watched_his || 0);
   const watchersLive = split(statsRes?.watchers_live_total || 0, statsRes?.watchers_live_his || 0);
 
-  // 6) Device Breakdowns
-  const deviceRes = await d1.prepare(`
-    SELECT 
-      device_type as name,
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM d1_page_views
-    WHERE created_at BETWEEN datetime(?) AND datetime(?)
-    GROUP BY name
-    ORDER BY total DESC
-    LIMIT 20
-  `).bind(refCode, start, end).all();
-
-  const byDevice = (deviceRes.results || []).map((r: any) => ({
-    name: r.name || "unknown",
-    total: r.total,
-    his: r.his || 0,
-  }));
-
-  // 7) Top Matches
+  // 6) Top Matches
   const matchesRes = await d1.prepare(`
     SELECT 
       match_id,
@@ -398,43 +379,47 @@ export async function getPartnerAnalyticsD1(
     his: r.his || 0,
   }));
 
-  // 8) Top Pages
-  const pagesRes = await d1.prepare(`
-    SELECT 
-      path,
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM d1_page_views
-    WHERE created_at BETWEEN datetime(?) AND datetime(?)
-    GROUP BY path
-    ORDER BY total DESC
-    LIMIT 20
-  `).bind(refCode, start, end).all();
+  // 7) Device, Pages, Referrers Breakdowns
+  const cacheRes = await d1.prepare(`
+    SELECT ref_code, devices_json, pages_json, referrers_json
+    FROM d1_ga4_cache
+    WHERE date >= date(?) AND date <= date(?)
+  `).bind(start, end).all();
 
-  const topPages = (pagesRes.results || []).map((r: any) => ({
-    path: r.path,
-    total: r.total,
-    his: r.his || 0,
-  }));
+  const devMap: Record<string, { total: number; his: number }> = {};
+  const pgMap: Record<string, { total: number; his: number }> = {};
+  const refMap: Record<string, { total: number; his: number }> = {};
 
-  // 9) Referrers
-  const referrersRes = await d1.prepare(`
-    SELECT 
-      referrer as source,
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM d1_page_views
-    WHERE created_at BETWEEN datetime(?) AND datetime(?) AND referrer IS NOT NULL AND referrer != ''
-    GROUP BY source
-    ORDER BY total DESC
-    LIMIT 20
-  `).bind(refCode, start, end).all();
+  const addMap = (target: any, jsonStr: string, isHis: boolean) => {
+    if (!jsonStr) return;
+    try {
+      const obj = JSON.parse(jsonStr);
+      for (const [k, v] of Object.entries(obj)) {
+        if (!target[k]) target[k] = { total: 0, his: 0 };
+        target[k].total += (v as number);
+        if (isHis) target[k].his += (v as number);
+      }
+    } catch (e) {}
+  };
 
-  const topReferrers = (referrersRes.results || []).map((r: any) => ({
-    source: r.source,
-    total: r.total,
-    his: r.his || 0,
-  }));
+  (cacheRes.results || []).forEach((row: any) => {
+    const isHis = row.ref_code === refCode;
+    addMap(devMap, row.devices_json, isHis);
+    addMap(pgMap, row.pages_json, isHis);
+    addMap(refMap, row.referrers_json, isHis);
+  });
+
+  const byDevice = Object.entries(devMap)
+    .sort(([, a], [, b]) => b.total - a.total).slice(0, 20)
+    .map(([name, v]) => ({ name, total: v.total, his: v.his }));
+
+  const topPages = Object.entries(pgMap)
+    .sort(([, a], [, b]) => b.total - a.total).slice(0, 20)
+    .map(([path, v]) => ({ path, total: v.total, his: v.his }));
+
+  const topReferrers = Object.entries(refMap)
+    .sort(([, a], [, b]) => b.total - a.total).slice(0, 20)
+    .map(([source, v]) => ({ source, total: v.total, his: v.his }));
 
   return {
     unique,
@@ -502,10 +487,10 @@ export async function getPartnerVisitorsD1(
   // 4) Selected Day Details: Page Views
   const pvRes = await d1.prepare(`
     SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM d1_page_views
-    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+      SUM(page_views) as total,
+      SUM(CASE WHEN ref_code = ? THEN page_views ELSE 0 END) as his
+    FROM d1_ga4_cache
+    WHERE date >= date(?) AND date <= date(?)
   `).bind(refCode, start, end).first<any>();
 
   const pageViews = split(pvRes?.total || 0, pvRes?.his || 0);
@@ -513,10 +498,10 @@ export async function getPartnerVisitorsD1(
   // 5) Selected Day Details: Unique Visitors
   const uRes = await d1.prepare(`
     SELECT 
-      COUNT(DISTINCT visitor_id) as total,
-      COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as his
-    FROM d1_page_views
-    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+      SUM(unique_visitors) as total,
+      SUM(CASE WHEN ref_code = ? THEN unique_visitors ELSE 0 END) as his
+    FROM d1_ga4_cache
+    WHERE date >= date(?) AND date <= date(?)
   `).bind(refCode, start, end).first<any>();
 
   const unique = split(uRes?.total || 0, uRes?.his || 0);
@@ -524,14 +509,10 @@ export async function getPartnerVisitorsD1(
   // 6) Selected Day Details: New Visitors
   const newRes = await d1.prepare(`
     SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM (
-      SELECT visitor_id, MAX(ref_code) as ref_code, MIN(created_at) as first_seen
-      FROM d1_page_views
-      GROUP BY visitor_id
-    )
-    WHERE first_seen BETWEEN datetime(?) AND datetime(?)
+      SUM(new_visitors) as total,
+      SUM(CASE WHEN ref_code = ? THEN new_visitors ELSE 0 END) as his
+    FROM d1_ga4_cache
+    WHERE date >= date(?) AND date <= date(?)
   `).bind(refCode, start, end).first<any>();
 
   const newToday = split(newRes?.total || 0, newRes?.his || 0);
@@ -543,23 +524,30 @@ export async function getPartnerVisitorsD1(
   );
 
   // 8) Device Breakdowns (Selected Day)
-  const deviceRes = await d1.prepare(`
-    SELECT 
-      device_type as name,
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM d1_page_views
-    WHERE created_at BETWEEN datetime(?) AND datetime(?)
-    GROUP BY name
-    ORDER BY total DESC
-    LIMIT 20
-  `).bind(refCode, start, end).all();
+  const devCacheRes = await d1.prepare(`
+    SELECT ref_code, devices_json
+    FROM d1_ga4_cache
+    WHERE date >= date(?) AND date <= date(?)
+  `).bind(start, end).all();
 
-  const byDevice = (deviceRes.results || []).map((r: any) => ({
-    name: r.name || "unknown",
-    total: r.total,
-    his: r.his || 0,
-  }));
+  const devMap: Record<string, { total: number; his: number }> = {};
+  (devCacheRes.results || []).forEach((row: any) => {
+    const isHis = row.ref_code === refCode;
+    if (row.devices_json) {
+      try {
+        const obj = JSON.parse(row.devices_json);
+        for (const [k, v] of Object.entries(obj)) {
+          if (!devMap[k]) devMap[k] = { total: 0, his: 0 };
+          devMap[k].total += (v as number);
+          if (isHis) devMap[k].his += (v as number);
+        }
+      } catch (e) {}
+    }
+  });
+
+  const byDevice = Object.entries(devMap)
+    .sort(([, a], [, b]) => b.total - a.total).slice(0, 20)
+    .map(([name, v]) => ({ name, total: v.total, his: v.his }));
 
   // 9) Trend unique (last 30 days)
   const trendRes = await d1.prepare(`

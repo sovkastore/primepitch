@@ -9,47 +9,58 @@ export async function GET() {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
     }
 
-    // 1) Real-time Presence (Last 6 minutes)
-    const activeRes = await d1.prepare(`
-      SELECT visitor_id, match_id, path 
-      FROM d1_active_viewers 
-      WHERE last_seen >= datetime('now', '-6 minutes')
-    `).all();
+    // 1) Real-time Presence (from Durable Object)
+    let onlineNow = 0;
+    let liveViewers = 0;
+    let ppvWatchingNow = 0;
+    let activeMatches: any[] = [];
     
-    const activeNow = activeRes.results || [];
-    const onlineNow = activeNow.length;
-    const liveViewers = activeNow.filter((r: any) => r.match_id).length;
-    const ppvWatchingNow = activeNow.filter((r: any) => r.path === "/ppv").length;
+    try {
+      const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
+      const res = await fetch(doUrl, { next: { revalidate: 15 } });
+      if (res.ok) {
+        const stats = await res.json() as any;
+        onlineNow = stats.total_online || 0;
+        liveViewers = stats.watchers_total || 0;
+        
+        if (stats.pages && stats.pages["/ppv"]) {
+           let ppvCount = 0;
+           for (const count of Object.values<number>(stats.pages["/ppv"].refs || {})) ppvCount += count;
+           ppvWatchingNow = ppvCount;
+        }
 
-    const matchViewers: Record<string, number> = {};
-    activeNow.forEach((r: any) => {
-      if (r.match_id) matchViewers[r.match_id as string] = (matchViewers[r.match_id as string] || 0) + 1;
-    });
-    const activeMatches = Object.entries(matchViewers)
-      .sort(([, a], [, b]) => b - a)
-      .map(([match_id, viewers]) => ({ match_id, viewers }));
+        if (stats.matches) {
+           activeMatches = Object.entries(stats.matches)
+             .map(([match_id, data]: any) => ({
+                match_id,
+                viewers: data.total || 0
+             }))
+             .sort((a, b) => b.viewers - a.viewers);
+        }
+      }
+    } catch(e) {}
 
     // 2) Volume Today (Since midnight UTC)
     const volumeToday = await d1.prepare(`
       SELECT 
-        (SELECT COUNT(*) FROM d1_page_views WHERE created_at >= datetime('now', 'start of day')) as today_views,
-        (SELECT COUNT(DISTINCT visitor_id) FROM d1_page_views WHERE created_at >= datetime('now', 'start of day')) as unique_today,
+        (SELECT SUM(page_views) FROM d1_ga4_cache WHERE date = date('now')) as today_views,
+        (SELECT SUM(unique_visitors) FROM d1_ga4_cache WHERE date = date('now')) as unique_today,
         (SELECT COUNT(*) FROM d1_match_views WHERE created_at >= datetime('now', 'start of day')) as match_views_today
     `).first<any>();
 
     // 3) Week Views
     const weekRes = await d1.prepare(`
-      SELECT COUNT(*) as views FROM d1_page_views WHERE created_at >= datetime('now', '-7 days')
+      SELECT SUM(page_views) as views FROM d1_ga4_cache WHERE date >= date('now', '-7 days')
     `).first<any>();
 
     // 4) 30-Day Trend (Page views)
     const dailyPageRes = await d1.prepare(`
       SELECT 
-        strftime('%Y-%m-%d', created_at) as date,
-        COUNT(*) as total_views,
-        COUNT(DISTINCT visitor_id) as unique_visitors
-      FROM d1_page_views 
-      WHERE created_at >= datetime('now', '-30 days') 
+        date,
+        SUM(page_views) as total_views,
+        SUM(unique_visitors) as unique_visitors
+      FROM d1_ga4_cache 
+      WHERE date >= date('now', '-30 days') 
       GROUP BY date
     `).all();
 
