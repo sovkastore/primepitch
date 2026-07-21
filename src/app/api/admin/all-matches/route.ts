@@ -46,6 +46,7 @@ export async function GET() {
         try {
           const res = await fetch(`https://streamed.pk/api/matches/${sport}`, {
             signal: AbortSignal.timeout(8000),
+            headers: { "User-Agent": "primepitch" }
           });
           const data = await res.json();
           return (Array.isArray(data) ? data : []).map((m: Match) => ({ ...m, category: sport }));
@@ -58,7 +59,10 @@ export async function GET() {
 
     let curatedLiveKeys = new Set<string>();
     try {
-      const lr = await fetch("https://streamed.pk/api/matches/live", { signal: AbortSignal.timeout(8000) });
+      const lr = await fetch("https://streamed.pk/api/matches/live", { 
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "primepitch" }
+      });
       const ld: Match[] = lr.ok ? await lr.json() : [];
       const byKey = new Map(all.map((m) => [keyOf(m), m]));
       for (const m of ld) {

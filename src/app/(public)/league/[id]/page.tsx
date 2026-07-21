@@ -182,7 +182,7 @@ export default function CompetitionPage() {
   // streamed.pk football feed → Watch links + crests-by-name.
   useEffect(() => {
     let on = true;
-    fetch("https://streamed.pk/api/matches/football")
+    fetch("/api/matches/football")
       .then((r) => r.json())
       .then((ms: Match[]) => {
         if (!on || !Array.isArray(ms)) return;

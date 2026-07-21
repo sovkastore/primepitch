@@ -131,7 +131,10 @@ export async function GET() {
 
   try {
     const [liveRes, flags, overrideBacked, finishedKeys] = await Promise.all([
-      fetch(LIVE_URL, { signal: AbortSignal.timeout(8000) }),
+      fetch(LIVE_URL, { 
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "primepitch" }
+      }),
       getFlags(),
       getOverrideBacked(),
       getFinishedWcKeys(),

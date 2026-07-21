@@ -225,7 +225,7 @@ export default function WatchPage() {
         const matchResults = await Promise.all(
           ALL_SPORTS.map(async (sport) => {
             try {
-              const res = await fetch(`https://streamed.pk/api/matches/${sport}`);
+              const res = await fetch(`/api/matches/${sport}`);
               const data = await res.json();
               return data.map((m: Match) => ({ ...m, category: sport }));
             } catch {

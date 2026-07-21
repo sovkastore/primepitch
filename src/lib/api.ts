@@ -48,7 +48,10 @@ async function fetchWithCache<T>(url: string): Promise<T> {
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data as T;
   }
-  const res = await fetch(url, { next: { revalidate: 30 } });
+  const res = await fetch(url, { 
+    next: { revalidate: 30 },
+    headers: { "User-Agent": "primepitch" }
+  });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   const data = await res.json();
   cache.set(url, { data, timestamp: Date.now() });

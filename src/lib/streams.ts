@@ -31,6 +31,7 @@ async function echoStreams(source: string, id: string): Promise<ResolvedStream[]
   try {
     const res = await fetch(`https://streamed.pk/api/stream/${source}/${id}`, {
       signal: AbortSignal.timeout(6000),
+      headers: { "User-Agent": "primepitch" }
     });
     if (!res.ok) return [];
     const data = await res.json();
