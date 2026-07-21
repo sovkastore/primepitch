@@ -63,6 +63,9 @@ export const metadata: Metadata = {
   },
 };
 
+import { GoogleAnalytics } from "@next/third-parties/google";
+import GATracker from "@/components/GATracker";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -74,6 +77,8 @@ export default function RootLayout({
         {children}
         <AdsLoader />
         <SwCleanup />
+        <GoogleAnalytics gaId="G-EQQ7ZNW2EJ" />
+        <GATracker />
       </body>
     </html>
   );
