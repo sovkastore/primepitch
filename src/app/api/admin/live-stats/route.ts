@@ -98,6 +98,14 @@ export async function GET() {
 
     mergedRecords.sort((a: any, b: any) => (b.updated_at || "").localeCompare(a.updated_at || ""));
 
+    // Query recent activity for the live feed
+    const recentViewsRes = await d1.prepare(`
+      SELECT path, 'mobile' as device_type, created_at 
+      FROM d1_match_views 
+      ORDER BY created_at DESC 
+      LIMIT 20
+    `).all();
+
     return NextResponse.json({
       onlineNow,
       liveViewers,
@@ -105,7 +113,7 @@ export async function GET() {
       activeMatches: enrichedMatches,
       matchRecords: mergedRecords,
       activePages,
-      recentActivity: [],
+      recentActivity: recentViewsRes.results || [],
     });
 
   } catch (e) {

@@ -191,7 +191,7 @@ export default function WatchPage() {
   const sportLabel = SPORT_LABELS[currentMatch?.category || ""] || currentMatch?.category || "";
   // A match that can't be found in any current list and has no streams has
   // ENDED (feeds drop matches once played) — never show it as "upcoming".
-  const matchStatus = source === "tv" ? "live" : (currentMatch ? getMatchStatus(currentMatch) : (loading ? "upcoming" : "ended"));
+  const matchStatus = source === "tv" ? "live" : (currentMatch ? getMatchStatus(currentMatch) : (loading ? "upcoming" : (streams.length > 0 ? "live" : "upcoming")));
   const isLive = source === "tv" ? true : (matchStatus === "live" || forceLive || autoLive);
   const isEnded = source !== "tv" && (!isLive && matchStatus === "ended" && streams.length === 0);
 
@@ -225,7 +225,7 @@ export default function WatchPage() {
         const matchResults = await Promise.all(
           ALL_SPORTS.map(async (sport) => {
             try {
-              const res = await fetch(`/api/matches/${sport}`);
+              const res = await fetch(`/api/matches?sport=${sport}`);
               const data = await res.json();
               return data.map((m: Match) => ({ ...m, category: sport }));
             } catch {

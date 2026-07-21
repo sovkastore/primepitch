@@ -158,10 +158,9 @@ export default function PulsePage() {
   const endedViewers = feedStatus
     ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "ended").reduce((sum, m) => sum + m.viewers, 0)
     : 0;
-  // Exactly the sum of the "Watching live now" list: only matches whose status
-  // resolves to live (feed-live or admin force-lived), nothing unidentified.
+  // Exactly the sum of the "Watching live now" list: matches whose status is live or active
   const trueLiveViewers = data.activeMatches
-    .filter((m) => rowStatus(m.match_id) === "live")
+    .filter((m) => rowStatus(m.match_id) !== "ended")
     .reduce((sum, m) => sum + m.viewers, 0);
   // People sitting on a pre-kickoff (upcoming) match page — waiting, not watching.
   const waitingViewers = feedStatus
@@ -170,7 +169,7 @@ export default function PulsePage() {
 
   // Live matches get their own container; the "Live active page" list below
   // covers everyone else (including everyone on non-match pages).
-  const liveActive = data.activeMatches.filter((m) => rowStatus(m.match_id) === "live");
+  const liveActive = data.activeMatches.filter((m) => rowStatus(m.match_id) !== "ended");
 
   // Shared row used by both containers.
   const renderActiveRow = (m: { match_id: string; viewers: number; peak?: number; unique?: number | null }) => (
