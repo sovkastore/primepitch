@@ -6,29 +6,39 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
   const start = `${dateStr}T00:00:00.000Z`;
   const end = `${dateStr}T23:59:59.999Z`;
 
-  // 1) Active Online (6 min presence)
-  const activeRes = await d1.prepare(`
-    SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM d1_active_viewers 
-    WHERE last_seen >= datetime('now', '-6 minutes')
-  `).bind(refCode).first<any>();
+  // Fetch live active data from Durable Object
+  let onlineTotal = 0;
+  let onlineHis = 0;
+  let liveTotal = 0;
+  let liveHis = 0;
 
-  const onlineTotal = activeRes?.total || 0;
-  const onlineHis = activeRes?.his || 0;
+  try {
+    const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
+    const res = await fetch(doUrl, { next: { revalidate: 15 } });
+    if (res.ok) {
+      const stats = await res.json() as any;
+      onlineTotal = stats.total || 0;
+      
+      // Calculate 'his' total across all pages
+      let hisPages = 0;
+      if (stats.pages) {
+        for (const [path, data] of Object.entries<any>(stats.pages)) {
+          hisPages += data.refs?.[refCode] || 0;
+        }
+      }
+      onlineHis = hisPages;
 
-  // 2) On a Match Page (6 min presence + match_id not null)
-  const liveRes = await d1.prepare(`
-    SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM d1_active_viewers 
-    WHERE match_id IS NOT NULL AND last_seen >= datetime('now', '-6 minutes')
-  `).bind(refCode).first<any>();
-
-  const liveTotal = liveRes?.total || 0;
-  const liveHis = liveRes?.his || 0;
+      // Calculate live on match pages
+      if (stats.matches) {
+        for (const [mId, data] of Object.entries<any>(stats.matches)) {
+          liveTotal += data.total || 0;
+          liveHis += data.refs?.[refCode] || 0;
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch DO stats:", e);
+  }
 
   // 3) New Today
   const newRes = await d1.prepare(`
@@ -97,21 +107,21 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
   const mvHis = mvRes?.his || 0;
 
   // 8) Active Matches
-  const activeMatchesRes = await d1.prepare(`
-    SELECT 
-      match_id,
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM d1_active_viewers
-    WHERE match_id IS NOT NULL AND last_seen >= datetime('now', '-6 minutes')
-    GROUP BY match_id
-  `).bind(refCode).all();
-
-  const activeMatches = (activeMatchesRes.results || []).map((r: any) => ({
-    match_id: r.match_id,
-    total: r.total,
-    his: r.his || 0,
-  }));
+  let activeMatches: any[] = [];
+  try {
+    const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
+    const res = await fetch(doUrl, { next: { revalidate: 15 } });
+    if (res.ok) {
+      const stats = await res.json() as any;
+      if (stats.matches) {
+        activeMatches = Object.entries<any>(stats.matches).map(([match_id, data]) => ({
+          match_id,
+          total: data.total || 0,
+          his: data.refs?.[refCode] || 0,
+        }));
+      }
+    }
+  } catch (e) {}
 
   const split = (t: number, h: number) => ({ total: t, his: h, yours: Math.max(0, t - h) });
 
@@ -132,13 +142,37 @@ import { type PulseData } from "@/components/partner/PulsePanel";
 export async function getPartnerPulseD1(d1: D1Database, refCode: string): Promise<PulseData> {
   const split = (t: number, h: number, o: number) => ({ total: t, his: h, yours: Math.max(0, t - h), own: o });
 
-  // 1) Fetch all active presence in the last 6 minutes
-  const activeRes = await d1.prepare(`
-    SELECT visitor_id, match_id, path, ref_code 
-    FROM d1_active_viewers 
-    WHERE last_seen >= datetime('now', '-6 minutes')
-  `).all();
-  const activeRows = (activeRes.results || []) as any[];
+  // 1) Fetch all active presence from Durable Object
+  let activeRows: any[] = [];
+  try {
+    const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
+    const res = await fetch(doUrl, { next: { revalidate: 15 } });
+    if (res.ok) {
+      const stats = await res.json() as any;
+      
+      // Reconstruct "activeRows" approximation from DO stats
+      // We don't have individual rows, but we have aggregated counts per page and match.
+      // But the original code filters 'activeRows' by match_id, path, and ref_code.
+      // To mimic activeRows:
+      // Actually, since we only need counts, let's just populate a synthetic activeRows array 
+      // or directly calculate the totals from stats.pages and stats.matches!
+      // For compatibility with the rest of the function, we can build synthetic rows:
+      if (stats.pages) {
+        for (const [path, data] of Object.entries<any>(stats.pages)) {
+          const refs = data.refs || {};
+          let match_id = null;
+          if (path.startsWith("/watch/")) {
+            match_id = path.split("/").pop();
+          }
+          for (const [ref, count] of Object.entries<any>(refs)) {
+            for (let i = 0; i < count; i++) {
+              activeRows.push({ path, ref_code: ref, match_id });
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {}
 
   const isOwn = (r: any) => !r.ref_code || r.ref_code === "none" || r.ref_code === "";
 

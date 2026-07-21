@@ -25,8 +25,29 @@ export async function trackPageView(
   country?: string | null, 
   p_ref?: string | null
 ) {
-  // Tracking removed in favor of GA4
-  return { ok: true, source: "ga4" };
+  const { getD1 } = await import("./d1");
+  const d1 = await getD1();
+
+  if (d1 && visitor_id && path) {
+    try {
+      await d1.prepare(`
+        INSERT INTO d1_page_views (visitor_id, path, referrer, device_type, country, ref_code)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        visitor_id, 
+        path, 
+        referrer ?? null, 
+        device ?? null, 
+        country ?? null,
+        p_ref ?? null
+      ).run();
+      return { ok: true, source: "d1" };
+    } catch (e) {
+      console.error("D1 PageView Error:", e);
+    }
+  }
+
+  return { ok: false, source: "none" };
 }
 
 export async function trackMatchView(
@@ -39,6 +60,28 @@ export async function trackMatchView(
   country?: string | null,
   ref_code?: string | null
 ) {
-  // Tracking removed in favor of GA4
-  return { ok: true, source: "ga4" };
+  const { getD1 } = await import("./d1");
+  const d1 = await getD1();
+
+  if (d1 && visitor_id && match_id && source) {
+    try {
+      await d1.prepare(`
+        INSERT INTO d1_match_views (visitor_id, match_id, source, match_title, sport, is_live, country, ref_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        visitor_id,
+        match_id,
+        source,
+        match_title ?? null,
+        sport ?? null,
+        is_live ? 1 : 0,
+        country ?? null,
+        ref_code ?? null
+      ).run();
+      return { ok: true, source: "d1" };
+    } catch (e) {
+      console.error("D1 MatchView Error:", e);
+    }
+  }
+  return { ok: false };
 }
