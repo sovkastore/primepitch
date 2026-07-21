@@ -21,7 +21,14 @@ export async function GET() {
       if (res.ok) {
         const stats = await res.json() as any;
         onlineNow = stats.total_online || stats.total || 0;
-        liveViewers = stats.watchers_total || 0;
+        
+        let matchWatchers = 0;
+        if (stats.matches) {
+          for (const mData of Object.values<any>(stats.matches)) {
+            matchWatchers += mData.total || 0;
+          }
+        }
+        liveViewers = typeof stats.watchers_total === "number" ? stats.watchers_total : matchWatchers;
         
         if (stats.pages && stats.pages["/ppv"]) {
            let ppvCount = 0;

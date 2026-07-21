@@ -73,7 +73,18 @@ export class TrackerObject {
         }
       }
 
-      return new Response(JSON.stringify(stats), {
+      let watchers_total = 0;
+      for (const mData of Object.values(stats.matches)) {
+        watchers_total += mData.total;
+      }
+
+      return new Response(JSON.stringify({
+        total: stats.total,
+        total_online: stats.total,
+        watchers_total,
+        matches: stats.matches,
+        pages: stats.pages,
+      }), {
         status: 200,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
