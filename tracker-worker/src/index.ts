@@ -88,5 +88,19 @@ export default {
     const id = env.TRACKER.idFromName("GLOBAL");
     const obj = env.TRACKER.get(id);
     return obj.fetch(request);
+  },
+  
+  async scheduled(event: any, env: Env, ctx: ExecutionContext) {
+    // Ping the main site's API to trigger GA4 Sync
+    try {
+      const res = await fetch("https://primepitch.live/api/cron/sync-ga4", {
+        headers: {
+          "Authorization": "Bearer secret"
+        }
+      });
+      console.log("GA4 Sync Result:", await res.text());
+    } catch (e) {
+      console.error("Failed to trigger GA4 Sync", e);
+    }
   }
 };

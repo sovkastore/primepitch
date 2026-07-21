@@ -13,3 +13,6 @@ new_sqlite_classes = ["TrackerObject"]
 
 [observability]
 enabled = true
+
+[triggers]
+crons = ["0 * * * *"]

@@ -43,15 +43,11 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
   // 3) New Today
   const newRes = await d1.prepare(`
     SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM (
-      SELECT visitor_id, MAX(ref_code) as ref_code, MIN(created_at) as first_seen
-      FROM d1_page_views
-      GROUP BY visitor_id
-    )
-    WHERE first_seen BETWEEN datetime(?) AND datetime(?)
-  `).bind(refCode, start, end).first<any>();
+      SUM(new_visitors) as total,
+      SUM(CASE WHEN ref_code = ? THEN new_visitors ELSE 0 END) as his
+    FROM d1_ga4_cache
+    WHERE date = ?
+  `).bind(refCode, dateStr).first<any>();
 
   const newTotal = newRes?.total || 0;
   const newHis = newRes?.his || 0;
@@ -59,11 +55,11 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
   // 4) Uniques Today (needed to calculate Returns = Uniques - New)
   const uniquesRes = await d1.prepare(`
     SELECT 
-      COUNT(DISTINCT visitor_id) as total,
-      COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as his
-    FROM d1_page_views
-    WHERE created_at BETWEEN datetime(?) AND datetime(?)
-  `).bind(refCode, start, end).first<any>();
+      SUM(unique_visitors) as total,
+      SUM(CASE WHEN ref_code = ? THEN unique_visitors ELSE 0 END) as his
+    FROM d1_ga4_cache
+    WHERE date = ?
+  `).bind(refCode, dateStr).first<any>();
 
   const uTotal = uniquesRes?.total || 0;
   const uHis = uniquesRes?.his || 0;
@@ -74,9 +70,9 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
   // 5) Lifetime Visitors (ever joined)
   const lifetimeRes = await d1.prepare(`
     SELECT 
-      COUNT(DISTINCT visitor_id) as total,
-      COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as his
-    FROM d1_page_views
+      SUM(unique_visitors) as total,
+      SUM(CASE WHEN ref_code = ? THEN unique_visitors ELSE 0 END) as his
+    FROM d1_ga4_cache
   `).bind(refCode).first<any>();
 
   const lifeTotal = lifetimeRes?.total || 0;
@@ -85,11 +81,11 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
   // 6) Page Views Today
   const pvRes = await d1.prepare(`
     SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM d1_page_views
-    WHERE created_at BETWEEN datetime(?) AND datetime(?)
-  `).bind(refCode, start, end).first<any>();
+      SUM(page_views) as total,
+      SUM(CASE WHEN ref_code = ? THEN page_views ELSE 0 END) as his
+    FROM d1_ga4_cache
+    WHERE date = ?
+  `).bind(refCode, dateStr).first<any>();
 
   const pvTotal = pvRes?.total || 0;
   const pvHis = pvRes?.his || 0;
@@ -294,10 +290,10 @@ export async function getPartnerAnalyticsD1(
   // 1) Page Views (range)
   const pvRes = await d1.prepare(`
     SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM d1_page_views
-    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+      SUM(page_views) as total,
+      SUM(CASE WHEN ref_code = ? THEN page_views ELSE 0 END) as his
+    FROM d1_ga4_cache
+    WHERE date >= date(?) AND date <= date(?)
   `).bind(refCode, start, end).first<any>();
 
   const pageViews = split(pvRes?.total || 0, pvRes?.his || 0);
@@ -305,10 +301,10 @@ export async function getPartnerAnalyticsD1(
   // 2) Unique Visitors (range)
   const uRes = await d1.prepare(`
     SELECT 
-      COUNT(DISTINCT visitor_id) as total,
-      COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as his
-    FROM d1_page_views
-    WHERE created_at BETWEEN datetime(?) AND datetime(?)
+      SUM(unique_visitors) as total,
+      SUM(CASE WHEN ref_code = ? THEN unique_visitors ELSE 0 END) as his
+    FROM d1_ga4_cache
+    WHERE date >= date(?) AND date <= date(?)
   `).bind(refCode, start, end).first<any>();
 
   const unique = split(uRes?.total || 0, uRes?.his || 0);
@@ -316,14 +312,10 @@ export async function getPartnerAnalyticsD1(
   // 3) New Visitors (range)
   const newRes = await d1.prepare(`
     SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM (
-      SELECT visitor_id, MAX(ref_code) as ref_code, MIN(created_at) as first_seen
-      FROM d1_page_views
-      GROUP BY visitor_id
-    )
-    WHERE first_seen BETWEEN datetime(?) AND datetime(?)
+      SUM(new_visitors) as total,
+      SUM(CASE WHEN ref_code = ? THEN new_visitors ELSE 0 END) as his
+    FROM d1_ga4_cache
+    WHERE date >= date(?) AND date <= date(?)
   `).bind(refCode, start, end).first<any>();
 
   const newVisitors = split(newRes?.total || 0, newRes?.his || 0);
