@@ -47,11 +47,9 @@ export default function Analytics() {
     const visitor_id = getVisitorId();
     if (!visitor_id) return;
 
-    // Only set up heartbeat interval on watch pages
+    // Heartbeat now runs on ALL pages to track full site activity!
     const watchMatch = pathname.match(/^\/watch\/([^/]+)/);
-    if (!watchMatch) return;
-
-    const matchId = decodeURIComponent(watchMatch[1]);
+    const matchId = watchMatch ? decodeURIComponent(watchMatch[1]) : undefined;
 
     const sendHeartbeat = () => {
       // The watch page raises this flag once its match has ended.
