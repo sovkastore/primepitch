@@ -303,7 +303,7 @@ export function suppressPrematureLive(live: Match[], allMatches: Match[]): Match
   const now = Date.now();
   const base = (t: string) => normTitle((t || "").replace(/\([^)]*\)/g, " "));
   const upcomingFixtures = new Set(
-    allMatches.filter((m) => m.date - now > 10 * 60 * 1000).map((m) => base(m.title))
+    allMatches.filter((m) => m.date - now > 60 * 60 * 1000).map((m) => base(m.title))
   );
   return live.filter((m) => {
     if (m.sources?.[0]?.source === "admin" || m.forced) return true;
