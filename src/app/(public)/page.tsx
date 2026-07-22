@@ -137,12 +137,8 @@ export default function HomePage() {
     );
   }
 
-  // Filter out admin-hidden matches, and combine official live matches with any scheduled match that has reached its kickoff time
-  const mathematicallyLive = matches.filter(m => getMatchStatus(m) === "live");
-  const combinedLive = [...liveMatches, ...mathematicallyLive];
-  
-  // Deduplicate in case a match is in both lists
-  const mergedLive = dedupeMatches(combinedLive).filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)));
+  // Filter out admin-hidden matches.
+  const mergedLive = liveMatches.filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)));
 
   // The matches actually shown as LIVE (after the premature-live guard). Build a
   // team-identity set from these so the same fixture can't also sit in Upcoming,

@@ -300,15 +300,8 @@ export function bothTeamsHaveVisuals(match?: Match | null): boolean {
 // Admin-created live events (source "admin") are always kept, so anything you
 // force live yourself still wins.
 export function suppressPrematureLive(live: Match[], allMatches: Match[]): Match[] {
-  const now = Date.now();
-  const base = (t: string) => normTitle((t || "").replace(/\([^)]*\)/g, " "));
-  const upcomingFixtures = new Set(
-    allMatches.filter((m) => m.date - now > 60 * 60 * 1000).map((m) => base(m.title))
-  );
-  return live.filter((m) => {
-    if (m.sources?.[0]?.source === "admin" || m.forced) return true;
-    return !upcomingFixtures.has(base(m.title));
-  });
+  // Always trust the upstream live feed directly, with no time-based filtering.
+  return live;
 }
 
 // streamed.pk sends two rows for the same fixture (e.g. "South Korea vs Czechia"
