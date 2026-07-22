@@ -29,9 +29,22 @@ export async function trackPageView(
   const d1 = await getD1();
 
   if (d1 && visitor_id && path) {
-    // D1 page view tracking has been stripped out to prevent database bloat.
-    // We now rely exclusively on GA4 and the background cron job for page view analytics.
-    return { ok: true, source: "ga4-only" };
+    try {
+      await d1.prepare(`
+        INSERT INTO d1_page_views (visitor_id, path, referrer, device_type, country, ref_code)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        visitor_id,
+        path,
+        referrer ?? null,
+        device ?? null,
+        country ?? null,
+        p_ref ?? null
+      ).run();
+      return { ok: true, source: "d1" };
+    } catch (e) {
+      console.error("D1 PageView Error:", e);
+    }
   }
 
   return { ok: false, source: "none" };
