@@ -66,9 +66,13 @@ export default function SportPage() {
       .catch(() => {});
   }, []);
 
+  // Combine official streamable matches with scheduled matches that just hit kickoff time
+  const mathematicallyLive = matches.filter(m => getMatchStatus(m) === "live");
+  const combinedLive = dedupeMatches([...liveMatches, ...mathematicallyLive]);
+
   // Only the streamable live matches that belong to this page.
   const live = suppressPrematureLive(
-    liveMatches.filter((m) => {
+    combinedLive.filter((m) => {
       if (m.category !== apiSport) return false;
       if (fightSub) return classifyFight(m.title) === fightSub;
       return true;
