@@ -1,8 +1,62 @@
-export const runtime = "nodejs"; // Important: @google-analytics/data requires nodejs runtime
+export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { BetaAnalyticsDataClient } from "@google-analytics/data";
 import { getD1 } from "@/lib/d1";
+
+function pemToArrayBuffer(pem: string): ArrayBuffer {
+  const b64Lines = pem.replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, '');
+  const b64 = atob(b64Lines);
+  const buf = new Uint8Array(b64.length);
+  for (let i = 0; i < b64.length; i++) {
+    buf[i] = b64.charCodeAt(i);
+  }
+  return buf.buffer;
+}
+
+async function getGa4AccessToken(clientEmail: string, privateKeyPem: string): Promise<string> {
+  const subtle = globalThis.crypto.subtle;
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + 3600;
+  const payload = {
+    iss: clientEmail,
+    scope: 'https://www.googleapis.com/auth/analytics.readonly',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp,
+    iat
+  };
+
+  const encHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const encPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const data = new TextEncoder().encode(`${encHeader}.${encPayload}`);
+
+  const privateKeyDer = pemToArrayBuffer(privateKeyPem);
+  const key = await subtle.importKey(
+    'pkcs8',
+    privateKeyDer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } },
+    false,
+    ['sign']
+  );
+
+  const signature = await subtle.sign('RSASSA-PKCS1-v1_5', key, data);
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+  const jwt = `${encHeader}.${encPayload}.${sigB64}`;
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to get Google access token: ${await res.text()}`);
+  }
+  const tokenData = await res.json();
+  return tokenData.access_token;
+}
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -18,17 +72,25 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "GA4 credentials not configured" }, { status: 500 });
   }
 
-  // Fix escaped newlines if passed via env
   privateKey = privateKey.replace(/\\n/g, '\n');
 
   try {
-    const analyticsDataClient = new BetaAnalyticsDataClient({
-      credentials: {
-        client_email: clientEmail,
-        private_key: privateKey,
-      },
-      projectId: "primepitch-ga4-sync",
-    });
+    const accessToken = await getGa4AccessToken(clientEmail, privateKey);
+
+    const runReport = async (body: any) => {
+      const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        throw new Error(`GA4 API Error: ${await res.text()}`);
+      }
+      return res.json();
+    };
 
     const d1 = await getD1();
     if (!d1) return NextResponse.json({ error: "D1 not available" }, { status: 500 });
@@ -36,15 +98,9 @@ export async function GET(req: Request) {
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10);
 
-    // Run report grouped by customEvent:ref_code
-    const [response] = await analyticsDataClient.runReport({
-      property: `properties/${propertyId}`,
-      dateRanges: [
-        { startDate: "today", endDate: "today" }, // Fetch just today for caching
-      ],
-      dimensions: [
-        { name: "customEvent:ref_code" }
-      ],
+    const response = await runReport({
+      dateRanges: [{ startDate: "today", endDate: "today" }],
+      dimensions: [{ name: "customEvent:ref_code" }],
       metrics: [
         { name: "screenPageViews" },
         { name: "activeUsers" },
@@ -53,20 +109,17 @@ export async function GET(req: Request) {
     });
 
     const [devicesRes, referrersRes, pagesRes] = await Promise.all([
-      analyticsDataClient.runReport({
-        property: `properties/${propertyId}`,
+      runReport({
         dateRanges: [{ startDate: "today", endDate: "today" }],
         dimensions: [{ name: "customEvent:ref_code" }, { name: "deviceCategory" }],
         metrics: [{ name: "screenPageViews" }],
       }),
-      analyticsDataClient.runReport({
-        property: `properties/${propertyId}`,
+      runReport({
         dateRanges: [{ startDate: "today", endDate: "today" }],
         dimensions: [{ name: "customEvent:ref_code" }, { name: "sessionSource" }],
         metrics: [{ name: "screenPageViews" }],
       }),
-      analyticsDataClient.runReport({
-        property: `properties/${propertyId}`,
+      runReport({
         dateRanges: [{ startDate: "today", endDate: "today" }],
         dimensions: [{ name: "customEvent:ref_code" }, { name: "pagePath" }],
         metrics: [{ name: "screenPageViews" }],
@@ -90,9 +143,9 @@ export async function GET(req: Request) {
       }
     };
 
-    processAdvanced(devicesRes[0], devicesMap);
-    processAdvanced(referrersRes[0], referrersMap);
-    processAdvanced(pagesRes[0], pagesMap);
+    processAdvanced(devicesRes, devicesMap);
+    processAdvanced(referrersRes, referrersMap);
+    processAdvanced(pagesRes, pagesMap);
 
     const rowsToInsert = [];
 
@@ -102,7 +155,7 @@ export async function GET(req: Request) {
         if (refCode === '(not set)') refCode = 'none';
 
         const pageViews = parseInt(row.metricValues?.[0]?.value || '0');
-        const activeUsers = parseInt(row.metricValues?.[1]?.value || '0'); // Unique visitors
+        const activeUsers = parseInt(row.metricValues?.[1]?.value || '0');
         const newUsers = parseInt(row.metricValues?.[2]?.value || '0');
         const returningUsers = Math.max(0, activeUsers - newUsers);
 
