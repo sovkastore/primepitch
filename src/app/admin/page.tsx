@@ -115,9 +115,8 @@ export default function AdminHome() {
     return isCustom ? null : "ended";
   };
 
-  // Viewers on matches that are genuinely live right now.
   const liveWatching = (data?.activeMatches ?? [])
-    .filter((m) => rowStatus(m.match_id) === "live")
+    .filter((m) => rowStatus(m.match_id) !== "ended")
     .reduce((sum, m) => sum + m.viewers, 0);
 
   return (
