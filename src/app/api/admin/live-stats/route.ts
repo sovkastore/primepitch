@@ -100,8 +100,8 @@ export async function GET() {
 
     // Query recent activity for the live feed
     const recentViewsRes = await d1.prepare(`
-      SELECT path, 'mobile' as device_type, created_at 
-      FROM d1_match_views 
+      SELECT path, device_type, created_at 
+      FROM d1_page_views 
       ORDER BY created_at DESC 
       LIMIT 20
     `).all();
