@@ -1,6 +1,6 @@
 import { getD1 } from "./d1";
 
-const DO_URL = "https://primepitch-live-tracker.daxonicstudios.workers.dev"; // We will verify this URL
+const DO_URL = "https://tracker.xellnetwork.xyz"; // Using custom domain to bypass Cloudflare Worker-to-Worker block
 
 export async function trackHeartbeat(visitor_id: string, path: string, match_id?: string | null, ref_code?: string | null) {
   try {
