@@ -18,7 +18,7 @@ export async function GET() {
     let activeMatches: any[] = [];
     
     try {
-      const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
+      const doUrl = "https://tracker.xellnetwork.xyz/stats";
       const res = await fetch(doUrl, { cache: "no-store" });
       if (res.ok) {
         const stats = await res.json() as any;

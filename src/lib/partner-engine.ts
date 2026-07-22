@@ -13,7 +13,7 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
   let liveHis = 0;
 
   try {
-    const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
+    const doUrl = "https://tracker.xellnetwork.xyz/stats";
     const res = await fetch(doUrl, { cache: "no-store" });
     if (res.ok) {
       const stats = await res.json() as any;
@@ -105,7 +105,7 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
   // 8) Active Matches
   let activeMatches: any[] = [];
   try {
-    const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
+    const doUrl = "https://tracker.xellnetwork.xyz/stats";
     const res = await fetch(doUrl, { cache: "no-store" });
     if (res.ok) {
       const stats = await res.json() as any;
@@ -141,7 +141,7 @@ export async function getPartnerPulseD1(d1: D1Database, refCode: string): Promis
   // 1) Fetch all active presence from Durable Object
   let activeRows: any[] = [];
   try {
-    const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
+    const doUrl = "https://tracker.xellnetwork.xyz/stats";
     const res = await fetch(doUrl, { cache: "no-store" });
     if (res.ok) {
       const stats = await res.json() as any;
