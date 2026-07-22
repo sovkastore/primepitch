@@ -107,13 +107,14 @@ export function isFinishedStatus(status?: string | null): boolean {
 }
 
 export function getMatchStatus(match: Match): "live" | "upcoming" | "ended" {
+  if (match.ended) return "ended";
   const diffMin = (match.date - Date.now()) / 1000 / 60;
   if (diffMin > 0) return "upcoming";
-  if (diffMin > -180) return "live";
-  return "ended";
+  return "live";
 }
 
 export function getTimeInfo(match: Match): string {
+  if (match.ended) return "Ended";
   const diffMin = (match.date - Date.now()) / 1000 / 60;
   if (diffMin > 0) {
     const hrs = Math.floor(diffMin / 60);
@@ -125,10 +126,7 @@ export function getTimeInfo(match: Match): string {
     if (hrs > 0) return `In ${hrs}h ${mins}m`;
     return `In ${mins}m`;
   }
-  if (diffMin > -180) {
-    return "Live";
-  }
-  return "Ended";
+  return "Live";
 }
 
 export function getUpcomingTime(match: Match): string {

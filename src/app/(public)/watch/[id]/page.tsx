@@ -192,8 +192,13 @@ export default function WatchPage() {
   // A match that can't be found in any current list and has no streams has
   // ENDED (feeds drop matches once played) — never show it as "upcoming".
   const matchStatus = source === "tv" ? "live" : (currentMatch ? getMatchStatus(currentMatch) : (loading ? "upcoming" : (streams.length > 0 ? "live" : "upcoming")));
-  const isLive = source === "tv" ? true : (matchStatus === "live" || forceLive || autoLive);
-  const isEnded = source !== "tv" && (!isLive && matchStatus === "ended" && streams.length === 0);
+  
+  // A match is only truly "Live" if Streamed.pk provides streams, or if forced live by admin.
+  // We completely ignore the math clock for determining "Live" status.
+  const isLive = source === "tv" ? true : (streams.length > 0 || forceLive || autoLive);
+  
+  // A match is "Ended" if it is past kickoff (matchStatus live/ended) but the streams have been pulled.
+  const isEnded = source !== "tv" && !isLive && (matchStatus === "ended" || matchStatus === "live");
 
   // Tell the global heartbeat when this match is over (covers both the FULL
   // TIME page and stale tabs reopened after the match ended), so returning
@@ -433,15 +438,12 @@ export default function WatchPage() {
         source,
         match_title: currentMatch.title,
         sport: currentMatch.category,
-        // A view counts as "live" if the feed says live, OR the match has been
-        // force-lived (admin/PPV): the stream is live now, so everyone watching
-        // is a live viewer — including before the scheduled kickoff.
-        is_live: matchStatus === "live" || forceLive,
+        is_live: isLive,
       }),
     }).catch(() => {});
     // Presence heartbeats are handled site-wide by <Analytics/> (every 2.5 min,
     // includes match_id on watch pages) — no per-page heartbeat anymore.
-  }, [currentMatch, rawId, source, matchStatus, forceLive, liveResolved]);
+  }, [currentMatch, rawId, source, matchStatus, forceLive, liveResolved, isLive]);
 
   const currentStream = streams[activeStream];
 

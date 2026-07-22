@@ -64,27 +64,30 @@ export async function trackMatchView(
   country?: string | null,
   ref_code?: string | null
 ) {
-  const { getD1 } = await import("./d1");
-  const d1 = await getD1();
-
-  if (d1 && visitor_id && match_id && source) {
+  if (visitor_id && match_id && source) {
     try {
-      await d1.prepare(`
-        INSERT INTO d1_match_views (visitor_id, match_id, source, match_title, sport, is_live, country, ref_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(
-        visitor_id,
-        match_id,
-        source,
-        match_title ?? null,
-        sport ?? null,
-        is_live ? 1 : 0,
-        country ?? null,
-        ref_code ?? null
-      ).run();
-      return { ok: true, source: "d1" };
+      const res = await fetch(`${DO_URL}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitor_id,
+          match_id,
+          source,
+          match_title: match_title ?? null,
+          sport: sport ?? null,
+          is_live: is_live ? 1 : 0,
+          country: country ?? null,
+          ref_code: ref_code ?? null,
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` // unique row id
+        }),
+      });
+      if (!res.ok) {
+        console.error("DO Join Failed:", res.status, await res.text());
+        return { ok: false, source: "do" };
+      }
+      return { ok: true, source: "do" };
     } catch (e) {
-      console.error("D1 MatchView Error:", e);
+      console.error("DO Join Error:", e);
     }
   }
   return { ok: false };

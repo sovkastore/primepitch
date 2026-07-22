@@ -4,8 +4,50 @@ export interface Env {
 
 export class TrackerObject {
   private viewers: Map<string, { m: string; p: string; r: string; t: number }> = new Map();
+  private joinQueue: any[] = [];
+  private state: DurableObjectState;
 
-  constructor(state: DurableObjectState, env: Env) {}
+  constructor(state: DurableObjectState, env: Env) {
+    this.state = state;
+    this.ensureAlarm();
+  }
+
+  async ensureAlarm() {
+    const current = await this.state.storage.getAlarm();
+    if (!current) {
+      await this.state.storage.setAlarm(Date.now() + 15000);
+    }
+  }
+
+  async alarm() {
+    if (this.joinQueue.length > 0) {
+      const batch = [...this.joinQueue];
+      this.joinQueue = [];
+      try {
+        const res = await fetch("https://primepitch.live/api/internal/flush-joins", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer secret" },
+          body: JSON.stringify({ joins: batch })
+        });
+        if (!res.ok) {
+           this.joinQueue.push(...batch);
+        }
+      } catch(e) {
+        this.joinQueue.push(...batch);
+      }
+    }
+    
+    // Clean up stale viewers directly in alarm so it accurately checks if empty
+    const now = Date.now();
+    const cutoff = now - 6 * 60 * 1000;
+    for (const [vid, v] of this.viewers.entries()) {
+      if (v.t < cutoff) this.viewers.delete(vid);
+    }
+
+    if (this.viewers.size > 0 || this.joinQueue.length > 0) {
+      await this.state.storage.setAlarm(Date.now() + 15000);
+    }
+  }
 
   async fetch(request: Request) {
     const url = new URL(request.url);
@@ -20,6 +62,17 @@ export class TrackerObject {
       });
     }
 
+    if (request.method === "POST" && url.pathname === "/join") {
+      try {
+        const body = await request.json() as any;
+        this.joinQueue.push(body);
+        this.ensureAlarm();
+        return new Response("ok", { status: 200, headers: { "Access-Control-Allow-Origin": "*" } });
+      } catch (e) {
+        return new Response("bad request", { status: 400, headers: { "Access-Control-Allow-Origin": "*" } });
+      }
+    }
+
     if (request.method === "POST" && url.pathname === "/ping") {
       try {
         const body = await request.json() as any;
@@ -32,6 +85,7 @@ export class TrackerObject {
             t: Date.now()
           });
         }
+        this.ensureAlarm();
         return new Response("ok", { status: 200, headers: { "Access-Control-Allow-Origin": "*" } });
       } catch (e) {
         return new Response("bad request", { status: 400, headers: { "Access-Control-Allow-Origin": "*" } });
