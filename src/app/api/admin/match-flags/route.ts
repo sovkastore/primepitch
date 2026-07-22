@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
 // Admin: per-match flags (hide / force-live / featured / disable auto-fallback).
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const d1 = await getD1();

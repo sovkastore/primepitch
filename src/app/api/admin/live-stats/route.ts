@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { clusterRows } from "@/lib/match-merge";
 import { getD1 } from "@/lib/d1";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const d1 = await getD1();
@@ -19,7 +21,7 @@ export async function GET() {
 
     try {
       const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
-      const res = await fetch(doUrl, { next: { revalidate: 15 } });
+      const res = await fetch(doUrl, { cache: "no-store" });
       if (res.ok) {
         const stats = await res.json() as any;
         onlineNow = stats.total_online || stats.total || 0;

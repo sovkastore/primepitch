@@ -14,7 +14,7 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
 
   try {
     const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
-    const res = await fetch(doUrl, { next: { revalidate: 15 } });
+    const res = await fetch(doUrl, { cache: "no-store" });
     if (res.ok) {
       const stats = await res.json() as any;
       onlineTotal = stats.total || 0;
@@ -106,7 +106,7 @@ export async function getPartnerOverviewD1(d1: D1Database, refCode: string): Pro
   let activeMatches: any[] = [];
   try {
     const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
-    const res = await fetch(doUrl, { next: { revalidate: 15 } });
+    const res = await fetch(doUrl, { cache: "no-store" });
     if (res.ok) {
       const stats = await res.json() as any;
       if (stats.matches) {
@@ -142,7 +142,7 @@ export async function getPartnerPulseD1(d1: D1Database, refCode: string): Promis
   let activeRows: any[] = [];
   try {
     const doUrl = "https://primepitch-live-tracker.daxonicstudios.workers.dev/stats";
-    const res = await fetch(doUrl, { next: { revalidate: 15 } });
+    const res = await fetch(doUrl, { cache: "no-store" });
     if (res.ok) {
       const stats = await res.json() as any;
       

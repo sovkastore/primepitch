@@ -11,6 +11,8 @@ function keyOf(m: Match): string {
   return s ? `${s.source}--${s.id}` : m.id;
 }
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const matches = await getMatches("football");

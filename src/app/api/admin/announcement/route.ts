@@ -65,6 +65,8 @@ function cleanAnnouncement(input: unknown): Announcement {
   };
 }
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const d1 = await getD1();

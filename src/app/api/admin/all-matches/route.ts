@@ -36,6 +36,8 @@ function keyOf(m: Match): string {
   return s ? `${s.source}--${s.id}` : m.id;
 }
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const now = Date.now();
   if (cache && now - cache.ts < TTL) return NextResponse.json(cache.data);

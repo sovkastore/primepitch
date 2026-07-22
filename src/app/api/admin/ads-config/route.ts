@@ -189,6 +189,8 @@ function cleanPromoBanner(v: unknown): PromoBannerConfig {
   };
 }
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const d1 = await getD1();

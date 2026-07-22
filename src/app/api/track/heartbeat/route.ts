@@ -27,11 +27,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    // Only track heartbeat if the user is actively watching a match
-    if (!match_id) {
-      return NextResponse.json({ ok: true, status: "ignored_non_match" });
-    }
-
     // Read the partner referral code
     const ref_code = readCookie(request, "pp_ref");
 

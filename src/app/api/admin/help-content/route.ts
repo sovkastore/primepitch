@@ -4,6 +4,8 @@ import { isAdminRequest } from "@/lib/admin-auth";
 
 const KEY = "help_content";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const d1 = await getD1();

@@ -14,6 +14,8 @@ const DEFAULTS: SocialLink[] = [
 const ALLOWED = new Set(DEFAULTS.map((d) => d.id));
 
 // Admin: read every social link (including disabled) for editing.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const d1 = await getD1();
