@@ -11,8 +11,6 @@ export const dynamic = "force-dynamic";
 const KEY = "maintenance";
 const DEFAULTS = { on: false, message: "", disable_tracking: false, timeouts_enabled: true };
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   try {
     const d1 = await getD1();
