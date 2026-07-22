@@ -4,8 +4,7 @@ const DO_URL = "https://primepitch-live-tracker.daxonicstudios.workers.dev"; // 
 
 export async function trackHeartbeat(visitor_id: string, path: string, match_id?: string | null, ref_code?: string | null) {
   try {
-    // Send ping directly to Durable Object micro-worker (100% RAM, zero D1 disk writes)
-    await fetch(`${DO_URL}/ping`, {
+    const res = await fetch(`${DO_URL}/ping`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ visitor_id, match_id, path, ref_code }),
