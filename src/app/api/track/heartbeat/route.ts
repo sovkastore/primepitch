@@ -31,9 +31,9 @@ export async function POST(request: Request) {
     const ref_code = readCookie(request, "pp_ref");
 
     // High-speed D1 Tracking with Supabase Fallback
-    await trackHeartbeat(visitor_id, path, match_id, ref_code);
+    const trackRes = await trackHeartbeat(visitor_id, path, match_id, ref_code);
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, trackRes });
   } catch (e) {
     console.error("Heartbeat API Error:", e);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

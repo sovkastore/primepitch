@@ -10,11 +10,16 @@ export async function trackHeartbeat(visitor_id: string, path: string, match_id?
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ visitor_id, match_id, path, ref_code }),
     });
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("DO Tracking Failed:", res.status, err);
+      return { ok: false, source: "do", error: err, status: res.status };
+    }
     return { ok: true, source: "do" };
-  } catch (e) {
+  } catch (e: any) {
     console.error("DO Tracking Error:", e);
+    return { ok: false, source: "none", error: e.message };
   }
-  return { ok: false, source: "none" };
 }
 
 export async function trackPageView(
