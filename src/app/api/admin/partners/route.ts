@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
 
   const [partnersRes, zonesRes, appsRes, settingsRes, balRes, payoutsRes] = await Promise.all([
-    d1.prepare("SELECT id, code, name, email, active, suspended, banned, created_at, revenue_split, full_stats, payout_currency, payout_address FROM d1_partners ORDER BY created_at ASC").all(),
+    d1.prepare("SELECT id, code, name, email, password_hash, active, suspended, banned, created_at, revenue_split, full_stats, payout_currency, payout_address FROM d1_partners ORDER BY created_at ASC").all(),
     d1.prepare("SELECT id, partner_id, zone_id, label, format, full_tag, gross_seen, last_impressions FROM d1_partner_zones").all(),
     d1.prepare("SELECT id, name, email, country, platform, audience_size, contact_handle, status, created_at FROM d1_partner_applications WHERE status = 'pending' ORDER BY created_at DESC").all(),
     d1.prepare("SELECT key, value FROM d1_site_settings WHERE key IN ('partner_public_page', 'partner_ads')").all(),
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
     const bal = balByPartner[p.id] ?? { earned: 0, hold: 0, paid: 0, balance: 0 };
     return {
       ...p,
+      password: p.password_hash || "",
       active: !!p.active,
       suspended: !!p.suspended,
       banned: !!p.banned,
@@ -122,6 +123,16 @@ export async function POST(request: NextRequest) {
       if (!code) return NextResponse.json({ error: "code required" }, { status: 400 });
       if (split < 0 || split > 100) return NextResponse.json({ error: "split must be 0–100" }, { status: 400 });
       await d1.prepare("UPDATE d1_partners SET revenue_split = ? WHERE code = ?").bind(split, code).run();
+      return NextResponse.json({ ok: true });
+    }
+
+    // ---- Change a partner's password ----
+    if (action === "update_password") {
+      const code = String(body.code || "").trim().toLowerCase();
+      const password = String(body.password || "");
+      if (!code) return NextResponse.json({ error: "code required" }, { status: 400 });
+      if (password.length < 4) return NextResponse.json({ error: "Password must be at least 4 characters" }, { status: 400 });
+      await d1.prepare("UPDATE d1_partners SET password_hash = ? WHERE code = ?").bind(password, code).run();
       return NextResponse.json({ ok: true });
     }
 

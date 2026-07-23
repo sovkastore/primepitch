@@ -13,7 +13,7 @@ interface Partner {
   revenue_split: number; full_stats: boolean;
   earned_total: number; paid_total: number; balance: number; hold: number;
   payout_currency?: string | null; payout_address?: string | null;
-  zones: Zone[]; payouts: Payout[];
+  zones: Zone[]; payouts: Payout[]; password?: string;
 }
 interface Application {
   id: string; name: string; email: string; country: string;
@@ -631,7 +631,13 @@ export default function PartnersAdmin() {
 
                 {open && (
                   <div className="px-4 pb-4 pt-3 border-t border-gray-100">
-                    <p className="text-[12px] text-gray-400 font-mono mb-3">{SITE}/{p.code}</p>
+                    <div className="flex items-center gap-4 mb-3 flex-wrap">
+                      <p className="text-[12px] text-gray-400 font-mono">{SITE}/{p.code}</p>
+                      <p className="text-[12px] text-gray-500">
+                        Password: <span className="font-mono text-gray-800 font-medium">{p.password || "••••"}</span>
+                        <button onClick={() => resetPw(p)} disabled={busy} className="ml-2 text-[#3cac3b] hover:underline">change</button>
+                      </p>
+                    </div>
 
                     <div className="grid grid-cols-4 gap-2 mb-3">
                       {[
@@ -723,7 +729,6 @@ export default function PartnersAdmin() {
                         {p.banned ? "Unban" : "Ban"}
                       </button>
                       <button onClick={() => rename(p)} disabled={busy} className={btn}>Rename</button>
-                      <button onClick={() => resetPw(p)} disabled={busy} className={btn}>Reset password</button>
                     </div>
                   </div>
                 )}
