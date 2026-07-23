@@ -312,29 +312,29 @@ export function suppressPrematureLive(live: Match[], allMatches: Match[]): Match
 // category + home name + kickoff hour, keeping the entry with the most data
 // (both badges > one > teams-only). Title-only entries (ceremonies/PPV) are kept as-is.
 export function dedupeMatches(matches: Match[]): Match[] {
-  // Prefer the entry with real structured teams, then the one with more badges,
-  // so a rich "Ivory Coast vs Ecuador" wins over a title-only "Côte d'Ivoire…".
+  // Streamed.pk leaks fixtures across sports with missing team objects and varying IDs.
+  // Aggressively deduplicate by normalized title to merge these leaks.
   const richness = (m: Match) =>
     (m.teams?.home?.name ? 4 : 0) + (m.teams?.home?.badge ? 1 : 0) + (m.teams?.away?.badge ? 1 : 0);
   const best = new Map<string, Match>();
   const order: string[] = [];
   for (const m of matches) {
-    const hour = m.date ? Math.round(m.date / 3_600_000) : 0;
-    const pair = normTeamKey(m); // accent-folded, alias-mapped, order-independent
-    let key: string;
-    if (!EVENT_SPORTS.has(m.category) && pair.includes("|")) {
-      // Real two-team fixture — collapse the same match across feeds even when
-      // one copy is title-only or spells a team differently. Team identity (not
-      // the feed's home/away or id) is what makes it the same fixture.
-      key = `p|${hour}|${pair}`;
-    } else if (m.teams?.home?.name) {
-      key = `${m.category}|${normTeamName(m.teams.home.name)}|${hour}`;
-    } else {
-      key = `t|${m.id}`;
+    // Generate a highly aggressive key based on title to catch cross-sport leaks
+    let key = m.title ? m.title.toLowerCase().replace(/[^a-z0-9]/g, "") : m.id;
+
+    // Use a secondary key for events that might have generic titles across days
+    if (EVENT_SPORTS.has(m.category)) {
+        const hour = m.date ? Math.round(m.date / 3_600_000) : 0;
+        key = `${key}|${hour}`;
     }
+
     const existing = best.get(key);
-    if (!existing) { best.set(key, m); order.push(key); }
-    else if (richness(m) > richness(existing)) best.set(key, m);
+    if (!existing) {
+      best.set(key, m);
+      order.push(key);
+    } else if (richness(m) > richness(existing)) {
+      best.set(key, m);
+    }
   }
   return order.map((k) => best.get(k)!);
 }
