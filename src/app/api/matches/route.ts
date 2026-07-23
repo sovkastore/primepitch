@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 // Server-side proxy for streamed.pk's per-sport match list.
 //
 // The homepage used to fetch streamed.pk DIRECTLY from the visitor's browser and

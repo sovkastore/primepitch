@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
 import { getMatchStatus, normTeamKey } from "@/lib/api";
 import type { Match } from "@/lib/api";
 import { resolveStreams } from "@/lib/streams";
