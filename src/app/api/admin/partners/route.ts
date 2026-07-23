@@ -258,7 +258,73 @@ export async function POST(request: NextRequest) {
     if (action === "import") {
       const rows = Array.isArray(body.rows) ? body.rows : [];
       if (rows.length === 0) return NextResponse.json({ error: "No rows found in that file" }, { status: 400 });
-      return NextResponse.json({ error: "CSV Import requires RPC conversion - contact admin to run manually via script" }, { status: 400 });
+
+      const zonesRes = await d1.prepare("SELECT zone_id, partner_id, gross_seen, last_impressions FROM d1_partner_zones").all();
+      const zoneMap: Record<string, { partner_id: string; gross_seen: number; last_impressions: number }> = {};
+      for (const z of (zonesRes.results || []) as any[]) {
+        zoneMap[z.zone_id] = { partner_id: z.partner_id, gross_seen: num(z.gross_seen), last_impressions: num(z.last_impressions) };
+      }
+
+      const partnersRes = await d1.prepare("SELECT id, revenue_split FROM d1_partners").all();
+      const partnerMap: Record<string, { split: number; earned_add: number }> = {};
+      for (const p of (partnersRes.results || []) as any[]) {
+        partnerMap[p.id] = { split: num(p.revenue_split), earned_add: 0 };
+      }
+
+      let rowsMatched = 0;
+      let totalProfitAdded = 0;
+      const zoneUpdates: { zone_id: string; gross_seen: number; last_impressions: number }[] = [];
+
+      for (const row of rows) {
+        const zId = String(row.zone_id || "").trim();
+        const zData = zoneMap[zId];
+        if (!zData) continue;
+        rowsMatched++;
+
+        const csvProfit = num(row.profit);
+        const csvImps = num(row.impressions);
+        let updated = false;
+        let newGrossSeen = zData.gross_seen;
+        let newImps = zData.last_impressions;
+
+        if (csvProfit > zData.gross_seen) {
+          const newGross = csvProfit - zData.gross_seen;
+          const split = partnerMap[zData.partner_id]?.split ?? 50;
+          const partnerCut = newGross * (split / 100);
+
+          if (partnerMap[zData.partner_id]) {
+            partnerMap[zData.partner_id].earned_add += partnerCut;
+            totalProfitAdded += partnerCut;
+          }
+          newGrossSeen = csvProfit;
+          updated = true;
+        }
+
+        if (csvImps > zData.last_impressions) {
+          newImps = csvImps;
+          updated = true;
+        }
+
+        if (updated) {
+          zoneUpdates.push({ zone_id: zId, gross_seen: newGrossSeen, last_impressions: newImps });
+        }
+      }
+
+      const stmts = [];
+      for (const zu of zoneUpdates) {
+        stmts.push(d1.prepare("UPDATE d1_partner_zones SET gross_seen = ?, last_impressions = ? WHERE zone_id = ?").bind(zu.gross_seen, zu.last_impressions, zu.zone_id));
+      }
+      for (const [pId, pData] of Object.entries(partnerMap)) {
+        if (pData.earned_add > 0) {
+          stmts.push(d1.prepare("UPDATE d1_partner_balances SET earned = earned + ?, balance = balance + ? WHERE partner_id = ?").bind(pData.earned_add, pData.earned_add, pId));
+        }
+      }
+
+      for (let i = 0; i < stmts.length; i += 100) {
+        await d1.batch(stmts.slice(i, i + 100));
+      }
+
+      return NextResponse.json({ ok: true, result: { rows_matched: rowsMatched, rows_total: rows.length, total_profit: totalProfitAdded } });
     }
 
     // ================= existing behavior below (unchanged) =================
