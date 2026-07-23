@@ -34,7 +34,11 @@ export async function GET(req: Request) {
       headers: { "User-Agent": "primepitch" },
     });
     const j = res.ok ? await res.json() : [];
-    const data = Array.isArray(j) ? j : [];
+    let data = Array.isArray(j) ? j : [];
+    
+    // Filter out matches that don't belong to this sport (Streamed.pk bug workaround)
+    data = data.filter((m: any) => !m.category || m.category === sport);
+
     cache.set(sport, { data, ts: now });
     return NextResponse.json(data);
   } catch {

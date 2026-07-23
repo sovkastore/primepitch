@@ -71,11 +71,12 @@ export async function getAllMatches(): Promise<Match[]> {
   const sports = await getSports();
   const all = await Promise.all(
     sports.map(async (s) => {
-      const matches = await getMatches(s.id);
+      let matches = await getMatches(s.id);
+      matches = matches.filter((m: any) => !m.category || m.category === s.id);
       return matches.map((m) => ({ ...m, category: s.id }));
     })
   );
-  return all.flat();
+  return dedupeMatches(all.flat());
 }
 
 export async function getStreams(source: string, id: string): Promise<Stream[]> {
