@@ -80,7 +80,24 @@ async function getOverrideBacked(): Promise<Map<string, Match>> {
         new Promise<any>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 3000)),
       ]);
       for (const r of data ?? []) {
-        if (r.match_data && !map.has(r.match_id)) map.set(r.match_id, typeof r.match_data === 'string' ? JSON.parse(r.match_data) : r.match_data);
+        if (!map.has(r.match_id)) {
+          if (r.match_data) {
+            map.set(r.match_id, typeof r.match_data === 'string' ? JSON.parse(r.match_data) : r.match_data);
+          } else {
+            // Reconstruct a basic match if match_data is null, so it doesn't drop from live
+            const parts = r.match_id.split("--");
+            const src = parts[0] || "admin";
+            const sid = parts.length > 1 ? parts.slice(1).join("--") : r.match_id;
+            const title = sid.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+            map.set(r.match_id, {
+              id: r.match_id,
+              title: title,
+              category: "football",
+              date: Date.now(),
+              sources: [{ source: src, id: sid }]
+            } as Match);
+          }
+        }
       }
     }
   } catch {

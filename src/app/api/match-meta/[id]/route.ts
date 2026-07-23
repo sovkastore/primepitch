@@ -21,8 +21,15 @@ export async function GET(
         ovPromise,
         new Promise<any>((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 3000))
       ]).catch(() => null);
-      if (ov?.match_data) {
-        return NextResponse.json({ match: typeof ov.match_data === 'string' ? JSON.parse(ov.match_data) : ov.match_data });
+      if (ov) {
+        const m = ov.match_data ? (typeof ov.match_data === 'string' ? JSON.parse(ov.match_data) : ov.match_data) : {
+          id: matchId,
+          title: matchId.split("--").pop()?.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || matchId,
+          category: "football",
+          date: Date.now(),
+          sources: [{ source: matchId.split("--")[0] || "admin", id: matchId.split("--").slice(1).join("--") || matchId }]
+        };
+        return NextResponse.json({ match: m });
       }
 
       const flPromise = d1.prepare("SELECT match_data FROM d1_match_flags WHERE match_id = ? AND match_data IS NOT NULL LIMIT 1").bind(matchId).first() as any;

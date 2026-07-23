@@ -1,14 +1,17 @@
 export interface Env {
   TRACKER: DurableObjectNamespace;
+  CRON_SECRET: string;
 }
 
 export class TrackerObject {
   private viewers: Map<string, { m: string; p: string; r: string; t: number }> = new Map();
   private joinQueue: any[] = [];
   private state: DurableObjectState;
+  private env: Env;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
+    this.env = env;
     this.ensureAlarm();
   }
 
@@ -24,9 +27,10 @@ export class TrackerObject {
       const batch = [...this.joinQueue];
       this.joinQueue = [];
       try {
-        const res = await fetch("https://primepitch.live/api/internal/flush-joins", {
+        const targetHost = this.env.SITE_URL || "https://primepitch.daxonicstudios.workers.dev";
+        const res = await fetch(`${targetHost}/api/internal/flush-joins`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer secret" },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${this.env.CRON_SECRET || 'secret'}` },
           body: JSON.stringify({ joins: batch })
         });
         if (!res.ok) {

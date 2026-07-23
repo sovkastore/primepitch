@@ -1,5 +1,5 @@
 import { clusterRows, normTitle } from "@/lib/match-merge";
-import { getMatches, getAllMatches, getMatchStatus, isFinishedStatus, type Match } from "@/lib/api";
+import { getMatches, getAllMatches, getLiveMatches, isFinishedStatus, type Match } from "@/lib/api";
 import { getD1 } from "./d1";
 
 
@@ -79,14 +79,26 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
   const peaksRes = await d1.prepare(`SELECT match_id, peak_viewers FROM d1_match_summaries`).all();
   const peaksMap = new Map(peaksRes.results?.map((r: any) => [r.match_id, r.peak_viewers]) || []);
 
-  // 3) Resolve Fixtures (Metadata)
+  // 3) Resolve Fixtures (Metadata & True Status)
   const fixtureIndex = new Map<string, { kickoffMs: number; status: MatchStatus; sport: string; title: string }>();
   try {
-    const feed: Match[] = sport ? await getMatches(sport) : await getAllMatches();
+    const [feed, liveFeed] = await Promise.all([
+      sport ? getMatches(sport) : getAllMatches(),
+      getLiveMatches()
+    ]);
+    
+    // First index the upcoming feed (everything not ended)
     for (const m of feed) {
       if (!m.date) continue;
-      const fs = getMatchStatus(m);
-      const st: MatchStatus = m.ended || fs === "ended" ? "played" : fs;
+      // Default to upcoming. If it fell off, it's played.
+      fixtureIndex.set(normTitle(m.title), { kickoffMs: m.date, status: "upcoming", sport: m.category || "", title: m.title });
+    }
+    
+    // Then override with the live feed (which is the absolute source of truth for "live")
+    for (const m of liveFeed) {
+      if (!m.date) continue;
+      // If an admin forced it ended, getLiveMatches still returns it but with m.ended = true
+      const st: MatchStatus = m.ended ? "played" : "live";
       fixtureIndex.set(normTitle(m.title), { kickoffMs: m.date, status: st, sport: m.category || "", title: m.title });
     }
   } catch (e) { console.error("Feed fail:", e); }
@@ -122,12 +134,11 @@ export async function aggregateMatches(params: EngineParams): Promise<EngineResu
     const top = cluster.reduce((a, b) => (b.unique_viewers > a.unique_viewers ? b : a));
     const fx = fixtureIndex.get(normTitle(top.title));
     
-    // Status Logic
-    const LIVE_WINDOW = 3.5 * 60 * 60 * 1000;
-    const nowMs = Date.now();
+    // Status Logic - Pure Truth
+    // If it's not in fixtureIndex at all, it dropped off the feed entirely -> "played"
+    // If it is in fixtureIndex, its status was explicitly set to "live" or "upcoming" or "played" (by admin force end)
+    const mStatus: MatchStatus = fx ? fx.status : "played";
     const kickoffMs = fx ? fx.kickoffMs : Date.parse(top.first_viewed);
-    const mStatus: MatchStatus = fx ? fx.status : (nowMs - Date.parse(top.last_viewed) <= LIVE_WINDOW ? "live" : "played");
-
     if (sport && top.sport !== sport && fx?.sport !== sport) continue;
     if (status !== "all" && mStatus !== status) continue;
 

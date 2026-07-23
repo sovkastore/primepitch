@@ -11,15 +11,9 @@ export async function isTrackingDisabled(): Promise<boolean> {
     const d1 = await getD1();
     if (!d1) return false;
 
-    const promise = d1.prepare(
+    const row = await d1.prepare(
       `SELECT value FROM d1_site_settings WHERE key = 'maintenance'`
     ).first<{ value: string }>();
-
-    // 3s hard timeout
-    const row = await Promise.race([
-      promise,
-      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 3000))
-    ]);
 
     if (!row?.value) return false;
     try {

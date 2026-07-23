@@ -12,6 +12,14 @@ export default function LiveNow({ matches }: { matches: Match[] }) {
   // ONE request covers scores for every visible card (was one request per card).
   const scores = useBatchScores(visible);
 
+  const sortedVisible = [...visible].sort((a, b) => {
+    const aEnded = a.ended === true || (scores[getMatchKey(a)]?.status && ["Finished", "Match Finished", "FT", "AET", "PEN"].includes(scores[getMatchKey(a)]?.status || ""));
+    const bEnded = b.ended === true || (scores[getMatchKey(b)]?.status && ["Finished", "Match Finished", "FT", "AET", "PEN"].includes(scores[getMatchKey(b)]?.status || ""));
+    if (aEnded && !bEnded) return 1;
+    if (!aEnded && bEnded) return -1;
+    return 0;
+  });
+
   if (matches.length === 0) return null;
 
   return (
@@ -36,7 +44,7 @@ export default function LiveNow({ matches }: { matches: Match[] }) {
       </div>
 
       <div className="space-y-3">
-        {visible.map((match) => (
+        {sortedVisible.map((match) => (
           <LiveMatchRow key={getMatchKey(match)} match={match} score={scores[getMatchKey(match)] || null} />
         ))}
       </div>

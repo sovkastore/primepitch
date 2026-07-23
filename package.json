@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "if [ -z \"$OPENNEXT_IN_PROGRESS\" ]; then export OPENNEXT_IN_PROGRESS=true && npx @opennextjs/cloudflare build && node -e \"const f='.open-next/cloudflare/next-env.mjs';if(require('fs').existsSync(f)){const s=require('fs').readFileSync(f,'utf8');const lines=[...new Set(s.trim().split('\\n'))];require('fs').writeFileSync(f,lines.join('\\n')+'\\n')}\"; else next build; fi",
+    "build": "if [ -z \"$OPENNEXT_IN_PROGRESS\" ]; then export OPENNEXT_IN_PROGRESS=true && npx @opennextjs/cloudflare build && node -e \"const f='.open-next/cloudflare/next-env.mjs';if(require('fs').existsSync(f)){const s=require('fs').readFileSync(f,'utf8');const lines=[...new Set(s.trim().split('\\n'))];require('fs').writeFileSync(f,lines.join('\\n')+'\\n')}\"; else next build --webpack; fi",
     "build:cf": "npx @opennextjs/cloudflare build",
     "preview:cf": "npx @opennextjs/cloudflare build && npx wrangler dev",
     "deploy": "npx @opennextjs/cloudflare build && node -e \"const f='.open-next/cloudflare/next-env.mjs';const s=require('fs').readFileSync(f,'utf8');const lines=[...new Set(s.trim().split('\\n'))];require('fs').writeFileSync(f,lines.join('\\n')+'\\n')\" && npx wrangler deploy",
@@ -13,10 +13,10 @@
   },
   "dependencies": {
     "@google-analytics/data": "^6.1.0",
-    "@next/third-parties": "^16.2.10",
-    "@opennextjs/cloudflare": "^1.19.11",
+    "@next/third-parties": "^16.2.11",
+    "@opennextjs/cloudflare": "^1.20.2",
     "date-fns": "^4.4.0",
-    "next": "16.2.6",
+    "next": "^16.2.11",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1"
@@ -27,7 +27,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "^16.2.11",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"

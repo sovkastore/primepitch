@@ -29,6 +29,8 @@ interface Stream {
 // ever renders blank. This does not change how streams are resolved or played.
 const SOURCE_META: Record<string, { name: string; note: string; rank: number }> = {
   admin: { name: "Admin", note: "Admin added streams", rank: 0 },
+  streamedpk: { name: "Prime", note: "High quality primary stream", rank: 1 },
+  streamed: { name: "Prime", note: "High quality primary stream", rank: 1 },
   delta: { name: "Delta", note: "Okayish backup", rank: 2 },
   golf: { name: "Golf", note: "Third party (more ads), but very stable", rank: 3 },
   echo: { name: "Echo", note: "Great quality overall", rank: 4 },
@@ -205,9 +207,9 @@ export default function WatchPage() {
   // visitors count as online — not as live-stream watchers.
   useEffect(() => {
     const w = window as unknown as { __ppMatchEnded?: boolean };
-    w.__ppMatchEnded = matchStatus === "ended" && !forceLive;
+    w.__ppMatchEnded = isEnded;
     return () => { w.__ppMatchEnded = false; };
-  }, [matchStatus, forceLive]);
+  }, [isEnded]);
   const isUpcoming = !isLive && !isEnded && matchStatus === "upcoming";
   // HOT (admin-flagged). Live matches carry it via the live feed; for upcoming /
   // custom listings we read the flag once so their pages are special too.

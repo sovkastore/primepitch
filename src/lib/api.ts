@@ -110,6 +110,10 @@ export function getMatchStatus(match: Match): "live" | "upcoming" | "ended" {
   if (match.ended) return "ended";
   const diffMin = (match.date - Date.now()) / 1000 / 60;
   if (diffMin > 0) return "upcoming";
+  
+  // We completely removed the 3.5 hours math clock (`diffMin < -210`).
+  // A match is only "ended" if explicitly marked as ended by Streamed.pk or Admin.
+  // Otherwise, if it has kicked off, it is "live" until the API drops it.
   return "live";
 }
 
