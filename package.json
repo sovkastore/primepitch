@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "if [ -z \"$OPENNEXT_IN_PROGRESS\" ]; then export OPENNEXT_IN_PROGRESS=true && npx @opennextjs/cloudflare build && node -e \"const f='.open-next/cloudflare/next-env.mjs';if(require('fs').existsSync(f)){const s=require('fs').readFileSync(f,'utf8');const lines=[...new Set(s.trim().split('\\n'))];require('fs').writeFileSync(f,lines.join('\\n')+'\\n')}\" && cp .open-next/worker.js .open-next/assets/_worker.js; else next build --webpack; fi",
+    "build": "if [ -z \"$OPENNEXT_IN_PROGRESS\" ]; then export OPENNEXT_IN_PROGRESS=true && npx @opennextjs/cloudflare build && node -e \"const f='.open-next/cloudflare/next-env.mjs';if(require('fs').existsSync(f)){const s=require('fs').readFileSync(f,'utf8');const lines=[...new Set(s.trim().split('\\n'))];require('fs').writeFileSync(f,lines.join('\\n')+'\\n')}\"; else next build --webpack; fi",
     "build:cf": "npx @opennextjs/cloudflare build",
     "preview:cf": "npx @opennextjs/cloudflare build && npx wrangler dev",
     "deploy": "npx @opennextjs/cloudflare build && node -e \"const f='.open-next/cloudflare/next-env.mjs';const s=require('fs').readFileSync(f,'utf8');const lines=[...new Set(s.trim().split('\\n'))];require('fs').writeFileSync(f,lines.join('\\n')+'\\n')\" && npx wrangler deploy",
