@@ -3,7 +3,14 @@
 import { usePartnerData } from "@/components/partner/usePartnerData";
 import OverviewPanel, { type OverviewData } from "@/components/partner/OverviewPanel";
 
-const money = (v: number) => "$" + (Number(v) || 0).toFixed(2);
+const money = (n: unknown) => {
+  const v = Number(n) || 0;
+  if (Math.abs(v) > 0 && Math.abs(v) < 0.01) {
+    const s = Number(v.toFixed(4)).toString();
+    return s === "0" ? "$0.00" : "$" + s;
+  }
+  return "$" + v.toFixed(2);
+};
 
 export default function PartnerOverview() {
   const { data, loading, error } = usePartnerData<OverviewData>("/api/partner/overview", 30000);

@@ -30,7 +30,14 @@ interface Confirm {
 }
 
 const SITE = "https://xellnetwork.xyz";
-const money = (n: number) => "$" + (Number(n) || 0).toFixed(2);
+const money = (n: unknown) => {
+  const v = Number(n) || 0;
+  if (Math.abs(v) > 0 && Math.abs(v) < 0.01) {
+    const s = Number(v.toFixed(4)).toString();
+    return s === "0" ? "$0.00" : "$" + s;
+  }
+  return "$" + v.toFixed(2);
+};
 
 const CRYPTO: { id: string; label: string }[] = [
   { id: "usdt_trc20", label: "USDT · TRC20" },

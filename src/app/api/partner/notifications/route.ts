@@ -6,7 +6,14 @@ export const dynamic = "force-dynamic";
 
 type Item = { id: string; kind: string; title: string; body: string; at: string; href: string };
 
-const money = (n: unknown) => "$" + (Number(n) || 0).toFixed(2);
+const money = (n: unknown) => {
+  const v = Number(n) || 0;
+  if (Math.abs(v) > 0 && Math.abs(v) < 0.01) {
+    const s = Number(v.toFixed(4)).toString();
+    return s === "0" ? "$0.00" : "$" + s;
+  }
+  return "$" + v.toFixed(2);
+};
 
 export async function GET(request: NextRequest) {
   const sess = await requirePartnerSession(request.cookies.get(PARTNER_COOKIE)?.value);
