@@ -6,7 +6,6 @@ pages_build_output_dir = ".open-next/assets"
 
 [assets]
 directory = ".open-next/assets"
-binding = "ASSETS"
 
 [vars]
 ADMIN_EMAILS = "akindunbisulaiman00040@gmail.com"
