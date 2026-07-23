@@ -165,6 +165,7 @@ export async function GET() {
     const candidates = new Map<string, Match>();
     for (const m of curated) candidates.set(keyOf(m), m);
     for (const [mid, m] of overrideBacked) {
+      m.isLive = true;
       if (!candidates.has(mid) && getMatchStatus(m) === "live") candidates.set(mid, m);
     }
     for (const [mid, m] of flags.forcedLive) {
@@ -175,6 +176,7 @@ export async function GET() {
       // force-lived card drop off LIVE NOW the moment the actual match ends, instead
       // of lingering for the rest of the 3h window.
       if (isRealMatchOver(m, finishedKeys)) continue;
+      m.isLive = true;
       if (getMatchStatus(m) !== "ended") candidates.set(mid, m);
     }
 
@@ -282,11 +284,10 @@ export async function GET() {
     );
     matches = resolvedEntries.filter((m): m is Match => m !== null);
 
-    // Featured first (stable otherwise)
     matches = matches
       .map((m, i) => ({ m, i, f: flags.featured.has(keyOf(m)) ? 1 : 0 }))
       .sort((a, b) => b.f - a.f || a.i - b.i)
-      .map((x) => x.m);
+      .map((x) => ({ ...x.m, isLive: true }));
 
     cache = { data: matches, ts: now };
     return NextResponse.json({ matches });

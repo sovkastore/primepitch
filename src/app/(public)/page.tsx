@@ -9,7 +9,6 @@ import TodayMatches from "@/components/Upcoming";
 import Logo from "@/components/Logo";
 import PreRollGate from "@/components/PreRollGate";
 import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedupeMatches, suppressPrematureLive, isFlagged, normTeamKey } from "@/lib/api";
-import { classifyFight } from "@/lib/fight-categories";
 import { visibleInterval } from "@/lib/poll";
 import { readPageCache, writePageCache } from "@/lib/page-cache";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
@@ -20,20 +19,8 @@ const SPORTS = [
   "afl", "darts", "cricket", "other",
 ];
 
-const FIGHT_SUB_MAP: Record<string, string> = {
-  ufc: "mma",
-  wwe: "wrestling",
-  boxing: "boxing",
-};
-
 function filterBySport(matches: Match[], sport: string | null): Match[] {
   if (!sport) return matches;
-  const fightSub = FIGHT_SUB_MAP[sport];
-  if (fightSub) {
-    return matches.filter(
-      (m) => m.category === "fight" && classifyFight(m.title) === fightSub
-    );
-  }
   return matches.filter((m) => m.category === sport);
 }
 
@@ -80,7 +67,7 @@ export default function HomePage() {
             try {
               const res = await fetch(`/api/matches?sport=${sport}`, { signal: AbortSignal.timeout(12000) });
               const data = await res.json();
-              return data.map((m: Match) => ({ ...m, category: sport }));
+              return data;
             } catch {
               return [];
             }

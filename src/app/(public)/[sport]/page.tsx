@@ -9,11 +9,7 @@ import { classifyFight, FIGHT_SUB_LABELS, FIGHT_SUB_ICONS, FightSubcategory } fr
 import { visibleInterval } from "@/lib/poll";
 import { useBatchScores } from "@/lib/use-batch-scores";
 
-const FIGHT_SUB_MAP: Record<string, string> = {
-  ufc: "mma",
-  wwe: "wrestling",
-  boxing: "boxing",
-};
+
 
 export default function SportPage() {
   const params = useParams();
@@ -27,18 +23,13 @@ export default function SportPage() {
 
   const icon = SPORT_ICONS[sport] || "⚽";
   const label = SPORT_LABELS[sport] || sport;
-  const fightSub = FIGHT_SUB_MAP[sport];
-  const apiSport = fightSub ? "fight" : sport;
+  const apiSport = sport;
 
   useEffect(() => {
     async function load() {
       try {
         const res = await fetch(`/api/matches?sport=${apiSport}`, { signal: AbortSignal.timeout(12000) });
         let data: Match[] = await res.json();
-        data = data.map((m) => ({ ...m, category: apiSport }));
-        if (fightSub) {
-          data = data.filter((m) => classifyFight(m.title) === fightSub);
-        }
         setMatches(dedupeMatches(data));
       } catch (e) {
         console.error("Failed to load matches:", e);
@@ -47,7 +38,7 @@ export default function SportPage() {
       }
     }
     load();
-  }, [sport, apiSport, fightSub]);
+  }, [sport, apiSport]);
 
   // Live = matches that actually have a playable stream. Refreshed while visible.
   useEffect(() => {
@@ -70,7 +61,6 @@ export default function SportPage() {
   const live = suppressPrematureLive(
     liveMatches.filter((m) => {
       if (m.category !== apiSport) return false;
-      if (fightSub) return classifyFight(m.title) === fightSub;
       return true;
     }),
     matches

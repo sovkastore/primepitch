@@ -23,6 +23,7 @@ export interface Match {
   ended?: boolean; // admin forced this match to FULL TIME (manual "End now")
   hot?: boolean; // admin manually flagged this fixture as HOT (red animated badge)
   forced?: boolean; // admin force-lived this match; exempt from premature-live suppression
+  isLive?: boolean; // true if this match is currently in the live feed
 }
 
 export interface Stream {
@@ -108,13 +109,12 @@ export function isFinishedStatus(status?: string | null): boolean {
 
 export function getMatchStatus(match: Match): "live" | "upcoming" | "ended" {
   if (match.ended) return "ended";
+  if (match.isLive) return "live";
   const diffMin = (match.date - Date.now()) / 1000 / 60;
   if (diffMin > 0) return "upcoming";
   
-  // We completely removed the 3.5 hours math clock (`diffMin < -210`).
-  // A match is only "ended" if explicitly marked as ended by Streamed.pk or Admin.
-  // Otherwise, if it has kicked off, it is "live" until the API drops it.
-  return "live";
+  // If the start time has passed and it is not explicitly marked as isLive, it has ended.
+  return "ended";
 }
 
 export function getTimeInfo(match: Match): string {

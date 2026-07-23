@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { SPORT_LABELS } from "@/lib/api";
 
 const SPORTS = [
-  "football", "basketball", "american-football", "ufc", "wwe", "boxing",
+  "football", "basketball", "american-football", "fight",
   "motor-sports", "cricket", "tennis", "hockey", "baseball", "rugby",
 ];
 
@@ -12,8 +12,6 @@ const SPORTS = [
 // fallback); the FIFA logo is repurposed for the World Cup tab.
 const BRAND_ICONS: Record<string, string> = {
   basketball: "/icons/brands/nba.svg",
-  ufc: "/icons/brands/ufc.svg",
-  wwe: "/icons/brands/wwe.svg",
   "motor-sports": "/icons/brands/f1.svg",
   hockey: "/icons/brands/nhl.svg",
   baseball: "/icons/brands/mlb.svg",
