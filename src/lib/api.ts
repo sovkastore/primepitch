@@ -112,7 +112,9 @@ export function getMatchStatus(match: Match): "live" | "upcoming" | "ended" {
   if (match.ended) return "ended";
   if (match.isLive) return "live";
   const diffMin = (match.date - Date.now()) / 1000 / 60;
-  if (diffMin > 0) return "upcoming";
+  // Keep the match in "upcoming" for up to 120 minutes past kickoff 
+  // if it hasn't successfully gone live yet
+  if (diffMin > -120) return "upcoming";
   
   // If the start time has passed and it is not explicitly marked as isLive, it has ended.
   return "ended";
