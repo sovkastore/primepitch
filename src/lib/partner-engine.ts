@@ -167,16 +167,8 @@ export async function getPartnerPulseD1(d1: D1Database, refCode: string): Promis
           }
         }
       }
-      if (stats.matches) {
-        for (const [match_id, data] of Object.entries<any>(stats.matches)) {
-          const refs = data.refs || {};
-          for (const [ref, count] of Object.entries<any>(refs)) {
-            for (let i = 0; i < (count as number); i++) {
-              activeRows.push({ path: `/watch/${match_id}`, ref_code: ref, match_id });
-            }
-          }
-        }
-      }
+      // Removed stats.matches loop because match pages are already tracked 
+      // in stats.pages as "/watch/[id]". Pushing both caused doubled stats!
     }
   } catch (e) {}
 
