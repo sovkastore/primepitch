@@ -265,8 +265,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // ---- CSV earnings import (rows parsed client-side from the Monetag file) ----
-    if (action === "import") {
+    // ---- CSV earnings preview (calculates cuts but does not apply them) ----
+    if (action === "preview_import") {
       const rows = Array.isArray(body.rows) ? body.rows : [];
       if (rows.length === 0) return NextResponse.json({ error: "No rows found in that file" }, { status: 400 });
 
@@ -276,14 +276,13 @@ export async function POST(request: NextRequest) {
         zoneMap[z.zone_id] = { partner_id: z.partner_id, gross_seen: num(z.gross_seen), last_impressions: num(z.last_impressions) };
       }
 
-      const partnersRes = await d1.prepare("SELECT id, revenue_split FROM d1_partners").all();
-      const partnerMap: Record<string, { split: number; earned_add: number }> = {};
+      const partnersRes = await d1.prepare("SELECT id, name, revenue_split FROM d1_partners").all();
+      const partnerMap: Record<string, { name: string; split: number; earned_add: number }> = {};
       for (const p of (partnersRes.results || []) as any[]) {
-        partnerMap[p.id] = { split: num(p.revenue_split), earned_add: 0 };
+        partnerMap[p.id] = { name: p.name, split: num(p.revenue_split), earned_add: 0 };
       }
 
       let rowsMatched = 0;
-      let totalProfitAdded = 0;
       const zoneUpdates: { zone_id: string; gross_seen: number; last_impressions: number }[] = [];
 
       for (const row of rows) {
@@ -305,7 +304,6 @@ export async function POST(request: NextRequest) {
 
           if (partnerMap[zData.partner_id]) {
             partnerMap[zData.partner_id].earned_add += partnerCut;
-            totalProfitAdded += partnerCut;
           }
           newGrossSeen = csvProfit;
           updated = true;
@@ -321,13 +319,34 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const partnerPayouts = [];
+      for (const [pId, pData] of Object.entries(partnerMap)) {
+        if (pData.earned_add > 0) {
+          partnerPayouts.push({
+            partner_id: pId,
+            partner_name: pData.name,
+            calculated_cut: pData.earned_add,
+            adjusted_cut: pData.earned_add,
+          });
+        }
+      }
+
+      return NextResponse.json({ ok: true, result: { rows_matched: rowsMatched, zoneUpdates, partnerPayouts } });
+    }
+
+    // ---- Apply customized earnings and sync zones ----
+    if (action === "apply_import") {
+      const zoneUpdates = Array.isArray(body.zoneUpdates) ? body.zoneUpdates : [];
+      const partnerPayouts = Array.isArray(body.partnerPayouts) ? body.partnerPayouts : [];
+
       const stmts = [];
       for (const zu of zoneUpdates) {
         stmts.push(d1.prepare("UPDATE d1_partner_zones SET gross_seen = ?, last_impressions = ? WHERE zone_id = ?").bind(zu.gross_seen, zu.last_impressions, zu.zone_id));
       }
-      for (const [pId, pData] of Object.entries(partnerMap)) {
-        if (pData.earned_add > 0) {
-          stmts.push(d1.prepare("UPDATE d1_partner_balances SET earned = earned + ?, balance = balance + ? WHERE partner_id = ?").bind(pData.earned_add, pData.earned_add, pId));
+      for (const po of partnerPayouts) {
+        const amt = num(po.adjusted_cut);
+        if (amt > 0) {
+          stmts.push(d1.prepare("UPDATE d1_partner_balances SET earned = earned + ?, balance = balance + ? WHERE partner_id = ?").bind(amt, amt, po.partner_id));
         }
       }
 
@@ -335,7 +354,7 @@ export async function POST(request: NextRequest) {
         await d1.batch(stmts.slice(i, i + 100));
       }
 
-      return NextResponse.json({ ok: true, result: { rows_matched: rowsMatched, rows_total: rows.length, total_profit: totalProfitAdded } });
+      return NextResponse.json({ ok: true });
     }
 
     // ================= existing behavior below (unchanged) =================

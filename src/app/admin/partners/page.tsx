@@ -98,6 +98,7 @@ export default function PartnersAdmin() {
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [importInfo, setImportInfo] = useState<string | null>(null);
+  const [csvPreview, setCsvPreview] = useState<{ zoneUpdates: any[], partnerPayouts: any[], rowsMatched: number, rowsTotal: number } | null>(null);
 
   // New-partner form
   const [name, setName] = useState("");
@@ -202,16 +203,54 @@ export default function PartnersAdmin() {
       }
       if (rows.length === 0) { setMsg({ type: "err", text: "No zone rows found in that file." }); return; }
       const r = await fetch("/api/admin/partners", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "import", rows }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "preview_import", rows }),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setMsg({ type: "err", text: j.error || "Import failed" }); return; }
+      if (!r.ok) { setMsg({ type: "err", text: j.error || "Import preview failed" }); return; }
       const res = j.result || {};
-      setImportInfo(`Matched ${res.rows_matched ?? 0} of ${res.rows_total ?? 0} zones · total profit ${money(res.total_profit ?? 0)}.`);
-      setMsg({ type: "ok", text: "Earnings updated from your CSV." });
-      await load();
+      
+      setCsvPreview({
+        zoneUpdates: res.zoneUpdates || [],
+        partnerPayouts: res.partnerPayouts || [],
+        rowsMatched: res.rows_matched || 0,
+        rowsTotal: rows.length
+      });
+      setImportInfo(null);
     } catch {
       setMsg({ type: "err", text: "Couldn't read that file." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function updatePreviewCut(partnerId: string, val: string) {
+    if (!csvPreview) return;
+    setCsvPreview({
+      ...csvPreview,
+      partnerPayouts: csvPreview.partnerPayouts.map(p => 
+        p.partner_id === partnerId ? { ...p, adjusted_cut: val } : p
+      )
+    });
+  }
+
+  async function applyCsv() {
+    if (!csvPreview || busy) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch("/api/admin/partners", {
+        method: "POST", headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ action: "apply_import", zoneUpdates: csvPreview.zoneUpdates, partnerPayouts: csvPreview.partnerPayouts }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg({ type: "err", text: j.error || "Apply failed" }); return; }
+      
+      const totalProfit = csvPreview.partnerPayouts.reduce((sum, p) => sum + Number(p.adjusted_cut || 0), 0);
+      setImportInfo(`Matched ${csvPreview.rowsMatched} of ${csvPreview.rowsTotal} zones · total profit applied ${money(totalProfit)}.`);
+      setMsg({ type: "ok", text: "Earnings updated and applied." });
+      setCsvPreview(null);
+      await load();
+    } catch {
+      setMsg({ type: "err", text: "Couldn't apply earnings." });
     } finally {
       setBusy(false);
     }
@@ -469,17 +508,62 @@ export default function PartnersAdmin() {
       </div>
 
       {/* Earnings import */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 mb-6">
-        <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider mb-1">Earnings upload</p>
-        <p className="text-[12px] text-gray-400 mb-3">
-          Upload your Monetag <span className="font-semibold">by-zone</span> CSV (all-time). Each zone is matched to its partner and the split is applied to only the new amount since last time.
-        </p>
-        <label className={`inline-block cursor-pointer ${busy ? "opacity-60 pointer-events-none" : ""}`}>
-          <span className="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold inline-block">Upload Monetag CSV</span>
-          <input type="file" accept=".csv,text/csv" className="hidden" onChange={onCsv} />
-        </label>
-        {importInfo && <p className="text-[12px] text-emerald-700 font-semibold mt-2">{importInfo}</p>}
-      </div>
+      {!csvPreview ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 mb-6">
+          <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider mb-1">Earnings upload</p>
+          <p className="text-[12px] text-gray-400 mb-3">
+            Upload your Monetag <span className="font-semibold">by-zone</span> CSV (all-time). Each zone is matched to its partner and the split is applied to only the new amount since last time.
+          </p>
+          <label className={`inline-block cursor-pointer ${busy ? "opacity-60 pointer-events-none" : ""}`}>
+            <span className="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold inline-block">Upload Monetag CSV</span>
+            <input type="file" accept=".csv,text/csv" className="hidden" onChange={onCsv} />
+          </label>
+          {importInfo && <p className="text-[12px] text-emerald-700 font-semibold mt-2">{importInfo}</p>}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-blue-200 p-4 sm:p-5 mb-6 ring-1 ring-blue-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[13px] font-black text-blue-900 uppercase tracking-wider">Review Payouts</p>
+            <button onClick={() => setCsvPreview(null)} className="text-[12px] font-bold text-gray-400 hover:text-gray-700">Cancel</button>
+          </div>
+          <p className="text-[12px] text-gray-500 mb-4">
+            These are the proposed payouts calculated from your CSV. 
+            You can manually edit the amounts below before applying them. 
+            The system will update tracking internally so tomorrow's upload works normally.
+          </p>
+
+          {csvPreview.partnerPayouts.length === 0 ? (
+            <p className="text-sm text-gray-400 py-4 text-center">No new profit found in this CSV.</p>
+          ) : (
+            <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
+              {csvPreview.partnerPayouts.map((p: any) => (
+                <div key={p.partner_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                  <div>
+                    <p className="font-bold text-gray-900">{p.partner_name}</p>
+                    <p className="text-[11px] text-gray-400">Calculated: {money(p.calculated_cut)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 text-sm font-bold">$</span>
+                    <input 
+                      type="number" step="0.01" inputMode="decimal"
+                      value={p.adjusted_cut} 
+                      onChange={(e) => updatePreviewCut(p.partner_id, e.target.value)}
+                      className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm font-bold text-right focus:outline-none focus:ring-2 focus:ring-[#3cac3b]"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
+            <button onClick={() => setCsvPreview(null)} disabled={busy} className="px-5 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold hover:bg-gray-200 disabled:opacity-60">Cancel</button>
+            <button onClick={applyCsv} disabled={busy || csvPreview.partnerPayouts.length === 0} className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60 transition-colors">
+              {busy ? "Applying..." : "Confirm & Apply"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Applications */}
       {applications.length > 0 && (
