@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import ChartWrapper from "@/components/admin/ChartWrapper";
 import StreamOverrideModal from "@/components/admin/StreamOverrideModal";
-import { getAllMatches, getMatchStatus } from "@/lib/api";
+import { getAllMatches, getMatchStatus, getLiveMatches } from "@/lib/api";
 import { normTitle } from "@/lib/match-merge";
 import { visibleInterval } from "@/lib/poll";
 
@@ -29,6 +29,8 @@ export default function PulsePage() {
   const [overrides, setOverrides] = useState<OverrideRow[]>([]);
   const [feedStatus, setFeedStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
   const [titleStatus, setTitleStatus] = useState<Record<string, "live" | "upcoming" | "ended"> | null>(null);
+  const [liveIds, setLiveIds] = useState<Set<string> | null>(null);
+  const [endedIds, setEndedIds] = useState<Set<string> | null>(null);
   // Admin flags that override the clock: a force-lived match counts as live and a
   // force-ended one as ended, matching what visitors see on the public site.
   const [flagStatus, setFlagStatus] = useState<Record<string, { forced_live?: boolean; force_ended?: boolean }>>({});
@@ -36,7 +38,7 @@ export default function PulsePage() {
 
   useEffect(() => {
     let on = true;
-    const load = () =>
+    const load = () => {
       getAllMatches()
         .then((ms) => {
           if (!on) return;
@@ -53,6 +55,22 @@ export default function PulsePage() {
           setTitleStatus(tmap);
         })
         .catch(() => {});
+      getLiveMatches()
+        .then((ms) => {
+          if (!on) return;
+          const live = new Set<string>();
+          const ended = new Set<string>();
+          for (const m of ms) {
+            const s = m.sources?.[0];
+            const key = s ? `${s.source}--${s.id}` : String(m.id);
+            if (m.ended) ended.add(key);
+            else live.add(key);
+          }
+          setLiveIds(live);
+          setEndedIds(ended);
+        })
+        .catch(() => {});
+    };
     load();
     const t = setInterval(load, 5 * 60_000);
     return () => { on = false; clearInterval(t); };
@@ -68,6 +86,8 @@ export default function PulsePage() {
     const fl = flagStatus[matchId];
     if (fl?.force_ended) return "ended";
     if (fl?.forced_live) return "live";
+    if (endedIds?.has(matchId)) return "ended";
+    if (liveIds?.has(matchId)) return "live";
     if (!feedStatus) return null;
     const parts = matchId.split("--");
     const feedId = parts.length > 1 ? parts.slice(1).join("--") : matchId;
@@ -158,9 +178,9 @@ export default function PulsePage() {
   const endedViewers = feedStatus
     ? data.activeMatches.filter((m) => rowStatus(m.match_id) === "ended").reduce((sum, m) => sum + m.viewers, 0)
     : 0;
-  // Exactly the sum of the "Watching live now" list: matches whose status is live or active
+  // Only count viewers of genuinely live matches, so it doesn't overlap with Waiting viewers
   const trueLiveViewers = data.activeMatches
-    .filter((m) => rowStatus(m.match_id) !== "ended")
+    .filter((m) => rowStatus(m.match_id) === "live")
     .reduce((sum, m) => sum + m.viewers, 0);
   // People sitting on a pre-kickoff (upcoming) match page — waiting, not watching.
   const waitingViewers = feedStatus
