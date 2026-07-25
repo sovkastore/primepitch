@@ -718,6 +718,16 @@ export default function WatchPage() {
         )}
       </div>
 
+      {/* Starting Soon — shows when kickoff passed but no streams yet */}
+      {isLive && streams.length === 0 && !gaveUp && (
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-6 pt-3">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <p className="text-[12px] font-semibold text-amber-700">Starting soon — the stream will appear automatically.</p>
+          </div>
+        </div>
+      )}
+
       {/* Match info — only for live matches */}
       {isLive && (
         <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
