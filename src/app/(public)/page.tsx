@@ -127,12 +127,23 @@ export default function HomePage() {
   // Filter out admin-hidden matches.
   const mergedLive = liveMatches.filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)));
 
+  // Automatically move upcoming matches to the Live section if their kickoff time has arrived (<= 0)
+  // and they haven't ended (> -120 mins). This gives them a WATCH button instead of sitting in
+  // Upcoming saying "STARTING...", allowing users to go to the watch page and see the "Starting soon" banner.
+  const newlyLive = matches.filter((m) => {
+    if (isFlagged(m, hiddenIds) || hiddenTitles.has(normTeamKey(m))) return false;
+    const diffMin = (m.date - Date.now()) / 1000 / 60;
+    return diffMin <= 0 && diffMin > -120;
+  });
+
+  const combinedLive = dedupeMatches([...mergedLive, ...newlyLive]);
+
   // The matches actually shown as LIVE (after the premature-live guard). Build a
   // team-identity set from these so the same fixture can't also sit in Upcoming,
   // even when the live stream carries a different id or name. Using the shown
   // (post-suppression) list — not mergedLive — means a fixture whose early stream
   // got suppressed still stays in Upcoming rather than vanishing from both.
-  const liveForSportBase = filterBySport(suppressPrematureLive(mergedLive, matches), activeSport);
+  const liveForSportBase = filterBySport(suppressPrematureLive(combinedLive, matches), activeSport);
   const liveForSport = liveForSportBase.filter((m) => {
     if (activeSport === "football" && showPopular && !m.popular) return false;
     return true;
