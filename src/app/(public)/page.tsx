@@ -144,7 +144,12 @@ export default function HomePage() {
   // (post-suppression) list — not mergedLive — means a fixture whose early stream
   // got suppressed still stays in Upcoming rather than vanishing from both.
   const liveForSportBase = filterBySport(suppressPrematureLive(combinedLive, matches), activeSport);
-  const liveForSport = liveForSportBase;
+  const liveForSport = liveForSportBase.filter((m) => {
+    if (activeSport === "football") {
+      return showPopular ? m.popular : !m.popular;
+    }
+    return true;
+  });
   const liveTeamKeys = new Set(liveForSport.map(normTeamKey).filter((k) => k.includes("|")));
 
   const filtered = filterBySport(matches, activeSport)
@@ -152,7 +157,9 @@ export default function HomePage() {
       if (isFlagged(m, hiddenIds) || hiddenTitles.has(normTeamKey(m))) return false;
       const tk = normTeamKey(m);
       if (tk.includes("|") && liveTeamKeys.has(tk)) return false; // already live
-      if (activeSport === "football" && showPopular && !m.popular) return false;
+      if (activeSport === "football") {
+        return showPopular ? m.popular : !m.popular;
+      }
       return true;
     })
     .map((m) => (isFlagged(m, hotIds) ? { ...m, hot: true } : m));
