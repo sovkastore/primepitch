@@ -74,17 +74,17 @@ export function scopeToOwn<T>(value: T): T {
 // (Earned = Balance + Hold + Paid), plus their saved payout method.
 export async function partnerBalances(code: string): Promise<{
   partnerId: string | null; fullStats: boolean;
-  earned: number; hold: number; paid: number; balance: number;
+  earned: number; approved: number; hold: number; paid: number; balance: number;
   payoutCurrency: string | null; payoutAddress: string | null;
 }> {
   const d1 = await getD1();
-  if (!d1) return { partnerId: null, fullStats: false, earned: 0, hold: 0, paid: 0, balance: 0, payoutCurrency: null, payoutAddress: null };
+  if (!d1) return { partnerId: null, fullStats: false, earned: 0, approved: 0, hold: 0, paid: 0, balance: 0, payoutCurrency: null, payoutAddress: null };
 
   const p = await d1.prepare(
     `SELECT id, full_stats, payout_currency, payout_address FROM d1_partners WHERE code = ?`
   ).bind(code).first<{ id: string; full_stats: number; payout_currency: string | null; payout_address: string | null }>();
 
-  if (!p) return { partnerId: null, fullStats: false, earned: 0, hold: 0, paid: 0, balance: 0, payoutCurrency: null, payoutAddress: null };
+  if (!p) return { partnerId: null, fullStats: false, earned: 0, approved: 0, hold: 0, paid: 0, balance: 0, payoutCurrency: null, payoutAddress: null };
 
   const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
   const b = await d1.prepare(
