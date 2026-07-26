@@ -111,6 +111,12 @@ async function getOverrideBacked(): Promise<Map<string, Match>> {
 // Team-name key matching the push score-watcher's match_key (wc:home|away).
 const normName = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 function isRealMatchOver(m: Match, finishedKeys: Set<string>): boolean {
+  if (m.ended) return true;
+  if (m.date) {
+    const diffMin = (m.date - Date.now()) / 1000 / 60;
+    // If kickoff was more than 180 minutes (3 hours) ago, the match has finished.
+    if (diffMin < -180) return true;
+  }
   const h = normName(m.teams?.home?.name || "");
   const a = normName(m.teams?.away?.name || "");
   if (!h || !a) return false;
@@ -160,6 +166,17 @@ export async function GET() {
     ]);
     const curated: Match[] = liveRes.ok ? await liveRes.json() : [];
 
+    // Clean up any forcedLive entries in D1 that have expired
+    const expiredForced = Array.from(flags.forcedLive.entries()).filter(([_, m]) => isRealMatchOver(m, finishedKeys));
+    if (expiredForced.length > 0) {
+      getD1().then((d1) => {
+        if (!d1) return;
+        for (const [mid] of expiredForced) {
+          d1.prepare("UPDATE d1_match_flags SET forced_live = 0 WHERE match_id = ?").bind(mid).run().catch(() => {});
+        }
+      }).catch(() => {});
+    }
+
     // Candidate set: curated live ∪ override-backed (in window) ∪ forced-live
     // (shown from the moment it's forced until it ends).
     const candidates = new Map<string, Match>();
@@ -172,12 +189,10 @@ export async function GET() {
       if (candidates.has(mid)) continue;
       // Explicit admin force = show it live NOW, however long before kickoff, until
       // the real game is reported finished, it ages out (kickoff+3h via
-      // getMatchStatus), or the admin ends/unforces it. The finished check makes a
-      // force-lived card drop off LIVE NOW the moment the actual match ends, instead
-      // of lingering for the rest of the 3h window.
+      // isRealMatchOver), or the admin ends/unforces it.
       if (isRealMatchOver(m, finishedKeys)) continue;
       m.isLive = true;
-      if (getMatchStatus(m) !== "ended") candidates.set(mid, m);
+      candidates.set(mid, m);
     }
 
     const entries = Array.from(candidates.entries()).map(([mid, m]) => {
