@@ -27,13 +27,13 @@ export async function GET(request: NextRequest) {
     d1.prepare("SELECT id, partner_id, zone_id, label, format, full_tag, gross_seen, last_impressions FROM d1_partner_zones").all(),
     d1.prepare("SELECT id, name, email, country, platform, audience_size, contact_handle, status, created_at FROM d1_partner_applications WHERE status = 'pending' ORDER BY created_at DESC").all(),
     d1.prepare("SELECT key, value FROM d1_site_settings WHERE key IN ('partner_public_page', 'partner_ads')").all(),
-    d1.prepare("SELECT partner_id, earned, hold, paid, balance FROM d1_partner_balances").all(),
+    d1.prepare("SELECT partner_id, earned, approved, hold, paid, balance FROM d1_partner_balances").all(),
     d1.prepare("SELECT id, partner_id, amount, currency, from_address, to_address, status, proof_link, proof_image, note, fail_reason, created_at FROM d1_partner_payouts ORDER BY created_at DESC").all(),
   ]);
 
-  const balByPartner: Record<string, { earned: number; hold: number; paid: number; balance: number }> = {};
+  const balByPartner: Record<string, { earned: number; approved: number; hold: number; paid: number; balance: number }> = {};
   for (const b of (balRes.results ?? []) as any[]) {
-    balByPartner[b.partner_id] = { earned: num(b.earned), hold: num(b.hold), paid: num(b.paid), balance: num(b.balance) };
+    balByPartner[b.partner_id] = { earned: num(b.earned), approved: num(b.approved), hold: num(b.hold), paid: num(b.paid), balance: num(b.balance) };
   }
   const payoutsByPartner: Record<string, unknown[]> = {};
   for (const po of (payoutsRes.results ?? []) as any[]) {
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   }
 
   const partners = (partnersRes.results ?? []).map((p: any) => {
-    const bal = balByPartner[p.id] ?? { earned: 0, hold: 0, paid: 0, balance: 0 };
+    const bal = balByPartner[p.id] ?? { earned: 0, approved: 0, hold: 0, paid: 0, balance: 0 };
     return {
       ...p,
       password: p.password_hash || "",
@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
       banned: !!p.banned,
       full_stats: !!p.full_stats,
       earned_total: bal.earned,
+      approved_balance: bal.approved,
       hold: bal.hold,
       paid_total: bal.paid,
       balance: bal.balance,
@@ -245,6 +246,24 @@ export async function POST(request: NextRequest) {
         new Date().toISOString()
       ).run();
       
+      // Update balances
+      if (status !== "failed") {
+        const isCompleted = status === "completed";
+        await d1.prepare(`
+          UPDATE d1_partner_balances 
+          SET approved = approved - ?, 
+              balance = balance - ?,
+              hold = hold + ?,
+              paid = paid + ?
+          WHERE partner_id = ?
+        `).bind(
+          amount, amount, 
+          isCompleted ? 0 : amount, 
+          isCompleted ? amount : 0, 
+          partnerId
+        ).run();
+      }
+      
       return NextResponse.json({ ok: true });
     }
     
@@ -254,14 +273,85 @@ export async function POST(request: NextRequest) {
       if (!id) return NextResponse.json({ error: "payout id required" }, { status: 400 });
       if (!PAYOUT_STATUSES.includes(status)) return NextResponse.json({ error: "invalid status" }, { status: 400 });
       const failReason = status === "failed" ? (body.fail_reason ? String(body.fail_reason) : null) : null;
+      
+      const oldPo = await d1.prepare("SELECT partner_id, amount, status FROM d1_partner_payouts WHERE id = ?").bind(id).first<{ partner_id: string; amount: number; status: string }>();
+      if (!oldPo) return NextResponse.json({ error: "payout not found" }, { status: 404 });
+      
       await d1.prepare("UPDATE d1_partner_payouts SET status = ?, fail_reason = ?, updated_at = ? WHERE id = ?").bind(status, failReason, new Date().toISOString(), id).run();
+      
+      if (oldPo.status !== status) {
+        let approvedChange = 0;
+        let balanceChange = 0;
+        let holdChange = 0;
+        let paidChange = 0;
+        const amt = num(oldPo.amount);
+        
+        // From failed (was refunded) -> Active
+        if (oldPo.status === "failed" && status !== "failed") {
+          approvedChange -= amt;
+          balanceChange -= amt;
+          if (status === "completed") paidChange += amt;
+          else holdChange += amt;
+        }
+        // From Active -> failed (refund)
+        else if (oldPo.status !== "failed" && status === "failed") {
+          approvedChange += amt;
+          balanceChange += amt;
+          if (oldPo.status === "completed") paidChange -= amt;
+          else holdChange -= amt;
+        }
+        // From Hold -> Completed
+        else if (oldPo.status !== "completed" && status === "completed") {
+          holdChange -= amt;
+          paidChange += amt;
+        }
+        // From Completed -> Hold
+        else if (oldPo.status === "completed" && status !== "failed" && status !== "completed") {
+          holdChange += amt;
+          paidChange -= amt;
+        }
+        
+        if (approvedChange !== 0 || balanceChange !== 0 || holdChange !== 0 || paidChange !== 0) {
+          await d1.prepare(`
+            UPDATE d1_partner_balances 
+            SET approved = approved + ?, balance = balance + ?, hold = hold + ?, paid = paid + ?
+            WHERE partner_id = ?
+          `).bind(approvedChange, balanceChange, holdChange, paidChange, oldPo.partner_id).run();
+        }
+      }
+      
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === "approve_funds") {
+      const partnerId = String(body.partner_id || "");
+      const amount = num(body.amount);
+      if (!partnerId) return NextResponse.json({ error: "partner required" }, { status: 400 });
+      if (amount <= 0) return NextResponse.json({ error: "amount must be greater than 0" }, { status: 400 });
+      
+      await d1.prepare("UPDATE d1_partner_balances SET approved = approved + ? WHERE partner_id = ?").bind(amount, partnerId).run();
       return NextResponse.json({ ok: true });
     }
     
     if (action === "payout_delete") {
       const id = String(body.payout_id || "");
       if (!id) return NextResponse.json({ error: "payout id required" }, { status: 400 });
+      
+      const oldPo = await d1.prepare("SELECT partner_id, amount, status FROM d1_partner_payouts WHERE id = ?").bind(id).first<{ partner_id: string; amount: number; status: string }>();
+      if (!oldPo) return NextResponse.json({ error: "payout not found" }, { status: 404 });
+      
       await d1.prepare("DELETE FROM d1_partner_payouts WHERE id = ?").bind(id).run();
+      
+      if (oldPo.status !== "failed") {
+        const amt = num(oldPo.amount);
+        const isCompleted = oldPo.status === "completed";
+        await d1.prepare(`
+          UPDATE d1_partner_balances 
+          SET approved = approved + ?, balance = balance + ?, hold = hold - ?, paid = paid - ?
+          WHERE partner_id = ?
+        `).bind(amt, amt, isCompleted ? 0 : amt, isCompleted ? amt : 0, oldPo.partner_id).run();
+      }
+      
       return NextResponse.json({ ok: true });
     }
 

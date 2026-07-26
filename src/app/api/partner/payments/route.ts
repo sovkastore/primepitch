@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       payouts = results ?? [];
     }
     return NextResponse.json({
-      balances: { earned: bal.earned, hold: bal.hold, paid: bal.paid, balance: bal.balance },
+      balances: { earned: bal.earned, approved: bal.approved, hold: bal.hold, paid: bal.paid, balance: bal.balance },
       method: { currency: bal.payoutCurrency, address: bal.payoutAddress },
       payouts,
     });

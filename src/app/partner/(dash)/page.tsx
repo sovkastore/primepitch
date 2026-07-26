@@ -26,16 +26,18 @@ export default function PartnerOverview() {
           <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Your earnings</p>
           <div className="flex flex-wrap items-end gap-x-10 gap-y-3 mt-2">
             <div>
-              <p className="text-3xl font-black text-gray-900 tabular-nums">{money(e.balance)}</p>
-              <p className="text-[11px] text-gray-400 font-semibold">available to be paid</p>
+              <p className="text-3xl font-black text-gray-900 tabular-nums">{money(e.approved)}</p>
+              <p className="text-[11px] text-gray-400 font-semibold">Approved (available to be paid)</p>
             </div>
             <div className="text-[13px] leading-relaxed">
+              <p className="text-gray-500">Estimated Earnings <b className="text-gray-800">{money(e.earned)}</b></p>
               <p className="text-gray-500">On hold (being paid) <b className="text-gray-800">{money(e.hold)}</b></p>
-              <p className="text-gray-500">Earned all-time <b className="text-gray-800">{money(e.earned)}</b></p>
               <p className="text-gray-400">Paid out <b className="text-gray-600">{money(e.paid)}</b></p>
             </div>
           </div>
           <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+            <b className="text-gray-500">Note:</b> Estimated earnings are pending verification from our ad partners. Funds are moved to your Approved Balance once the ad network clears them.
+            <br className="my-1"/>
             Payouts go out twice a month (around the 15th and the end of the month) in cryptocurrency to the wallet you set on the Payouts page. There’s a $5 minimum — anything under simply rolls into your next payout.
           </p>
         </div>

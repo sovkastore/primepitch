@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
     }
 
-    const { fullStats, earned, hold, paid, balance } = await partnerBalances(sess.code);
+    const { fullStats, earned, approved, hold, paid, balance } = await partnerBalances(sess.code);
     
     // Fetch metrics from D1
     const d1Overview = await getPartnerOverviewD1(d1, sess.code);
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       partner: sess.code,
       name: sess.name,
       full_stats: fullStats,
-      earnings: { earned, hold, paid, balance },
+      earnings: { earned, approved, hold, paid, balance },
       ...scoped,
     });
   } catch (e) {

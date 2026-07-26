@@ -88,13 +88,13 @@ export async function partnerBalances(code: string): Promise<{
 
   const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
   const b = await d1.prepare(
-    `SELECT earned, hold, paid, balance FROM d1_partner_balances WHERE partner_id = ?`
-  ).bind(p.id).first<{ earned: number; hold: number; paid: number; balance: number }>();
+    `SELECT earned, approved, hold, paid, balance FROM d1_partner_balances WHERE partner_id = ?`
+  ).bind(p.id).first<{ earned: number; approved: number; hold: number; paid: number; balance: number }>();
 
   return {
     partnerId: p.id,
     fullStats: p.full_stats === 1,
-    earned: num(b?.earned), hold: num(b?.hold), paid: num(b?.paid), balance: num(b?.balance),
+    earned: num(b?.earned), approved: num(b?.approved), hold: num(b?.hold), paid: num(b?.paid), balance: num(b?.balance),
     payoutCurrency: p.payout_currency ?? null,
     payoutAddress: p.payout_address ?? null,
   };

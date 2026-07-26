@@ -11,7 +11,7 @@ interface Partner {
   id: string; code: string; name: string; email: string;
   active: boolean; suspended: boolean; banned: boolean; created_at: string;
   revenue_split: number; full_stats: boolean;
-  earned_total: number; paid_total: number; balance: number; hold: number;
+  earned_total: number; approved_balance: number; paid_total: number; balance: number; hold: number;
   payout_currency?: string | null; payout_address?: string | null;
   zones: Zone[]; payouts: Payout[]; password?: string;
 }
@@ -128,6 +128,10 @@ export default function PartnersAdmin() {
   const [poImage, setPoImage] = useState<string | null>(null);
   const [poNote, setPoNote] = useState("");
   const [poReason, setPoReason] = useState("");
+
+  // Approve funds modal
+  const [approveFundsFor, setApproveFundsFor] = useState<Partner | null>(null);
+  const [afAmount, setAfAmount] = useState("");
 
   // Filter / sort / expand state for the partner list
   const [query, setQuery] = useState("");
@@ -334,6 +338,13 @@ export default function PartnersAdmin() {
       fail_reason: poStatus === "failed" ? (poReason.trim() || "Payment failed.") : null,
     }, `Payout recorded for ${payoutFor.name}.`);
     if (ok) setPayoutFor(null);
+  }
+  async function doApproveFunds() {
+    if (!approveFundsFor || busy) return;
+    const amount = Number(afAmount);
+    if (!Number.isFinite(amount) || amount <= 0) { setMsg({ type: "err", text: "Enter an amount greater than 0." }); return; }
+    const ok = await post({ action: "approve_funds", partner_id: approveFundsFor.id, amount }, `Approved $${amount.toFixed(2)} for ${approveFundsFor.name}.`);
+    if (ok) setApproveFundsFor(null);
   }
   function setPayoutStatus(po: Payout, status: string) {
     if (status === "failed") {
@@ -723,11 +734,12 @@ export default function PartnersAdmin() {
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2 mb-3">
+                    <div className="grid grid-cols-5 gap-2 mb-3">
                       {[
-                        { l: "Balance", v: p.balance },
+                        { l: "Estimated", v: p.earned_total },
+                        { l: "Approved", v: p.approved_balance },
+                        { l: "Available", v: p.balance },
                         { l: "On hold", v: p.hold },
-                        { l: "Earned", v: p.earned_total },
                         { l: "Paid", v: p.paid_total, muted: true },
                       ].map((m) => (
                         <div key={m.l} className="bg-gray-50 rounded-xl p-2 text-center">
@@ -758,7 +770,10 @@ export default function PartnersAdmin() {
                             ? <>Wallet <b className="text-gray-800">{curLabel(p.payout_currency)}</b> <span className="font-mono text-gray-500">{p.payout_address}</span></>
                             : <span className="text-gray-400">Partner hasn’t saved a wallet yet.</span>}
                         </p>
-                        <button onClick={() => openPayout(p)} disabled={busy} className="mt-2 text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-60">Record a payout</button>
+                        <div className="flex gap-2 mt-2">
+                          <button onClick={() => { setApproveFundsFor(p); setAfAmount(""); }} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 disabled:opacity-60">Approve funds</button>
+                          <button onClick={() => openPayout(p)} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-60">Record a payout</button>
+                        </div>
                       </div>
                     </div>
 
@@ -877,6 +892,24 @@ export default function PartnersAdmin() {
                 className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60">
                 {busy ? "Creating\u2026" : "Create partner"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve Funds modal */}
+      {approveFundsFor && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/40" onClick={() => setApproveFundsFor(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 my-16" onClick={(e) => e.stopPropagation()}>
+            <p className="text-base font-black text-gray-900">Approve funds · {approveFundsFor.name}</p>
+            <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">Move funds from their Estimated total to their Approved total so they can be paid out.</p>
+            <div className="mt-3">
+              <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Amount to approve (USD)</label>
+              <input className={field} value={afAmount} onChange={(e) => setAfAmount(e.target.value)} inputMode="decimal" autoFocus />
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setApproveFundsFor(null)} className="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200">Cancel</button>
+              <button onClick={doApproveFunds} disabled={busy} className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60">{busy ? "Saving…" : "Approve funds"}</button>
             </div>
           </div>
         </div>

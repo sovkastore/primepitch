@@ -21,6 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_partners_email ON d1_partners(email);
 CREATE TABLE IF NOT EXISTS d1_partner_balances (
     partner_id TEXT PRIMARY KEY REFERENCES d1_partners(id) ON DELETE CASCADE,
     earned REAL DEFAULT 0,
+    approved REAL DEFAULT 0,
     hold REAL DEFAULT 0,
     paid REAL DEFAULT 0,
     balance REAL DEFAULT 0
