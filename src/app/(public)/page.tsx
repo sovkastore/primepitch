@@ -160,7 +160,7 @@ export default function HomePage() {
     })
     .map((m) => (isFlagged(m, hotIds) ? { ...m, hot: true } : m));
   // Don't also list a match under Upcoming if it's already shown as Live.
-  const liveKeys = new Set(mergedLive.map(getMatchKey));
+  const liveKeys = new Set(combinedLive.map(getMatchKey));
 
   return (
     <div className="flex flex-col min-h-screen">
