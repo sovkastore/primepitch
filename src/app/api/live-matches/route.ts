@@ -270,35 +270,6 @@ export async function GET() {
         merged.set(key, mergedMatch);
       }
     }
-    matches = Array.from(merged.values());
-
-    // Filter out matches that don't have any working streams (no server)
-    const resolvedEntries = await Promise.all(
-      matches.map(async (m) => {
-        if (m.forced) return m;
-        const isOverride = !keyOf(m).includes("--");
-        if (isOverride) return m;
-
-        const s = m.sources?.[0];
-        if (!s) return null;
-
-        try {
-          const res = await resolveStreams({
-            source: s.source,
-            id: s.id,
-            title: m.title,
-            sport: m.category,
-            disableAuto: true, // prevent slow fallback searches during feed build
-          });
-          if (res.streams.length === 0) return null;
-          return m;
-        } catch {
-          return null;
-        }
-      })
-    );
-    matches = resolvedEntries.filter((m): m is Match => m !== null);
-
     matches = matches
       .map((m, i) => ({ m, i, f: flags.featured.has(keyOf(m)) ? 1 : 0 }))
       .sort((a, b) => b.f - a.f || a.i - b.i)
