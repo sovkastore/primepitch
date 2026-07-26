@@ -32,7 +32,7 @@ export default function HomePage() {
   const [hotIds, setHotIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activeSport, setActiveSport] = useState<string | null>("football");
-  const [showPopular, setShowPopular] = useState(true);
+  const [showPopular, setShowPopular] = useState(false);
 
   // Restore the last-selected sport so returning to home keeps the tab the user
   // was on (instead of snapping back to Football). Runs after mount → no hydration
@@ -145,9 +145,7 @@ export default function HomePage() {
   // got suppressed still stays in Upcoming rather than vanishing from both.
   const liveForSportBase = filterBySport(suppressPrematureLive(combinedLive, matches), activeSport);
   const liveForSport = liveForSportBase.filter((m) => {
-    if (activeSport === "football") {
-      return showPopular ? m.popular : !m.popular;
-    }
+    if (activeSport === "football" && showPopular && !m.popular) return false;
     return true;
   });
   const liveTeamKeys = new Set(liveForSport.map(normTeamKey).filter((k) => k.includes("|")));
@@ -157,9 +155,7 @@ export default function HomePage() {
       if (isFlagged(m, hiddenIds) || hiddenTitles.has(normTeamKey(m))) return false;
       const tk = normTeamKey(m);
       if (tk.includes("|") && liveTeamKeys.has(tk)) return false; // already live
-      if (activeSport === "football") {
-        return showPopular ? m.popular : !m.popular;
-      }
+      if (activeSport === "football" && showPopular && !m.popular) return false;
       return true;
     })
     .map((m) => (isFlagged(m, hotIds) ? { ...m, hot: true } : m));
