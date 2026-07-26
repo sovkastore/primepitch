@@ -6,9 +6,7 @@ import { Match, getMatchKey } from "@/lib/api";
 import { useBatchScores } from "@/lib/use-batch-scores";
 
 export default function LiveNow({ matches }: { matches: Match[] }) {
-  const [showAll, setShowAll] = useState(false);
-
-  const visible = showAll ? matches : matches.slice(0, 6);
+  const visible = matches;
   // ONE request covers scores for every visible card (was one request per card).
   const scores = useBatchScores(visible);
 
@@ -33,14 +31,6 @@ export default function LiveNow({ matches }: { matches: Match[] }) {
           <h2 className="text-[13px] font-extrabold text-gray-900 tracking-wider uppercase">Live Now</h2>
           <span className="text-[11px] text-gray-400 font-semibold ml-1">{matches.length} streams</span>
         </div>
-        {matches.length > 6 && (
-          <button
-            onClick={() => setShowAll(!showAll)}
-            className="text-[11px] text-emerald-500 hover:text-emerald-600 transition-colors font-semibold"
-          >
-            {showAll ? "Show Less" : "View All"} &rsaquo;
-          </button>
-        )}
       </div>
 
       <div className="space-y-3">
