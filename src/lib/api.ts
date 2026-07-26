@@ -307,7 +307,8 @@ export function bothTeamsHaveVisuals(match?: Match | null): boolean {
 // Admin-created live events (source "admin") are always kept, so anything you
 // force live yourself still wins.
 export function suppressPrematureLive(live: Match[], allMatches: Match[]): Match[] {
-  // Always trust the upstream live feed directly, with no time-based filtering.
+  // User requested to remove this delay so matches mirror streamed.pk exactly.
+  // We trust the upstream live feed directly, with no time-based filtering.
   return live;
 }
 

@@ -32,7 +32,7 @@ export default function HomePage() {
   const [hotIds, setHotIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activeSport, setActiveSport] = useState<string | null>("football");
-  const [showPopular, setShowPopular] = useState(false);
+  const [showPopular, setShowPopular] = useState(true);
 
   // Restore the last-selected sport so returning to home keeps the tab the user
   // was on (instead of snapping back to Football). Runs after mount → no hydration
