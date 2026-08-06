@@ -44,3 +44,4 @@ yarn-error.log*
 next-env.d.ts
 tracker-worker/node_modules/
 .ga4-credentials.json
+proton-vpn.apk

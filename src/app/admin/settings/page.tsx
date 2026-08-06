@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import VpnUploader from "@/components/admin/VpnUploader";
 
 type SocialLink = { id: string; label: string; enabled: boolean; url: string };
 
@@ -19,7 +18,7 @@ const VPN_DEFAULTS: VpnConfig = {
   enabled: false,
   name: "Proton VPN",
   description: "Watch every match with no buffering, no blocks, and no ads slowing you down. Takes 2 minutes to set up.",
-  downloadUrl: "",
+  downloadUrl: "/proton-vpn.apk",
   recommendedServer: "Singapore",
   fileSize: "52 MB",
   version: "Latest",
@@ -213,27 +212,17 @@ export default function AdminSettingsPage() {
             <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${vpn.enabled ? "left-[18px]" : "left-0.5"}`} />
           </button>
         </div>
+        <p className="text-[13px] text-gray-500">
+          Provide the direct download URL for the APK (e.g. from Cloudflare R2, Google Drive direct link, or Telegram file link). The download button on <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-700">/vpn</code> will immediately download this APK for users.
+        </p>
         <div className="space-y-3">
-          {/* APK Upload */}
           <div>
-            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Upload APK File</label>
-            <VpnUploader
-              currentUrl={vpn.downloadUrl}
-              onUploaded={(url) => setVpn((v) => ({ ...v, downloadUrl: url }))}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-px flex-1 bg-gray-100" />
-            <span className="text-[11px] text-gray-400">or paste a link</span>
-            <div className="h-px flex-1 bg-gray-100" />
-          </div>
-          <div>
-            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">APK Download URL</label>
+            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">APK Download URL *</label>
             <input
               type="url"
               value={vpn.downloadUrl}
               onChange={(e) => setVpn((v) => ({ ...v, downloadUrl: e.target.value }))}
-              placeholder="https://drive.google.com/... or https://t.me/..."
+              placeholder="https://... (direct APK link)"
               className="mt-1 w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
             />
           </div>
