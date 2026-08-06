@@ -4,6 +4,26 @@ import { useState, useEffect } from "react";
 
 type SocialLink = { id: string; label: string; enabled: boolean; url: string };
 
+type VpnConfig = {
+  enabled: boolean;
+  name: string;
+  description: string;
+  downloadUrl: string;
+  recommendedServer: string;
+  fileSize: string;
+  version: string;
+};
+
+const VPN_DEFAULTS: VpnConfig = {
+  enabled: false,
+  name: "Proton VPN",
+  description: "Watch every match with no buffering, no blocks, and no ads slowing you down. Takes 2 minutes to set up.",
+  downloadUrl: "",
+  recommendedServer: "Singapore",
+  fileSize: "52 MB",
+  version: "Latest",
+};
+
 export default function AdminSettingsPage() {
   const [aggregating, setAggregating] = useState(false);
   const [aggregateResult, setAggregateResult] = useState<string | null>(null);
@@ -12,10 +32,18 @@ export default function AdminSettingsPage() {
   const [savingSocials, setSavingSocials] = useState(false);
   const [socialsMsg, setSocialsMsg] = useState("");
 
+  const [vpn, setVpn] = useState<VpnConfig>(VPN_DEFAULTS);
+  const [savingVpn, setSavingVpn] = useState(false);
+  const [vpnMsg, setVpnMsg] = useState("");
+
   useEffect(() => {
     fetch("/api/admin/social-links", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setSocials(Array.isArray(d.links) ? d.links : []))
+      .catch(() => {});
+    fetch("/api/admin/vpn-config", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setVpn({ ...VPN_DEFAULTS, ...d }))
       .catch(() => {});
   }, []);
 
@@ -38,6 +66,24 @@ export default function AdminSettingsPage() {
       setSocialsMsg("Failed to save.");
     } finally {
       setSavingSocials(false);
+    }
+  }
+
+  async function saveVpn() {
+    setSavingVpn(true);
+    setVpnMsg("");
+    try {
+      const res = await fetch("/api/admin/vpn-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vpn),
+      });
+      if (!res.ok) throw new Error();
+      setVpnMsg("Saved.");
+    } catch {
+      setVpnMsg("Failed to save.");
+    } finally {
+      setSavingVpn(false);
     }
   }
 
@@ -149,6 +195,110 @@ export default function AdminSettingsPage() {
           {socialsMsg && (
             <span className={`text-[12px] font-medium ${socialsMsg === "Saved." ? "text-emerald-600" : "text-red-500"}`}>
               {socialsMsg}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* VPN Download Config */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[11px] font-bold text-gray-400 tracking-wider uppercase">VPN Download Page (/vpn)</h2>
+          <button
+            type="button"
+            onClick={() => setVpn((v) => ({ ...v, enabled: !v.enabled }))}
+            className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${vpn.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${vpn.enabled ? "left-[18px]" : "left-0.5"}`} />
+          </button>
+        </div>
+        <p className="text-[13px] text-gray-500">
+          Paste the APK download link below (Google Drive, Telegram file link, etc.). The /vpn page will show a download button for users.
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">APK Download URL *</label>
+            <input
+              type="url"
+              value={vpn.downloadUrl}
+              onChange={(e) => setVpn((v) => ({ ...v, downloadUrl: e.target.value }))}
+              placeholder="https://drive.google.com/... or https://t.me/..."
+              className="mt-1 w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">VPN Name</label>
+              <input
+                type="text"
+                value={vpn.name}
+                onChange={(e) => setVpn((v) => ({ ...v, name: e.target.value }))}
+                placeholder="Proton VPN"
+                className="mt-1 w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Recommended Server</label>
+              <input
+                type="text"
+                value={vpn.recommendedServer}
+                onChange={(e) => setVpn((v) => ({ ...v, recommendedServer: e.target.value }))}
+                placeholder="Singapore"
+                className="mt-1 w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">File Size</label>
+              <input
+                type="text"
+                value={vpn.fileSize}
+                onChange={(e) => setVpn((v) => ({ ...v, fileSize: e.target.value }))}
+                placeholder="52 MB"
+                className="mt-1 w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Version</label>
+              <input
+                type="text"
+                value={vpn.version}
+                onChange={(e) => setVpn((v) => ({ ...v, version: e.target.value }))}
+                placeholder="Latest"
+                className="mt-1 w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Page Description</label>
+            <textarea
+              value={vpn.description}
+              onChange={(e) => setVpn((v) => ({ ...v, description: e.target.value }))}
+              rows={2}
+              placeholder="Watch every match with no buffering..."
+              className="mt-1 w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-none"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={saveVpn}
+            disabled={savingVpn}
+            className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors"
+          >
+            {savingVpn ? "Saving..." : "Save VPN settings"}
+          </button>
+          {vpn.downloadUrl && (
+            <a
+              href="/vpn"
+              target="_blank"
+              className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors"
+            >
+              Preview page →
+            </a>
+          )}
+          {vpnMsg && (
+            <span className={`text-[12px] font-medium ${vpnMsg === "Saved." ? "text-emerald-600" : "text-red-500"}`}>
+              {vpnMsg}
             </span>
           )}
         </div>
