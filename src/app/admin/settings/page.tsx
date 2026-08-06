@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import VpnUploader from "@/components/admin/VpnUploader";
 
 type SocialLink = { id: string; label: string; enabled: boolean; url: string };
 
@@ -212,12 +213,22 @@ export default function AdminSettingsPage() {
             <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${vpn.enabled ? "left-[18px]" : "left-0.5"}`} />
           </button>
         </div>
-        <p className="text-[13px] text-gray-500">
-          Paste the APK download link below (Google Drive, Telegram file link, etc.). The /vpn page will show a download button for users.
-        </p>
         <div className="space-y-3">
+          {/* APK Upload */}
           <div>
-            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">APK Download URL *</label>
+            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Upload APK File</label>
+            <VpnUploader
+              currentUrl={vpn.downloadUrl}
+              onUploaded={(url) => setVpn((v) => ({ ...v, downloadUrl: url }))}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-gray-100" />
+            <span className="text-[11px] text-gray-400">or paste a link</span>
+            <div className="h-px flex-1 bg-gray-100" />
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">APK Download URL</label>
             <input
               type="url"
               value={vpn.downloadUrl}
