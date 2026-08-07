@@ -72,7 +72,7 @@ const DEFAULTS: AdsConfig = {
     popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "all", zone: "", src: "https://pl29767070.effectivecpmnetwork.com/30/ab/f5/30abf5ef48f19536833cf036986d6551.js", cap: 0, delay: "0" },
     monetag_popunder: { label: "Popunder", enabled: false, network: "Monetag", group: "popunder", placement: "home", zone: "11157914", src: "https://al5sm.com/tag.min.js", cap: 0, delay: "0" },
   },
-  preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
+  preroll: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
   smartLinks: { enabled: false, url: "", targets: {} },
   notifications: {
     wait_banner: {

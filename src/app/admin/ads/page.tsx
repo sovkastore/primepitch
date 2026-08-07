@@ -76,7 +76,7 @@ const DEFAULTS: AdsConfig = {
     popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "all", zone: "", src: "https://pl29767070.effectivecpmnetwork.com/30/ab/f5/30abf5ef48f19536833cf036986d6551.js", cap: 0, delay: "0" },
     monetag_popunder: { label: "Popunder", enabled: false, network: "Monetag", group: "popunder", placement: "home", zone: "11157914", src: "https://al5sm.com/tag.min.js", cap: 0, delay: "0" },
   },
-  preroll: { enabled: false, vastTag: "", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
+  preroll: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", trigger: "interval", placement: "watch", cap: 0, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
   smartLinks: { enabled: false, url: "", targets: {} },
   notifications: {
     wait_banner: {
@@ -1125,6 +1125,91 @@ export default function AdminAdsPage() {
         </div>
         );
       })}
+
+      {/* ExoClick Video Pre-Roll Section */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-[12px] font-bold uppercase tracking-wide text-gray-400">
+            ExoClick Video Ads <span className="normal-case text-gray-300">· {cfg.preroll.enabled ? "on" : "off"}</span>
+          </h2>
+          <button
+            type="button"
+            onClick={() => updatePreroll({ enabled: !cfg.preroll.enabled })}
+            aria-label="Toggle ExoClick Pre-Roll Video Ad"
+            className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${cfg.preroll.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${cfg.preroll.enabled ? "left-[18px]" : "left-0.5"}`} />
+          </button>
+        </div>
+
+        <div className={`rounded-2xl border overflow-hidden ${cfg.preroll.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
+          {headerRow(
+            "preroll_vast",
+            "In-Stream Video Pre-Roll (VAST)",
+            cfg.preroll.vastTag ? "Tag configured (Zone 5997530)" : "No VAST tag entered",
+            cfg.preroll.enabled,
+            () => updatePreroll({ enabled: !cfg.preroll.enabled }),
+            "ExoClick"
+          )}
+          {open.preroll_vast && (
+            <div className="px-5 pb-5 pt-1 space-y-4 border-t border-gray-100">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-gray-800">VAST Tag URL</label>
+                <input
+                  type="text"
+                  value={cfg.preroll.vastTag}
+                  onChange={(e) => updatePreroll({ vastTag: e.target.value })}
+                  placeholder="https://s.magsrv.com/v1/vast.php?idz=5997530"
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+                <p className="text-[12px] text-gray-500">
+                  Google IMA SDK loads this video tag before starting match streams.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-gray-800">Skip Button (Seconds)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={cfg.preroll.skipAfter || 5}
+                    onChange={(e) => updatePreroll({ skipAfter: Number(e.target.value) || 5 })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  />
+                  <p className="text-[11px] text-gray-400">Seconds before "Skip Ad" appears (5s is recommended).</p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-gray-800">Cooldown / Frequency</label>
+                  <select
+                    value={cfg.preroll.cap === 0 ? "0" : String(cfg.preroll.cap)}
+                    onChange={(e) => updatePreroll({ cap: Number(e.target.value) })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  >
+                    <option value="0">Every Match Click (Always)</option>
+                    <option value="5">Every 5 minutes</option>
+                    <option value="15">Every 15 minutes</option>
+                    <option value="30">Every 30 minutes</option>
+                  </select>
+                  <p className="text-[11px] text-gray-400">How often video ads appear per visitor.</p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <a
+                  href="/admin/ad-test"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200 px-3 py-2 rounded-xl transition-colors"
+                >
+                  <span>▶</span> Open Video Player Ad Sandbox Test ↗
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
 
 
