@@ -24,6 +24,8 @@ export const metadata: Metadata = {
     "aa161e4bfc7e68a64d454d1786941ab1601e90c2": "aa161e4bfc7e68a64d454d1786941ab1601e90c2",
     // Clickadu site-ownership verification meta tag.
     "clckd": "bec62467cc0ca72c56d8b42ad6c12dcb",
+    // ExoClick site-ownership verification meta tag.
+    "exoclick-site-verification": "e78e5330cb1b40ab78fefd9c9a855c40",
   },
   metadataBase: new URL("https://primepitch.live"),
   openGraph: {
@@ -48,7 +50,7 @@ export const metadata: Metadata = {
     title: "PrimePitch \u2014 Watch Live Sports Free",
     description:
       "Watch live football, basketball, UFC, F1, and more. FIFA World Cup 2026 \u2014 all matches, all free.",
-    images: ["/icon-512.png"],
+    images: ["https://primepitch.live/icon-512.png"],
   },
   icons: {
     icon: [
@@ -56,7 +58,7 @@ export const metadata: Metadata = {
       { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
     ],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    apple: "/apple-touch-icon.png",
   },
   manifest: "/site.webmanifest",
   robots: {
@@ -78,6 +80,7 @@ export default function RootLayout({
       <head>
         <meta name="clckd" content="bec62467cc0ca72c56d8b42ad6c12dcb" />
         <meta name="aa161e4bfc7e68a64d454d1786941ab1601e90c2" content="aa161e4bfc7e68a64d454d1786941ab1601e90c2" />
+        <meta name="exoclick-site-verification" content="e78e5330cb1b40ab78fefd9c9a855c40" />
       </head>
       <body className={`${inter.className} antialiased min-h-screen flex flex-col bg-white text-gray-900`}>
         {children}
