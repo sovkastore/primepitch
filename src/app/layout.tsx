@@ -75,6 +75,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="clckd" content="bec62467cc0ca72c56d8b42ad6c12dcb" />
+        <meta name="aa161e4bfc7e68a64d454d1786941ab1601e90c2" content="aa161e4bfc7e68a64d454d1786941ab1601e90c2" />
+      </head>
       <body className={`${inter.className} antialiased min-h-screen flex flex-col bg-white text-gray-900`}>
         {children}
         <AdsLoader />
