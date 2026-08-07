@@ -157,6 +157,17 @@ function cleanPreroll(v: unknown): Preroll {
     mode: ALLOWED_MODES.has(p.mode as string) ? (p.mode as Mode) : "silent",
   };
 }
+
+function cleanInterstitial(v: unknown): Interstitial {
+  const i = (v ?? {}) as Partial<Interstitial>;
+  return {
+    enabled: !!i.enabled,
+    vastTag: cleanUrl(i.vastTag),
+    pages: typeof i.pages === "string" ? i.pages.trim().slice(0, 500) : "all",
+    cooldown: clampInt(i.cooldown, 0, 1440, 0),
+    noFillTimeout: clampInt(i.noFillTimeout, 1, 15, 5),
+  };
+}
 function cleanSmartLinks(v: unknown): SmartLinks {
   const s = (v ?? {}) as Partial<SmartLinks>;
   const rawTargets = (s.targets ?? {}) as Record<string, unknown>;
@@ -212,6 +223,7 @@ export async function GET() {
       ...DEFAULTS,
       ...stored,
       preroll: { ...DEFAULTS.preroll, ...(stored.preroll ?? {}) },
+      interstitial: { ...DEFAULTS.interstitial, ...(stored.interstitial ?? {}) },
     });
   } catch {
     return NextResponse.json(DEFAULTS);
@@ -267,6 +279,7 @@ export async function POST(request: NextRequest) {
       domains: ALLOWED_DOMAINS.has(body.domains as string) ? (body.domains as AdsConfig["domains"]) : "all",
       formats,
       preroll: cleanPreroll(body.preroll),
+      interstitial: cleanInterstitial(body.interstitial),
       smartLinks: cleanSmartLinks(body.smartLinks),
       notifications: cleanNotifications(body.notifications),
       promoBanner: cleanPromoBanner(body.promoBanner),

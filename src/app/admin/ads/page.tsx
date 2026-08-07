@@ -609,7 +609,14 @@ export default function AdminAdsPage() {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      if (data.config) setCfg(data.config);
+      if (data.config) {
+        setCfg((prev) => ({
+          ...prev,
+          ...data.config,
+          preroll: { ...DEFAULTS.preroll, ...(data.config.preroll ?? {}) },
+          interstitial: { ...DEFAULTS.interstitial, ...(data.config.interstitial ?? {}) },
+        }));
+      }
       setMsg("Saved.");
     } catch {
       setMsg("Failed to save.");
