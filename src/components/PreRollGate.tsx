@@ -196,7 +196,6 @@ export default function PreRollGate({
   const [cfg, setCfg] = useState<Preroll | null>(null);
   // adShowing flips true ONLY when a real ad has started playing.
   const [adShowing, setAdShowing] = useState(false);
-  const [showSkip, setShowSkip] = useState(false);
 
   // Debug mode: append ?addebug=1 to the URL to bypass timing/placement gates
   // and SEE the real reason an ad doesn't play, on screen.
@@ -240,15 +239,10 @@ export default function PreRollGate({
     }
     adsManagerRef.current = null;
     adsLoaderRef.current = null;
-    setShowSkip(false);
     setAdShowing(false);
     if (!debugRef.current) setCfg(null); // keep gate visible in debug mode
   }, []);
 
-  const skip = useCallback(() => {
-    try {
-      adsManagerRef.current?.skip();
-    } catch {
       /* ignore */
     }
     finish();
@@ -347,10 +341,6 @@ export default function PreRollGate({
             note("ad STARTED ✓ (a real video ad is playing)");
             startedRef.current = true; // a REAL ad is playing
             setAdShowing(true); // -> reveal the overlay
-            const skipAfter = Math.max(0, Number(cfg.skipAfter ?? 5));
-            timersRef.current.push(
-              setTimeout(() => setShowSkip(true), skipAfter * 1000)
-            );
           });
           mgr.addEventListener(ima.AdEvent.Type.SKIPPED, () => finish());
           mgr.addEventListener(ima.AdEvent.Type.COMPLETE, () => finish());
@@ -464,14 +454,7 @@ export default function PreRollGate({
         playsInline
         preload="auto"
       />
-      {adShowing && showSkip && (
-        <button
-          onClick={skip}
-          className="absolute bottom-4 right-4 z-10 rounded-md bg-black/70 px-4 py-2 text-sm text-white hover:bg-black/80"
-        >
-          Skip Ad ▶
-        </button>
-      )}
+
       {debugOn && (
         <div className="absolute inset-x-2 top-2 z-20 max-h-[70%] overflow-auto rounded-lg bg-black/85 p-3 font-mono text-[11px] leading-snug text-emerald-300">
           <div className="mb-1 font-bold text-white">Pre-roll debug</div>
