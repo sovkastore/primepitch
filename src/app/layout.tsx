@@ -22,6 +22,8 @@ export const metadata: Metadata = {
   other: {
     // HilltopAds site-ownership verification meta tag.
     "aa161e4bfc7e68a64d454d1786941ab1601e90c2": "aa161e4bfc7e68a64d454d1786941ab1601e90c2",
+    // Clickadu site-ownership verification meta tag.
+    "clckd": "bec62467cc0ca72c56d8b42ad6c12dcb",
   },
   metadataBase: new URL("https://primepitch.live"),
   openGraph: {
