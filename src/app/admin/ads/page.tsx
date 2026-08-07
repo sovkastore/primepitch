@@ -256,6 +256,7 @@ export default function AdminAdsPage() {
             ...d,
             formats: formats,
             preroll: { ...DEFAULTS.preroll, ...(d.preroll ?? {}) },
+            interstitial: { ...DEFAULTS.interstitial, ...(d.interstitial ?? {}) },
             smartLinks: { ...DEFAULTS.smartLinks, ...(d.smartLinks ?? {}) },
             notifications: {
               wait_banner: { ...DEFAULTS.notifications!.wait_banner, ...(d.notifications?.wait_banner ?? {}) },
