@@ -18,7 +18,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { match_id, match_data, hidden, hide_one, forced_live, featured, disable_auto, auto_fallback, display_title, force_ended, hot } =
+    const { match_id, match_data, hidden, hide_one, forced_live, featured, disable_auto, auto_fallback, display_title, force_ended, hot, custom_notice } =
       await request.json();
     if (!match_id) {
       return NextResponse.json({ error: "match_id required" }, { status: 400 });
@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
     if (typeof display_title === "string") row.display_title = display_title.trim() || null;
     if (typeof force_ended === "boolean") row.force_ended = force_ended;
     if (typeof hot === "boolean") row.hot = hot;
+    if (typeof custom_notice === "string") row.custom_notice = custom_notice.trim() || null;
+    else if (custom_notice === null) row.custom_notice = null;
 
     const d1 = await getD1();
     if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });

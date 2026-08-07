@@ -166,17 +166,23 @@ export default function WatchPage() {
   // correct forceLive value (avoids a race that logged force-lived viewers as pre).
   const [liveResolved, setLiveResolved] = useState(false);
   const [hotKeys, setHotKeys] = useState<Set<string>>(new Set());
+  const [matchNotice, setMatchNotice] = useState<string | null>(null);
   const [adsCfg, setAdsCfg] = useState<any>(null);
 
   useEffect(() => {
     fetch("/api/admin/ads-config").then(r => r.json()).then(setAdsCfg).catch(() => {});
   }, []);
 
-  // One-time read of HOT flags so an upcoming/custom hot match's page is also
-  // special (live matches already carry `hot` via the live feed).
+  // One-time read of HOT flags and match notices so an upcoming/custom hot match's
+  // page is also special (live matches already carry `hot` via the live feed).
   useEffect(() => {
-    getMatchFlags().then((f) => setHotKeys(new Set(f.hot))).catch(() => {});
-  }, []);
+    getMatchFlags()
+      .then((f) => {
+        setHotKeys(new Set(f.hot));
+        if (f.notices?.[rawId]) setMatchNotice(f.notices[rawId]);
+      })
+      .catch(() => {});
+  }, [rawId]);
 
   const trackedRef = useRef(false);
   const streamTriesRef = useRef(0);
@@ -260,6 +266,7 @@ export default function WatchPage() {
               }
             } else {
               if (meta?.match) current = meta.match as Match;
+              if (meta?.custom_notice) setMatchNotice(meta.custom_notice);
             }
           } catch {}
         }
@@ -294,6 +301,7 @@ export default function WatchPage() {
             );
             const data = await res.json();
             setStreams(Array.isArray(data.streams) ? data.streams : []);
+            if (data?.notice) setMatchNotice(data.notice);
             setActiveStream(0);
           } catch {
             setStreams([]);
@@ -512,6 +520,9 @@ export default function WatchPage() {
         setStreams(data.streams);
         setActiveStream(0);
       }
+      if (data?.notice !== undefined) {
+        setMatchNotice(data.notice || null);
+      }
     } catch {}
   }
 
@@ -529,6 +540,25 @@ export default function WatchPage() {
 
       {/* Video player (live) OR Match card (upcoming) */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
+        {/* Custom Admin Match Recommendation / Notice */}
+        {matchNotice && !isEnded && (
+          <div className="mb-3.5 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-400/50 shadow-sm flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0 text-amber-800">
+              <span className="text-base">💡</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded bg-amber-500 text-white shadow-xs">
+                  Recommendation
+                </span>
+              </div>
+              <p className="text-[13px] font-bold text-gray-900 leading-snug">
+                {matchNotice}
+              </p>
+            </div>
+          </div>
+        )}
+
         {!isEnded && !isUpcoming && adsCfg?.notifications?.wait_banner?.enabled && (
           <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
             <svg className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
@@ -793,7 +823,18 @@ export default function WatchPage() {
           Presentation only — selection still indexes the flat streams list. */}
       {isLive && (
         <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
-          <h3 className="text-[12px] font-bold text-gray-500 tracking-widest mb-3">CHOOSE STREAM</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[12px] font-bold text-gray-500 tracking-widest">CHOOSE STREAM</h3>
+          </div>
+          {matchNotice && (
+            <div className="mb-3.5 px-3.5 py-2.5 rounded-xl bg-amber-500/10 border border-amber-400/40 flex items-center gap-2.5">
+              <span className="text-sm shrink-0">📌</span>
+              <p className="text-[12px] text-amber-950 font-semibold leading-tight">
+                <span className="text-amber-800 font-bold mr-1.5 bg-amber-200/70 px-1.5 py-0.5 rounded text-[10px] uppercase">Tip</span>
+                {matchNotice}
+              </p>
+            </div>
+          )}
           {streams.length > 0 ? (() => {
             const groups = groupStreams(streams);
             const renderRow = (it: StreamGroupItem) => (

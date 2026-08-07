@@ -32,19 +32,23 @@ export async function GET(
         return NextResponse.json({ match: m });
       }
 
-      const flPromise = d1.prepare("SELECT match_data FROM d1_match_flags WHERE match_id = ? AND match_data IS NOT NULL LIMIT 1").bind(matchId).first() as any;
+      const flPromise = d1.prepare("SELECT match_data, custom_notice FROM d1_match_flags WHERE match_id = ? LIMIT 1").bind(matchId).first() as any;
       const fl = await Promise.race([
         flPromise,
         new Promise<any>((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 3000))
       ]).catch(() => null);
-      if (fl?.match_data) {
-        return NextResponse.json({ match: typeof fl.match_data === 'string' ? JSON.parse(fl.match_data) : fl.match_data });
+      if (fl) {
+        const matchData = fl.match_data ? (typeof fl.match_data === 'string' ? JSON.parse(fl.match_data) : fl.match_data) : null;
+        return NextResponse.json({
+          match: matchData,
+          custom_notice: fl.custom_notice ? String(fl.custom_notice).trim() : null
+        });
       }
     }
 
-    return NextResponse.json({ match: null });
+    return NextResponse.json({ match: null, custom_notice: null });
   } catch {
     // If DB is slow or down, return null so the watch page doesn't hang
-    return NextResponse.json({ match: null });
+    return NextResponse.json({ match: null, custom_notice: null });
   }
 }

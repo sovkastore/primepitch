@@ -344,15 +344,21 @@ export function dedupeMatches(matches: Match[]): Match[] {
   return order.map((k) => best.get(k)!);
 }
 
-// Hidden/featured/hot flags for the public upcoming lists.
-export async function getMatchFlags(): Promise<{ hidden: string[]; featured: string[]; hot: string[]; hiddenTitles: string[] }> {
+// Hidden/featured/hot flags and custom notices for the public site.
+export async function getMatchFlags(): Promise<{ hidden: string[]; featured: string[]; hot: string[]; hiddenTitles: string[]; notices: Record<string, string> }> {
   try {
     const res = await fetch(`/api/match-flags`, { cache: "no-store" });
-    if (!res.ok) return { hidden: [], featured: [], hot: [], hiddenTitles: [] };
+    if (!res.ok) return { hidden: [], featured: [], hot: [], hiddenTitles: [], notices: {} };
     const j = await res.json();
-    return { hidden: j.hidden ?? [], featured: j.featured ?? [], hot: j.hot ?? [], hiddenTitles: j.hiddenTitles ?? [] };
+    return {
+      hidden: j.hidden ?? [],
+      featured: j.featured ?? [],
+      hot: j.hot ?? [],
+      hiddenTitles: j.hiddenTitles ?? [],
+      notices: j.notices ?? {},
+    };
   } catch {
-    return { hidden: [], featured: [], hot: [], hiddenTitles: [] };
+    return { hidden: [], featured: [], hot: [], hiddenTitles: [], notices: {} };
   }
 }
 

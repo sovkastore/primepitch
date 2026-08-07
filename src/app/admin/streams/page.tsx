@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getBadgeUrl, SPORT_LABELS } from "@/lib/api";
 import StreamOverrideModal from "@/components/admin/StreamOverrideModal";
+import MatchNoticeModal from "@/components/admin/MatchNoticeModal";
 import { visibleInterval } from "@/lib/poll";
 
 interface Team { name: string; badge?: string }
@@ -33,6 +34,7 @@ interface FlagRow {
   auto_fallback?: boolean | null;
   force_ended: boolean;
   hot: boolean;
+  custom_notice?: string | null;
 }
 interface Entry {
   match: Match;
@@ -88,6 +90,7 @@ export default function StreamsManagerPage() {
   const [search, setSearch] = useState("");
   const [sportFilter, setSportFilter] = useState("all");
   const [modal, setModal] = useState<{ matchId: string; title: string; sport: string; matchData: Match; append: boolean } | null>(null);
+  const [noticeModal, setNoticeModal] = useState<{ matchId: string; title: string; matchData: Match; currentNotice: string } | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   // Accordion: which card is expanded, and a cache of its resolved servers.
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -142,7 +145,7 @@ export default function StreamsManagerPage() {
   }
 
   async function setFlag(e: Entry, patch: Partial<FlagRow>) {
-    const base: FlagRow = e.flags ?? { match_id: e.matchId, hidden: false, hide_one: false, forced_live: false, featured: false, disable_auto: false, force_ended: false, hot: false };
+    const base: FlagRow = e.flags ?? { match_id: e.matchId, hidden: false, hide_one: false, forced_live: false, featured: false, disable_auto: false, force_ended: false, hot: false, custom_notice: null };
     const next = { ...base, ...patch };
     patchEntry(e.matchId, (x) => ({ ...x, flags: next }));
     await fetch("/api/admin/match-flags", {
@@ -357,6 +360,34 @@ export default function StreamsManagerPage() {
                   </div>
                 )}
 
+                {/* Custom Notice Banner on Card */}
+                {flags?.custom_notice && (
+                  <div className="mx-4 mb-2.5 px-3 py-2 bg-amber-50/90 border border-amber-200 rounded-xl flex items-center justify-between gap-2 text-left">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm shrink-0">💬</span>
+                      <p className="text-[12px] text-amber-950 font-semibold truncate">
+                        <span className="text-amber-800 font-bold mr-1.5 bg-amber-200/60 px-1.5 py-0.5 rounded">WATCH PAGE TIP:</span>
+                        {flags.custom_notice}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setNoticeModal({ matchId: e.matchId, title: e.match.title, matchData: e.match, currentNotice: flags.custom_notice || "" })}
+                        className="text-[11px] font-bold text-amber-900 hover:text-amber-950 underline px-1"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setFlag(e, { custom_notice: null })}
+                        className="text-[11px] font-bold text-red-600 hover:text-red-800 px-1"
+                        title="Remove notice"
+                      >
+                        ✕ Remove
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Sub row: time + actions */}
                 <div className="px-4 pb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
                   <span className="text-[11px] text-gray-400 font-medium">{time} · {e.match.category}</span>
@@ -365,6 +396,17 @@ export default function StreamsManagerPage() {
                     className="text-[11px] font-bold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1 rounded-lg transition-colors"
                   >
                     {e.overrides.length > 0 ? "+ Add stream" : "Add fallback"}
+                  </button>
+                  <button
+                    onClick={() => setNoticeModal({ matchId: e.matchId, title: e.match.title, matchData: e.match, currentNotice: flags?.custom_notice || "" })}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 ${
+                      flags?.custom_notice
+                        ? "bg-amber-100 text-amber-900 border border-amber-300 shadow-sm"
+                        : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    <span>💬</span>
+                    {flags?.custom_notice ? "Edit Notice" : "+ Notice"}
                   </button>
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-red-600">
                     <Toggle on={!!flags?.hot} onClick={() => setFlag(e, { hot: !flags?.hot })} color="red" />
@@ -435,6 +477,31 @@ export default function StreamsManagerPage() {
           appendMode={modal.append}
           onClose={() => setModal(null)}
           onApplied={fetchData}
+        />
+      )}
+
+      {noticeModal && (
+        <MatchNoticeModal
+          matchId={noticeModal.matchId}
+          matchTitle={noticeModal.title}
+          matchData={noticeModal.matchData}
+          currentNotice={noticeModal.currentNotice}
+          onClose={() => setNoticeModal(null)}
+          onSaved={(n) => {
+            patchEntry(noticeModal.matchId, (e) => {
+              const base = e.flags ?? {
+                match_id: e.matchId,
+                hidden: false,
+                hide_one: false,
+                forced_live: false,
+                featured: false,
+                disable_auto: false,
+                force_ended: false,
+                hot: false,
+              };
+              return { ...e, flags: { ...base, custom_notice: n } };
+            });
+          }}
         />
       )}
     </div>

@@ -13,13 +13,13 @@ import { getD1 } from "@/lib/d1";
 async function autoFlags(
   matchId: string,
   sport: string
-): Promise<{ disableAuto: boolean; allowFootballAuto: boolean }> {
+): Promise<{ disableAuto: boolean; allowFootballAuto: boolean; notice: string | null }> {
   const isFootball = sport.toLowerCase() === "football";
   try {
     const d1 = await getD1();
     if (!d1) throw new Error("DB unavailable");
     const fetchFlags = (async () => {
-      const row = await d1.prepare("SELECT disable_auto, auto_fallback FROM d1_match_flags WHERE match_id = ?").bind(matchId).first();
+      const row = await d1.prepare("SELECT disable_auto, auto_fallback, custom_notice FROM d1_match_flags WHERE match_id = ?").bind(matchId).first();
       return row;
     })();
     const data = await Promise.race([
@@ -29,9 +29,10 @@ async function autoFlags(
     const af = data?.auto_fallback as boolean | null | undefined;
     const enabled =
       af === true ? true : af === false ? false : !isFootball && !data?.disable_auto;
-    return { disableAuto: !enabled, allowFootballAuto: enabled && isFootball };
+    const notice = data?.custom_notice ? String(data.custom_notice).trim() : null;
+    return { disableAuto: !enabled, allowFootballAuto: enabled && isFootball, notice };
   } catch {
-    return { disableAuto: isFootball, allowFootballAuto: false }; // degrade to sport default
+    return { disableAuto: isFootball, allowFootballAuto: false, notice: null }; // degrade to sport default
   }
 }
 
@@ -65,7 +66,7 @@ export async function GET(
     const kickoff = kickoffRaw ? Number(kickoffRaw) : NaN;
     const gateAuto = Number.isFinite(kickoff) && kickoff > 0 && Date.now() < kickoff;
 
-    const { disableAuto, allowFootballAuto } = await autoFlags(rawId, sport);
+    const { disableAuto, allowFootballAuto, notice } = await autoFlags(rawId, sport);
     const result = await resolveStreams({ source, id, title, sport, disableAuto, gateAuto, allowFootballAuto });
 
     // An admin-curated set (replace_original) is the final word — show exactly it.
@@ -104,6 +105,7 @@ export async function GET(
           }
           return NextResponse.json({
             ...result,
+            notice: notice || null,
             streams: merged.map((st, i) => ({ ...st, streamNo: i + 1 })),
           });
         }
@@ -112,8 +114,8 @@ export async function GET(
       }
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, notice: notice || null });
   } catch {
-    return NextResponse.json({ streams: [], replace_original: false, serving: "none" });
+    return NextResponse.json({ streams: [], replace_original: false, serving: "none", notice: null });
   }
 }

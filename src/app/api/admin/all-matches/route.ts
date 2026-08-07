@@ -29,6 +29,7 @@ interface FlagRow {
   forced_live: boolean;
   featured: boolean;
   disable_auto: boolean;
+  custom_notice?: string | null;
 }
 
 function keyOf(m: Match): string {
@@ -96,7 +97,8 @@ export async function GET() {
             hidden: !!r.hidden,
             forced_live: !!r.forced_live,
             featured: !!r.featured,
-            disable_auto: !!r.disable_auto
+            disable_auto: !!r.disable_auto,
+            custom_notice: r.custom_notice || null,
           });
         }
         
