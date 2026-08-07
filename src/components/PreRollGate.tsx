@@ -243,11 +243,6 @@ export default function PreRollGate({
     if (!debugRef.current) setCfg(null); // keep gate visible in debug mode
   }, []);
 
-      /* ignore */
-    }
-    finish();
-  }, [finish]);
-
   // Phase 1 — decide whether the ad is due (same gates as before).
   useEffect(() => {
     let cancelled = false;
