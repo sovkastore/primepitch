@@ -64,9 +64,6 @@ interface ImaNamespace {
   AdsManagerLoadedEvent: { Type: { ADS_MANAGER_LOADED: string } };
 }
 
-declare global {
-  interface Window { google?: { ima?: ImaNamespace } }
-}
 
 const IMA_SDK = "https://imasdk.googleapis.com/js/sdkloader/ima3.js";
 
