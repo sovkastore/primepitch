@@ -1,6 +1,5 @@
 name = "primepitch"
 main = ".open-next/worker.js"
-pages_build_output_dir = ".open-next/assets"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
