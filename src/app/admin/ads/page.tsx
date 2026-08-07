@@ -1146,7 +1146,7 @@ export default function AdminAdsPage() {
           {headerRow(
             "preroll_vast",
             "In-Stream Video Pre-Roll (VAST)",
-            cfg.preroll.vastTag ? "Tag configured (Zone 5997530)" : "No VAST tag entered",
+            cfg.preroll.vastTag ? "ExoClick Zone 5997530" : "No VAST tag entered",
             cfg.preroll.enabled,
             () => updatePreroll({ enabled: !cfg.preroll.enabled }),
             "ExoClick"
@@ -1154,54 +1154,25 @@ export default function AdminAdsPage() {
           {open.preroll_vast && (
             <div className="px-5 pb-5 pt-1 space-y-4 border-t border-gray-100">
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-gray-800">VAST Tag URL</label>
+                <label className="text-[13px] font-semibold text-gray-800">ExoClick VAST Tag URL</label>
                 <input
                   type="text"
                   value={cfg.preroll.vastTag}
-                  onChange={(e) => updatePreroll({ vastTag: e.target.value })}
+                  onChange={(e) => updatePreroll({ vastTag: e.target.value, cap: 0 })}
                   placeholder="https://s.magsrv.com/v1/vast.php?idz=5997530"
                   className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                 />
                 <p className="text-[12px] text-gray-500">
-                  Google IMA SDK loads this video tag before starting match streams.
+                  Direct ExoClick Layer — Frequency capping, Skip countdown, and video rotation are managed 100% directly by your ExoClick Zone settings.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-gray-800">Skip Button (Seconds)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={30}
-                    value={cfg.preroll.skipAfter || 5}
-                    onChange={(e) => updatePreroll({ skipAfter: Number(e.target.value) || 5 })}
-                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                  <p className="text-[11px] text-gray-400">Seconds before "Skip Ad" appears (5s is recommended).</p>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-gray-800">Cooldown / Frequency</label>
-                  <select
-                    value={cfg.preroll.cap === 0 ? "0" : String(cfg.preroll.cap)}
-                    onChange={(e) => updatePreroll({ cap: Number(e.target.value) })}
-                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                  >
-                    <option value="0">Every Match Click (Always)</option>
-                    <option value="5">Every 5 minutes</option>
-                    <option value="15">Every 15 minutes</option>
-                    <option value="30">Every 30 minutes</option>
-                  </select>
-                  <p className="text-[11px] text-gray-400">How often video ads appear per visitor.</p>
-                </div>
-              </div>
-
-              <div className="pt-2">
+              <div className="pt-1">
                 <a
                   href="/admin/ad-test"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200 px-3 py-2 rounded-xl transition-colors"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200 px-3.5 py-2 rounded-xl transition-colors"
                 >
                   <span>▶</span> Open Video Player Ad Sandbox Test ↗
                 </a>
