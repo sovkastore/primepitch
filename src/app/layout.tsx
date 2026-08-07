@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import AdsLoader from "@/components/AdsLoader";
 import SwCleanup from "@/components/SwCleanup";
+import InterstitialGate from "@/components/InterstitialGate";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -86,6 +87,7 @@ export default function RootLayout({
       <body className={`${inter.className} antialiased min-h-screen flex flex-col bg-white text-gray-900`}>
         {children}
         <AdsLoader />
+        <InterstitialGate />
         <SwCleanup />
         <GoogleAnalytics gaId="G-EQQ7ZNW2EJ" />
         <GATracker />

@@ -45,11 +45,19 @@ type PromoBannerConfig = {
   link: string;
   imagePath: string;
 };
+type Interstitial = {
+  enabled: boolean;
+  vastTag: string;
+  pages: string; // comma-separated page ids or "all"
+  cooldown: number; // minutes between interstitials
+  noFillTimeout: number;
+};
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
   formats: Record<string, Format>;
   preroll: Preroll;
+  interstitial: Interstitial;
   smartLinks: SmartLinks;
   notifications?: PageNotifications;
   promoBanner?: PromoBannerConfig;
@@ -77,6 +85,7 @@ const DEFAULTS: AdsConfig = {
     monetag_popunder: { label: "Popunder", enabled: false, network: "Monetag", group: "popunder", placement: "home", zone: "11157914", src: "https://al5sm.com/tag.min.js", cap: 0, delay: "0" },
   },
   preroll: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", trigger: "interval", placement: "watch", cap: 0, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
+  interstitial: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", pages: "all", cooldown: 0, noFillTimeout: 5 },
   smartLinks: { enabled: false, url: "", targets: {} },
   notifications: {
     wait_banner: {
@@ -399,6 +408,31 @@ export default function AdminAdsPage() {
 
   function updatePreroll(patch: Partial<Preroll>) {
     setCfg((prev) => ({ ...prev, preroll: { ...prev.preroll, ...patch } }));
+  }
+
+  function updateInterstitial(patch: Partial<Interstitial>) {
+    setCfg((prev) => ({ ...prev, interstitial: { ...prev.interstitial, ...patch } }));
+  }
+
+  function toggleInterstitialPage(pageId: string) {
+    const current = cfg.interstitial.pages || "";
+    let next = "";
+    if (pageId === "all") {
+      next = current === "all" ? "" : "all";
+    } else {
+      let parts: string[] = [];
+      if (current === "all") {
+        parts = SITE_PAGES.map(p => p.id);
+      } else {
+        parts = current.split(",").filter(Boolean);
+      }
+      if (parts.includes(pageId)) {
+        next = parts.filter((p) => p !== pageId).join(",");
+      } else {
+        next = [...parts, pageId].join(",");
+      }
+    }
+    updateInterstitial({ pages: next });
   }
 
   // Change the unit (No limit / Minutes / Hours), keeping a sensible value.
@@ -1125,6 +1159,113 @@ export default function AdminAdsPage() {
         </div>
         );
       })}
+
+      {/* Click-Triggered Interstitial Section */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-[12px] font-bold uppercase tracking-wide text-gray-400">
+            Click-Triggered Interstitial <span className="normal-case text-gray-300">· {cfg.interstitial.enabled ? "on" : "off"}</span>
+          </h2>
+          <button
+            type="button"
+            onClick={() => updateInterstitial({ enabled: !cfg.interstitial.enabled })}
+            aria-label="Toggle Click-Triggered Interstitial"
+            className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${cfg.interstitial.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${cfg.interstitial.enabled ? "left-[18px]" : "left-0.5"}`} />
+          </button>
+        </div>
+
+        <div className={`rounded-2xl border overflow-hidden ${cfg.interstitial.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
+          {headerRow(
+            "interstitial_vast",
+            "Click-Triggered Full-Screen Video Ad",
+            cfg.interstitial.vastTag ? "ExoClick VAST" : "No VAST tag entered",
+            cfg.interstitial.enabled,
+            () => updateInterstitial({ enabled: !cfg.interstitial.enabled }),
+            "ExoClick"
+          )}
+          {open.interstitial_vast && (
+            <div className="px-5 pb-5 pt-1 space-y-4 border-t border-gray-100">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-gray-800">ExoClick VAST Tag URL</label>
+                <input
+                  type="text"
+                  value={cfg.interstitial.vastTag}
+                  onChange={(e) => updateInterstitial({ vastTag: e.target.value })}
+                  placeholder="https://s.magsrv.com/v1/vast.php?idz=5997530"
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+                <p className="text-[12px] text-gray-500">
+                  Full-screen video ad triggered by the user&apos;s first click/tap on the page. Ad controls (skip, duration) are 100% from the ExoClick ad server.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-gray-800">Show on these pages</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleInterstitialPage("all")}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                      cfg.interstitial.pages === "all" ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${cfg.interstitial.pages === "all" ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                      {cfg.interstitial.pages === "all" ? "✓" : ""}
+                    </span>
+                    ALL PAGES
+                  </button>
+                  {SITE_PAGES.map((p) => {
+                    const selected = cfg.interstitial.pages === "all" || (cfg.interstitial.pages || "").split(",").includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => toggleInterstitialPage(p.id)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+                          selected ? "bg-white border-emerald-500 text-emerald-600 shadow-sm" : "bg-gray-50/50 border-gray-100 text-gray-400"
+                        }`}
+                      >
+                        <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"}`}>
+                          {selected ? "✓" : ""}
+                        </span>
+                        {p.label.toUpperCase()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-gray-800">Cooldown (minutes)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={cfg.interstitial.cooldown}
+                    onChange={(e) => updateInterstitial({ cooldown: Math.max(0, Number(e.target.value) || 0) })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  />
+                  <p className="text-[11px] text-gray-400">0 = show on every page load. E.g. 5 = wait 5 min between interstitials.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-gray-800">No-Fill Timeout (seconds)</label>
+                  <input
+                    type="number"
+                    min={2}
+                    max={15}
+                    value={cfg.interstitial.noFillTimeout}
+                    onChange={(e) => updateInterstitial({ noFillTimeout: Math.min(15, Math.max(2, Number(e.target.value) || 5)) })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  />
+                  <p className="text-[11px] text-gray-400">Seconds to wait for an ad before giving up silently.</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ExoClick Video Pre-Roll Section */}
       <div className="space-y-3">

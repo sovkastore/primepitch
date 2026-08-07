@@ -52,11 +52,19 @@ type PromoBannerConfig = {
   whatsappMessage: string;
   imagePath: string;
 };
+type Interstitial = {
+  enabled: boolean;
+  vastTag: string;
+  pages: string;
+  cooldown: number;
+  noFillTimeout: number;
+};
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
   formats: Record<string, Format>;
   preroll: Preroll;
+  interstitial?: Interstitial;
   smartLinks?: SmartLinks;
   notifications?: PageNotifications;
   promoBanner?: PromoBannerConfig;
@@ -73,6 +81,7 @@ const DEFAULTS: AdsConfig = {
     monetag_popunder: { label: "Popunder", enabled: false, network: "Monetag", group: "popunder", placement: "home", zone: "11157914", src: "https://al5sm.com/tag.min.js", cap: 0, delay: "0" },
   },
   preroll: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
+  interstitial: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", pages: "all", cooldown: 0, noFillTimeout: 5 },
   smartLinks: { enabled: false, url: "", targets: {} },
   notifications: {
     wait_banner: {
