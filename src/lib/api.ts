@@ -202,9 +202,10 @@ export function getWatchHref(match: Match): string {
 }
 
 // Stable per-match key used by overrides / flags: "<source>--<id>".
-export function getMatchKey(match: Match): string {
+export function getMatchKey(match?: Match | null): string {
+  if (!match) return "";
   const s = match.sources?.[0];
-  return s ? `${s.source}--${s.id}` : match.id;
+  return s ? `${s.source}--${s.id}` : (match.id || "");
 }
 
 // streamed.pk returns a match's `sources` in an unstable order and adds/removes
@@ -215,7 +216,8 @@ export function getMatchKey(match: Match): string {
 // flag against EVERY id a match could carry — its bare id and each source (full
 // "source--id" and the bare id portion) — so a flag sticks regardless of how the
 // feed reshuffles sources.
-export function matchFlagKeys(match: Match): string[] {
+export function matchFlagKeys(match?: Match | null): string[] {
+  if (!match) return [];
   const out = new Set<string>();
   if (match.id) out.add(match.id);
   for (const s of match.sources ?? []) {
@@ -255,7 +257,8 @@ const TEAM_ALIASES: Record<string, string> = {
 function canonTeam(tok: string): string {
   return TEAM_ALIASES[tok] || tok;
 }
-export function normTeamKey(match: { teams?: { home?: { name?: string }; away?: { name?: string } }; title?: string }): string {
+export function normTeamKey(match?: { teams?: { home?: { name?: string }; away?: { name?: string } }; title?: string } | null): string {
+  if (!match) return "";
   const h = match.teams?.home?.name;
   const a = match.teams?.away?.name;
   if (h && a) return [canonTeam(normTeamName(h)), canonTeam(normTeamName(a))].sort().join("|");
@@ -272,8 +275,8 @@ export function normTeamKey(match: { teams?: { home?: { name?: string }; away?: 
 // True if any stored flag key in `flagSet` refers to this match. Compares full
 // keys, and also the bare id portion (after "source--"), since the source prefix
 // is the part that drifts.
-export function isFlagged(match: Match, flagSet: Set<string>): boolean {
-  if (!flagSet || flagSet.size === 0) return false;
+export function isFlagged(match?: Match | null, flagSet?: Set<string> | null): boolean {
+  if (!match || !flagSet || flagSet.size === 0) return false;
   const keys = matchFlagKeys(match);
   for (const k of keys) if (flagSet.has(k)) return true;
   const bare = new Set(keys.filter((k) => !k.includes("--")));

@@ -152,16 +152,17 @@ export default function HomePage() {
     return map;
   }, [matches]);
 
-  const isPopularMatch = (m: Match) => Boolean(m.popular || isFlagged(m, popularIds));
+  const isPopularMatch = (m?: Match | null) => Boolean(m && (m.popular || isFlagged(m, popularIds)));
 
-  const combinedLive = dedupeMatches([...mergedLive, ...newlyLive]).map((liveM) => {
+  const combinedLive = dedupeMatches([...(mergedLive || []), ...(newlyLive || [])]).map((liveM) => {
+    if (!liveM) return liveM;
     const tk = normTeamKey(liveM);
     const upstream = (tk && matchLookup.get(tk)) || (liveM.id && matchLookup.get(liveM.id));
     if (upstream) {
       return {
         ...upstream,
         ...liveM,
-        teams: (upstream.teams?.home?.name && upstream.teams) ? upstream.teams : liveM.teams,
+        teams: (upstream.teams?.home?.name && upstream.teams) ? upstream.teams : (liveM.teams || {}),
         poster: upstream.poster || liveM.poster,
         popular: Boolean(upstream.popular || liveM.popular || isFlagged(upstream, popularIds) || isFlagged(liveM, popularIds)),
         hot: Boolean(upstream.hot || liveM.hot || isFlagged(upstream, hotIds) || isFlagged(liveM, hotIds)),
@@ -172,7 +173,7 @@ export default function HomePage() {
       popular: isPopularMatch(liveM),
       hot: Boolean(liveM.hot || isFlagged(liveM, hotIds)),
     };
-  });
+  }).filter(Boolean);
 
   // The matches actually shown as LIVE (after the premature-live guard). Build a
   // team-identity set from these so the same fixture can't also sit in Upcoming,
