@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
               .map((x) => x.slice(0, 100))
           : [],
         ...(typeof f.rawScript === "string" && f.rawScript.trim()
-          ? { rawScript: f.rawScript.trim().slice(0, 10000) }
+          ? { rawScript: f.rawScript.trim().slice(0, 100000) }
           : {}),
       };
     }
