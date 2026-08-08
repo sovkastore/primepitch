@@ -7,7 +7,6 @@ import PromoBanner from "@/components/PromoBanner";
 import LiveNow from "@/components/LiveNow";
 import TodayMatches from "@/components/Upcoming";
 import Logo from "@/components/Logo";
-import PreRollGate from "@/components/PreRollGate";
 import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedupeMatches, suppressPrematureLive, isFlagged, normTeamKey } from "@/lib/api";
 import { visibleInterval } from "@/lib/poll";
 import { readPageCache, writePageCache } from "@/lib/page-cache";
@@ -164,7 +163,6 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <PreRollGate page="home" />
       <div className="flex-1 pb-10">
         <SportsNav activeSport={activeSport} onSelect={selectSport} />
         {activeSport === "football" && <LeagueNav active="all" />}
