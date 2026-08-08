@@ -29,6 +29,7 @@ interface FlagSets {
   renames: Map<string, string>;
   forceEnded: Set<string>;
   hot: Set<string>;
+  popular: Set<string>;
 }
 
 import { getD1 } from "@/lib/d1";
@@ -41,11 +42,12 @@ async function getFlags(): Promise<FlagSets> {
   const renames = new Map<string, string>();
   const forceEnded = new Set<string>();
   const hot = new Set<string>();
+  const popular = new Set<string>();
   try {
     const d1 = await getD1();
     if (d1) {
       const fetchFlags = (async () => {
-        const { results } = await d1.prepare("SELECT match_id, hidden, forced_live, featured, disable_auto, match_data, display_title, force_ended, hot FROM d1_match_flags").all();
+        const { results } = await d1.prepare("SELECT match_id, hidden, forced_live, featured, disable_auto, match_data, display_title, force_ended, hot, popular FROM d1_match_flags").all();
         return results;
       })();
       const data = await Promise.race([
@@ -60,12 +62,13 @@ async function getFlags(): Promise<FlagSets> {
         if (r.display_title) renames.set(r.match_id, r.display_title);
         if (r.force_ended) forceEnded.add(r.match_id);
         if (r.hot) hot.add(r.match_id);
+        if (r.popular) popular.add(r.match_id);
       }
     }
   } catch {
     /* DB timeout or match_flags may not exist — degrade to no flags */
   }
-  return { hidden, forcedLive, disableAuto, featured, renames, forceEnded, hot };
+  return { hidden, forcedLive, disableAuto, featured, renames, forceEnded, hot, popular };
 }
 
 async function getOverrideBacked(): Promise<Map<string, Match>> {
@@ -112,10 +115,10 @@ async function getOverrideBacked(): Promise<Map<string, Match>> {
 const normName = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 function isRealMatchOver(m: Match, finishedKeys: Set<string>): boolean {
   if (m.ended) return true;
-  if (m.date) {
+  if (m.date && Number(m.date) > 0) {
     const diffMin = (m.date - Date.now()) / 1000 / 60;
-    // If kickoff was more than 180 minutes (3 hours) ago, the match has finished.
-    if (diffMin < -180) return true;
+    // If kickoff was more than 240 minutes (4 hours) ago, the match has finished.
+    if (diffMin < -240) return true;
   }
   const h = normName(m.teams?.home?.name || "");
   const a = normName(m.teams?.away?.name || "");
@@ -222,7 +225,11 @@ export async function GET() {
     // Admin "HOT": flag the match so live cards + the watch page get the
     // premium treatment.
     matches = matches.map((m) =>
-      flags.hot.has(keyOf(m)) ? { ...m, hot: true } : m
+      flags.hot.has(keyOf(m)) || flags.hot.has(m.id) ? { ...m, hot: true } : m
+    );
+    // Admin "POPULAR": flag the match so it displays in Popular tab.
+    matches = matches.map((m) =>
+      flags.popular.has(keyOf(m)) || flags.popular.has(m.id) ? { ...m, popular: true } : m
     );
 
     // Deduplicate live matches by category + normalized team names

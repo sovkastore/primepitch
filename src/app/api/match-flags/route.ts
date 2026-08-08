@@ -47,18 +47,24 @@ export async function GET() {
     const hiddenTitles: string[] = [];
     const notices: Record<string, string> = {};
     for (const r of (data ?? []) as Array<{ match_id: string; hidden: boolean; hide_one: boolean; featured: boolean; hot: boolean; popular: boolean; match_data: unknown; custom_notice?: string | null }>) {
+      const teamKey = normTeamKey((r.match_data ?? {}) as { teams?: { home?: { name?: string }; away?: { name?: string } }; title?: string });
       if (r.hidden) {
         // Whole-fixture hide: by id AND by team name (covers every copy).
         hidden.push(r.match_id);
-        const key = normTeamKey((r.match_data ?? {}) as { teams?: { home?: { name?: string }; away?: { name?: string } }; title?: string });
-        if (key) hiddenTitles.push(key);
+        if (teamKey) hiddenTitles.push(teamKey);
       } else if (r.hide_one) {
         // "Hide this copy": id only — never expands to same-teams copies.
         hidden.push(r.match_id);
       }
       if (r.featured) featured.push(r.match_id);
-      if (r.hot) hot.push(r.match_id);
-      if (r.popular) popular.push(r.match_id);
+      if (r.hot) {
+        hot.push(r.match_id);
+        if (teamKey && teamKey.includes("|")) hot.push(teamKey);
+      }
+      if (r.popular) {
+        popular.push(r.match_id);
+        if (teamKey && teamKey.includes("|")) popular.push(teamKey);
+      }
       if (r.custom_notice) notices[r.match_id] = r.custom_notice;
     }
     

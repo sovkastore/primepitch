@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import SportsNav from "@/components/SportsNav";
 import LeagueNav from "@/components/LeagueNav";
 import PromoBanner from "@/components/PromoBanner";
@@ -137,9 +137,42 @@ export default function HomePage() {
     return diffMin <= 0 && diffMin > -120;
   });
 
-  const combinedLive = dedupeMatches([...mergedLive, ...newlyLive]);
+  // Map of full match objects from the upstream feeds to enrich live streams with logos, badges, and true popularity
+  const matchLookup = useMemo(() => {
+    const map = new Map<string, Match>();
+    for (const m of matches) {
+      if (m.id) map.set(m.id, m);
+      for (const s of m.sources ?? []) {
+        if (s?.id) map.set(s.id, m);
+        if (s?.source && s?.id) map.set(`${s.source}--${s.id}`, m);
+      }
+      const tk = normTeamKey(m);
+      if (tk && tk.includes("|")) map.set(tk, m);
+    }
+    return map;
+  }, [matches]);
 
   const isPopularMatch = (m: Match) => Boolean(m.popular || isFlagged(m, popularIds));
+
+  const combinedLive = dedupeMatches([...mergedLive, ...newlyLive]).map((liveM) => {
+    const tk = normTeamKey(liveM);
+    const upstream = (tk && matchLookup.get(tk)) || (liveM.id && matchLookup.get(liveM.id));
+    if (upstream) {
+      return {
+        ...upstream,
+        ...liveM,
+        teams: (upstream.teams?.home?.name && upstream.teams) ? upstream.teams : liveM.teams,
+        poster: upstream.poster || liveM.poster,
+        popular: Boolean(upstream.popular || liveM.popular || isFlagged(upstream, popularIds) || isFlagged(liveM, popularIds)),
+        hot: Boolean(upstream.hot || liveM.hot || isFlagged(upstream, hotIds) || isFlagged(liveM, hotIds)),
+      };
+    }
+    return {
+      ...liveM,
+      popular: isPopularMatch(liveM),
+      hot: Boolean(liveM.hot || isFlagged(liveM, hotIds)),
+    };
+  });
 
   // The matches actually shown as LIVE (after the premature-live guard). Build a
   // team-identity set from these so the same fixture can't also sit in Upcoming,

@@ -222,6 +222,8 @@ export function matchFlagKeys(match: Match): string[] {
     if (s?.source && s?.id) out.add(`${s.source}--${s.id}`);
     if (s?.id) out.add(s.id);
   }
+  const tk = normTeamKey(match);
+  if (tk && tk.includes("|")) out.add(tk);
   return [...out];
 }
 
