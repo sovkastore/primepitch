@@ -174,7 +174,8 @@ const COUNTRY_CODES: Record<string, string> = {
   "Papua New Guinea": "pg",
 };
 
-export function getCountryFlagUrl(teamName: string): string | null {
+export function getCountryFlagUrl(teamName?: string | null): string | null {
+  if (!teamName || typeof teamName !== "string") return null;
   // Direct match
   const code = COUNTRY_CODES[teamName];
   if (code) return `https://flagcdn.com/w80/${code}.webp`;

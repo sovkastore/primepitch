@@ -19,17 +19,18 @@ const SIZES = {
   lg: { img: "w-16 h-16", text: "text-lg", fallback: "w-16 h-16" },
 };
 
-export default function TeamBadge({ badge, name, size = "md" }: TeamBadgeProps) {
+export default function TeamBadge({ badge, name = "", size = "md" }: TeamBadgeProps) {
   const [badgeFailed, setBadgeFailed] = useState(false);
   const [flagFailed, setFlagFailed] = useState(false);
-  const s = SIZES[size];
+  const s = SIZES[size] || SIZES.md;
+  const safeName = name || "";
 
   // 1. Try API badge
   if (badge && !badgeFailed) {
     return (
       <img
         src={getBadgeUrl(badge)}
-        alt={name}
+        alt={safeName}
         loading="lazy"
         decoding="async"
         className={`${s.img} object-contain shrink-0`}
@@ -39,12 +40,12 @@ export default function TeamBadge({ badge, name, size = "md" }: TeamBadgeProps) 
   }
 
   // 2. Try country flag
-  const flagUrl = getCountryFlagUrl(name);
+  const flagUrl = getCountryFlagUrl(safeName);
   if (flagUrl && !flagFailed) {
     return (
       <img
         src={flagUrl}
-        alt={name}
+        alt={safeName}
         loading="lazy"
         decoding="async"
         className={`${s.img} object-contain shrink-0 rounded-sm`}
@@ -57,7 +58,7 @@ export default function TeamBadge({ badge, name, size = "md" }: TeamBadgeProps) 
   return (
     <div className={`${s.fallback} rounded-full bg-gray-100 flex items-center justify-center shrink-0`}>
       <span className={`${s.text} font-bold text-gray-500`}>
-        {name.charAt(0).toUpperCase()}
+        {safeName.charAt(0).toUpperCase() || "?"}
       </span>
     </div>
   );

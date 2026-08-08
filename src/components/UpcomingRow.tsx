@@ -115,16 +115,19 @@ export default function UpcomingRow({
   match: Match;
   showSport?: boolean;
 }) {
-  const d = new Date(match.date);
+  if (!match) return null;
+  const d = new Date(match.date || Date.now());
   const dateStr = d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
   const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   const href = getWatchHref(match);
   const hasTeams = showVersus(match);
-  const label = SPORT_LABELS[match.category] || match.category;
+  const homeName = match.teams?.home?.name || "";
+  const awayName = match.teams?.away?.name || "";
+  const label = (match.category && SPORT_LABELS[match.category]) || match.category || "";
   const hot = !!match.hot;
   // Bell only where the alert engine can actually deliver: football fixtures
   // with two named teams (World Cup matches during the tournament).
-  const showBell = hasTeams && match.category === "football";
+  const showBell = hasTeams && homeName && awayName && match.category === "football";
 
   return (
     <div
@@ -137,21 +140,21 @@ export default function UpcomingRow({
     >
       {/* Stretched link: the whole card opens the stream, but the bell sits above
           it and handles its own taps. */}
-      <Link href={href} aria-label={`Watch ${hasTeams ? `${match.teams!.home!.name} vs ${match.teams!.away!.name}` : match.title}`} className="absolute inset-0 z-0 rounded-2xl" />
+      <Link href={href} aria-label={`Watch ${hasTeams && homeName && awayName ? `${homeName} vs ${awayName}` : (match.title || "Match")}`} className="absolute inset-0 z-0 rounded-2xl" />
       <div className="relative z-10 pointer-events-none flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4">
         <StartCell date={match.date} timeStr={timeStr} dateStr={dateStr} />
         <div className={"w-px h-8 shrink-0 " + (hot ? "bg-red-200" : "bg-gray-200")} />
-        {hasTeams ? (
+        {hasTeams && homeName && awayName ? (
           <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
-            <RowBadge badge={match.teams!.home!.badge} name={match.teams!.home!.name} />
-            <span className="text-[10px] sm:text-[11px] font-bold text-gray-800 whitespace-nowrap shrink-0">{match.teams!.home!.name}</span>
+            <RowBadge badge={match.teams?.home?.badge} name={homeName} />
+            <span className="text-[10px] sm:text-[11px] font-bold text-gray-800 whitespace-nowrap shrink-0">{homeName}</span>
             <span className="text-[8px] sm:text-[9px] text-gray-400 font-extrabold shrink-0 px-0.5">VS</span>
-            <span className="text-[10px] sm:text-[11px] font-bold text-gray-800 whitespace-nowrap shrink-0">{match.teams!.away!.name}</span>
-            <RowBadge badge={match.teams!.away!.badge} name={match.teams!.away!.name} />
+            <span className="text-[10px] sm:text-[11px] font-bold text-gray-800 whitespace-nowrap shrink-0">{awayName}</span>
+            <RowBadge badge={match.teams?.away?.badge} name={awayName} />
           </div>
         ) : (
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] sm:text-[11px] font-bold text-gray-800 truncate">{match.title}</p>
+            <p className="text-[10px] sm:text-[11px] font-bold text-gray-800 truncate">{match.title || "Match"}</p>
           </div>
         )}
         {hot && <HotBadge />}
@@ -160,7 +163,7 @@ export default function UpcomingRow({
         )}
         {showBell && (
           <span className="pointer-events-auto shrink-0 ml-auto sm:ml-1">
-            <NotifyMeButton home={match.teams!.home!.name} away={match.teams!.away!.name} />
+            <NotifyMeButton home={homeName} away={awayName} />
           </span>
         )}
       </div>

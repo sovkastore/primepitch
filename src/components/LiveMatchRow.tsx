@@ -6,17 +6,17 @@ import { Match, getWatchHref, SPORT_LABELS, isFinishedStatus, showVersus, bothTe
 import type { LiveScore } from "@/lib/use-batch-scores";
 
 export default function LiveMatchRow({ match, score = null }: { match: Match; score?: LiveScore | null }) {
+  if (!match) return null;
   const href = getWatchHref(match);
   const versus = showVersus(match);
-  // Only use the two-circle team layout when BOTH sides have a real logo or
-  // country flag. Without one, the circle just shows a letter, which looks like
-  // a broken placeholder — so fall back to a clean "Name vs Name" line instead.
   const useTeamLayout = versus && bothTeamsHaveVisuals(match);
+  const homeName = match.teams?.home?.name || "";
+  const awayName = match.teams?.away?.name || "";
   const titleText =
-    versus && match.teams?.home?.name && match.teams?.away?.name
-      ? `${match.teams.home.name} vs ${match.teams.away.name}`
-      : match.title;
-  const label = SPORT_LABELS[match.category] || match.category;
+    versus && homeName && awayName
+      ? `${homeName} vs ${awayName}`
+      : (match.title || "Live Match");
+  const label = (match.category && SPORT_LABELS[match.category]) || match.category || "";
   // Ended = admin forced it (manual "End now"), or the score feed reports the
   // match finished (extra-time / penalties safe).
   const ended = match.ended === true || isFinishedStatus(score?.status);
@@ -60,13 +60,13 @@ export default function LiveMatchRow({ match, score = null }: { match: Match; sc
           {/* Home team */}
           <div className="flex-1 flex flex-col items-center gap-2">
             <TeamBadge
-              badge={match.teams!.home!.badge}
-              name={match.teams!.home!.name}
+              badge={match.teams?.home?.badge}
+              name={homeName}
               size="lg"
               sport={match.category}
             />
             <p className="text-[12px] font-bold text-gray-900 text-center truncate w-full">
-              {match.teams!.home!.name}
+              {homeName}
             </p>
           </div>
 
@@ -93,13 +93,13 @@ export default function LiveMatchRow({ match, score = null }: { match: Match; sc
           {/* Away team */}
           <div className="flex-1 flex flex-col items-center gap-2">
             <TeamBadge
-              badge={match.teams!.away!.badge}
-              name={match.teams!.away!.name}
+              badge={match.teams?.away?.badge}
+              name={awayName}
               size="lg"
               sport={match.category}
             />
             <p className="text-[12px] font-bold text-gray-900 text-center truncate w-full">
-              {match.teams!.away!.name}
+              {awayName}
             </p>
           </div>
         </div>
