@@ -20,7 +20,7 @@ export async function GET() {
     if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
 
     const fetchFlags = (async () => {
-      const res = await d1.prepare("SELECT match_id, hidden, hide_one, featured, hot, popular, match_data, custom_notice FROM d1_match_flags WHERE hidden = 0 ORDER BY updated_at DESC LIMIT 1000").all();
+      const res = await d1.prepare("SELECT match_id, hidden, hide_one, featured, hot, popular, match_data, custom_notice FROM d1_match_flags ORDER BY updated_at DESC LIMIT 1000").all();
       // SQLite booleans are returned as 0 or 1, map them to boolean
       return res.results.map((r: any) => ({
         ...r,
