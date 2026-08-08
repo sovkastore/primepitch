@@ -168,18 +168,26 @@ export default function HomePage() {
         {activeSport === "football" && <LeagueNav active="all" />}
         {activeSport === "football" && (
           <div className="max-w-[1400px] mx-auto px-4 lg:px-6 mb-4 flex gap-2">
-            <button 
-              onClick={() => setShowPopular(true)}
-              className={`px-4 py-1.5 text-xs font-bold rounded-full transition-colors ${showPopular ? 'bg-red-600 text-white shadow-md' : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'}`}
+            <a 
+              href="#popular"
+              onClick={(e) => {
+                e.preventDefault();
+                setShowPopular(true);
+              }}
+              className={`px-4 py-1.5 text-xs font-bold rounded-full transition-colors cursor-pointer select-none inline-block ${showPopular ? 'bg-red-600 text-white shadow-md' : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'}`}
             >
               Popular
-            </button>
-            <button 
-              onClick={() => setShowPopular(false)}
-              className={`px-4 py-1.5 text-xs font-bold rounded-full transition-colors ${!showPopular ? 'bg-emerald-600 text-white shadow-md' : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'}`}
+            </a>
+            <a 
+              href="#all-matches"
+              onClick={(e) => {
+                e.preventDefault();
+                setShowPopular(false);
+              }}
+              className={`px-4 py-1.5 text-xs font-bold rounded-full transition-colors cursor-pointer select-none inline-block ${!showPopular ? 'bg-emerald-600 text-white shadow-md' : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'}`}
             >
               All Matches
-            </button>
+            </a>
           </div>
         )}
         <PromoBanner />
