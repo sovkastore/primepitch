@@ -180,9 +180,10 @@ export async function GET(request: NextRequest) {
             // Check if there is a dedicated partner ad card in formats (e.g. popunder_gims, exoclick_popunder_gims)
             const dedicatedKey = Object.keys(formats).find(k => {
               const f = formats[k];
-              const l = (f?.label || "").toLowerCase();
+              const l = String(f?.label || "").toLowerCase();
+              const g = String(f?.group || "").toLowerCase();
               const kl = k.toLowerCase();
-              return (kl.includes(ref) || l.includes(ref)) && (kl.includes("popunder") || String(f?.group).toLowerCase().includes("popunder") || l.includes("popunder"));
+              return (kl.includes(ref) || l.includes(ref)) && (kl.includes("popunder") || g.includes("popunder") || l.includes("popunder"));
             });
 
             if (dedicatedKey && formats[dedicatedKey]) {
