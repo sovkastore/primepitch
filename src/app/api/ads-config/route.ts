@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ---- Partner popunder swap (manual switch: partner_ads) ----
+    // ---- Partner popunder swap / dedicated format (manual switch: partner_ads) ----
     if (cfg.master && ref !== "none") {
       try {
         const adRow = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind("partner_ads").first<{ value: string }>();
@@ -177,44 +177,61 @@ export async function GET(request: NextRequest) {
           const pr: any = await d1.prepare("SELECT id, active, banned FROM d1_partners WHERE code = ?").bind(ref).first();
           
           if (pr && Boolean(pr.active) && !Boolean(pr.banned)) {
-            const { results: zones } = await d1.prepare("SELECT zone_id, full_tag, format FROM d1_partner_zones WHERE partner_id = ?").bind(pr.id).all();
-            const zone: any = zones.find((z: any) => z.format === "popunder" || !z.format);
-            
-            if (zone?.zone_id) {
-              // Find the active popunder format to swap the zone ID into (prefers ExoClick or enabled popunder)
-              let targetKey = Object.keys(formats).find(k => {
-                const f = formats[k];
-                return f && f.enabled && (
-                  String(f.group).toLowerCase().includes("popunder") ||
-                  String(f.label).toLowerCase().includes("popunder") ||
-                  k.toLowerCase().includes("popunder")
-                );
-              });
-              if (!targetKey) {
-                targetKey = Object.keys(formats).find(k => k.toLowerCase().includes("popunder") || String(formats[k]?.group).toLowerCase().includes("popunder"));
+            // Check if there is a dedicated partner ad card in formats (e.g. popunder_gims, exoclick_popunder_gims)
+            const dedicatedKey = Object.keys(formats).find(k => {
+              const f = formats[k];
+              const l = (f?.label || "").toLowerCase();
+              const kl = k.toLowerCase();
+              return (kl.includes(ref) || l.includes(ref)) && (kl.includes("popunder") || String(f?.group).toLowerCase().includes("popunder") || l.includes("popunder"));
+            });
+
+            if (dedicatedKey && formats[dedicatedKey]) {
+              // Turn off any generic house popunders for this partner visitor so they only get the partner's dedicated ad
+              for (const k of Object.keys(formats)) {
+                if (k !== dedicatedKey && (k.toLowerCase().includes("popunder") || String(formats[k]?.group).toLowerCase().includes("popunder"))) {
+                  formats[k].enabled = false;
+                }
               }
-
-              const target = targetKey ? (formats[targetKey] as ({ enabled?: boolean; zone?: string; src?: string; rawScript?: string } & Fmt) | undefined) : undefined;
-              if (target) {
-                target.enabled = true;
-                const oldZone = target.zone;
-                target.zone = zone.zone_id;
-
-                // If rawScript is present (ExoClick popunder), replace old zone ID with partner's zone ID
-                if (typeof target.rawScript === "string" && target.rawScript) {
-                  if (oldZone) {
-                    target.rawScript = target.rawScript.split(oldZone).join(zone.zone_id);
-                  }
-                  target.rawScript = target.rawScript
-                    .replace(/(data-exo-idzone=["']?)(\d+)(["']?)/gi, `$1${zone.zone_id}$3`)
-                    .replace(/(["']?idzone["']?\s*:\s*["']?)(\d+)(["']?)/gi, `$1${zone.zone_id}$3`);
+              formats[dedicatedKey].enabled = true;
+            } else {
+              // Fallback to zone swap if no dedicated format card exists
+              const { results: zones } = await d1.prepare("SELECT zone_id, full_tag, format FROM d1_partner_zones WHERE partner_id = ?").bind(pr.id).all();
+              const zone: any = zones.find((z: any) => z.format === "popunder" || !z.format);
+              
+              if (zone?.zone_id) {
+                let targetKey = Object.keys(formats).find(k => {
+                  const f = formats[k];
+                  return f && f.enabled && (
+                    String(f.group).toLowerCase().includes("popunder") ||
+                    String(f.label).toLowerCase().includes("popunder") ||
+                    k.toLowerCase().includes("popunder")
+                  );
+                });
+                if (!targetKey) {
+                  targetKey = Object.keys(formats).find(k => k.toLowerCase().includes("popunder") || String(formats[k]?.group).toLowerCase().includes("popunder"));
                 }
 
-                if (zone.full_tag) {
-                  const sm = String(zone.full_tag).match(/src=["']?([^"'\s>]+)/i);
-                  const zm = String(zone.full_tag).match(/data-zone=["']?([^"'\s>]+)/i);
-                  if (sm) target.src = sm[1];
-                  if (zm) target.zone = zm[1];
+                const target = targetKey ? (formats[targetKey] as ({ enabled?: boolean; zone?: string; src?: string; rawScript?: string } & Fmt) | undefined) : undefined;
+                if (target) {
+                  target.enabled = true;
+                  const oldZone = target.zone;
+                  target.zone = zone.zone_id;
+
+                  if (typeof target.rawScript === "string" && target.rawScript) {
+                    if (oldZone) {
+                      target.rawScript = target.rawScript.split(oldZone).join(zone.zone_id);
+                    }
+                    target.rawScript = target.rawScript
+                      .replace(/(data-exo-idzone=["']?)(\d+)(["']?)/gi, `$1${zone.zone_id}$3`)
+                      .replace(/(["']?idzone["']?\s*:\s*["']?)(\d+)(["']?)/gi, `$1${zone.zone_id}$3`);
+                  }
+
+                  if (zone.full_tag) {
+                    const sm = String(zone.full_tag).match(/src=["']?([^"'\s>]+)/i);
+                    const zm = String(zone.full_tag).match(/data-zone=["']?([^"'\s>]+)/i);
+                    if (sm) target.src = sm[1];
+                    if (zm) target.zone = zm[1];
+                  }
                 }
               }
             }
