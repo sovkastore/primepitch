@@ -62,28 +62,71 @@ function suggestPw() {
   return Math.random().toString(36).slice(2, 8) + String(Math.floor(Math.random() * 90 + 10));
 }
 
-// Parse a Monetag by-zone CSV (semicolon-separated). Returns null if it has no Zone ID column.
-function parseCsv(text: string): { zone_id: string; label: string; impressions: string; profit: string }[] | null {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-  if (lines.length < 2) return [];
-  const delim = lines[0].includes(";") ? ";" : ",";
-  const clean = (s: string) => s.replace(/^"|"$/g, "").replace(/"$/, "").trim();
-  const header = lines[0].split(delim).map((h) => clean(h).toLowerCase());
-  const zi = header.findIndex((h) => h.includes("zone") && h.includes("id"));
-  const zn = header.findIndex((h) => h === "zone" || (h.includes("zone") && !h.includes("id")));
-  const pi = header.findIndex((h) => h.includes("profit") || h.includes("revenue") || h.includes("earning"));
-  const ii = header.findIndex((h) => h.includes("impression"));
-  if (zi === -1 || pi === -1) return null;
+// Universal stats parser (ExoClick CSV/TSV, Monetag CSV, direct clipboard copy-paste)
+function parseStatsData(text: string): { zone_id: string; label: string; impressions: string; profit: string }[] | null {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return [];
+  
+  const firstLine = lines[0];
+  let delim = ",";
+  if (firstLine.includes("\t")) delim = "\t";
+  else if (firstLine.includes(";")) delim = ";";
+  
+  const clean = (s: string) => s.replace(/^["']|["']$/g, "").trim();
+  const header = firstLine.split(delim).map((h) => clean(h).toLowerCase());
+  
+  let zi = header.findIndex((h) => h === "zone id" || h === "zone_id" || h === "idzone" || (h.includes("zone") && h.includes("id")));
+  if (zi === -1) {
+    zi = header.findIndex((h) => h === "zone" || h === "zone name" || h.includes("zone"));
+  }
+  
+  const zn = header.findIndex((h) => h === "site" || h === "site name" || h === "label" || h === "zone name" || (h.includes("site") && !h.includes("id")));
+  
+  const pi = header.findIndex((h) => 
+    h === "revenue" || h === "profit" || h === "payout" || h === "earnings" || h === "cost" ||
+    h.includes("revenue") || h.includes("profit") || h.includes("payout") || h.includes("earning") || h.includes("gross")
+  );
+  
+  const ii = header.findIndex((h) => h.includes("impression") || h === "imps" || h === "views");
+  
+  if (zi === -1 || pi === -1) {
+    // If no header row found, check if it's raw 2-column or 3-column data (e.g. ZoneID \t Revenue)
+    const sampleCols = lines[0].split(delim).map(clean);
+    if (sampleCols.length >= 2 && /\d{4,}/.test(sampleCols[0]) && !isNaN(parseFloat(sampleCols[sampleCols.length - 1].replace(/[^0-9.-]/g, "")))) {
+      const rows: { zone_id: string; label: string; impressions: string; profit: string }[] = [];
+      for (const line of lines) {
+        const cols = line.split(delim).map(clean);
+        if (cols.length >= 2 && cols[0]) {
+          const numMatch = cols[0].match(/\b\d{4,12}\b/);
+          const zId = numMatch ? numMatch[0] : cols[0];
+          rows.push({
+            zone_id: zId,
+            label: cols.length > 2 ? cols[1] : "",
+            impressions: "",
+            profit: (cols[cols.length - 1] || "0").replace(/[^0-9.-]/g, ""),
+          });
+        }
+      }
+      return rows;
+    }
+    return null;
+  }
+  
   const rows: { zone_id: string; label: string; impressions: string; profit: string }[] = [];
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(delim).map(clean);
-    const zone_id = cols[zi] || "";
+    let zone_id = cols[zi] || "";
+    const numMatch = zone_id.match(/\b\d{4,12}\b/);
+    if (numMatch) zone_id = numMatch[0];
     if (!zone_id) continue;
+    
+    const profitRaw = (cols[pi] || "0").replace(/[^0-9.-]/g, "");
+    
     rows.push({
       zone_id,
       label: zn >= 0 ? (cols[zn] || "") : "",
-      impressions: ii >= 0 ? (cols[ii] || "") : "",
-      profit: cols[pi] || "0",
+      impressions: ii >= 0 ? (cols[ii] || "").replace(/[^0-9]/g, "") : "",
+      profit: profitRaw || "0",
     });
   }
   return rows;
@@ -192,20 +235,19 @@ export default function PartnersAdmin() {
     post({ action: "settings", key, value: to }, `${label} turned ${to ? "ON" : "OFF"}.`);
   }
 
-  // ---- CSV import ----
-  async function onCsv(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  const [pasteMode, setPasteMode] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+
+  // ---- Universal Stats import (ExoClick CSV/TSV, Monetag, pasted text) ----
+  async function processStatsText(text: string) {
     setBusy(true); setMsg(null); setImportInfo(null);
     try {
-      const text = await file.text();
-      const rows = parseCsv(text);
+      const rows = parseStatsData(text);
       if (rows === null) {
-        setMsg({ type: "err", text: "That file has no \u201CZone ID\u201D column. In Monetag, group the report by Zone (not Date) and export again." });
+        setMsg({ type: "err", text: "Could not find Zone ID or Revenue/Profit columns. Make sure you export by Zone or paste with Zone ID and Revenue." });
         return;
       }
-      if (rows.length === 0) { setMsg({ type: "err", text: "No zone rows found in that file." }); return; }
+      if (rows.length === 0) { setMsg({ type: "err", text: "No zone rows found in that data." }); return; }
       const r = await fetch("/api/admin/partners", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "preview_import", rows }),
       });
@@ -221,9 +263,21 @@ export default function PartnersAdmin() {
       });
       setImportInfo(null);
     } catch {
-      setMsg({ type: "err", text: "Couldn't read that file." });
+      setMsg({ type: "err", text: "Couldn't read stats data." });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onCsv(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      await processStatsText(text);
+    } catch {
+      setMsg({ type: "err", text: "Couldn't read that file." });
     }
   }
 
@@ -289,14 +343,27 @@ export default function PartnersAdmin() {
     }, String(p.revenue_split ?? 50));
   }
   function setZone(p: Partner) {
-    const existing = p.zones.find((z) => z.format === "popunder");
+    const existing = p.zones.find((z) => z.format === "popunder" || !z.format);
     ask({
       title: existing ? `Update ${p.name}'s popunder zone` : `Add ${p.name}'s popunder zone`,
-      body: "Paste the Monetag Zone ID you created for this partner. Their referred traffic's popunder will run this zone, and its earnings flow in through your CSV.",
+      body: "Paste the ExoClick (or ad network) Zone ID you created for this partner. Their referred traffic's popunder will run this zone automatically.",
       confirmLabel: "Save zone",
-      input: { label: "Monetag Zone ID", placeholder: "e.g. 11157914" },
+      input: { label: "Ad Zone ID (e.g. 5998123)", placeholder: "e.g. 5998123" },
       run: (v) => { const z = v.trim(); if (!z) { setConfirm(null); return; } post({ action: "addzone", partner_id: p.id, zone_id: z, format: "popunder" }, `${p.name}: zone saved.`); },
     }, existing?.zone_id || "");
+  }
+  function adjustEarnings(p: Partner) {
+    ask({
+      title: `Adjust ${p.name}'s Earnings`,
+      body: "Enter the amount in USD to add to this partner's Estimated & Approved balance (use a negative number to deduct).",
+      confirmLabel: "Apply Adjustment",
+      input: { label: "Amount in USD ($)", placeholder: "e.g. 10.50" },
+      run: (v) => {
+        const n = parseFloat(v);
+        if (isNaN(n) || n === 0) { setMsg({ type: "err", text: "Enter a valid amount" }); return; }
+        post({ action: "adjust_balance", partner_id: p.id, earned_delta: n, balance_delta: n }, `${p.name}: balance adjusted by $${n.toFixed(2)}.`);
+      },
+    }, "");
   }
   function removeZone(p: Partner, z: Zone) {
     ask({
@@ -521,14 +588,49 @@ export default function PartnersAdmin() {
       {/* Earnings import */}
       {!csvPreview ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 mb-6">
-          <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider mb-1">Earnings upload</p>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+            <p className="text-[13px] font-black text-gray-700 uppercase tracking-wider">Sync / Import Ad Earnings (ExoClick / Monetag)</p>
+            <div className="flex gap-1.5 text-xs font-bold">
+              <button onClick={() => setPasteMode(false)} className={`px-2.5 py-1 rounded-lg transition-colors ${!pasteMode ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>Upload File</button>
+              <button onClick={() => setPasteMode(true)} className={`px-2.5 py-1 rounded-lg transition-colors ${pasteMode ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>Paste Table/Text</button>
+            </div>
+          </div>
           <p className="text-[12px] text-gray-400 mb-3">
-            Upload your Monetag <span className="font-semibold">by-zone</span> CSV (all-time). Each zone is matched to its partner and the split is applied to only the new amount since last time.
+            Upload your ExoClick or Monetag stats report (CSV/TSV) or copy-paste rows directly. Each zone is matched to its partner and their % revenue split is credited automatically.
           </p>
-          <label className={`inline-block cursor-pointer ${busy ? "opacity-60 pointer-events-none" : ""}`}>
-            <span className="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold inline-block">Upload Monetag CSV</span>
-            <input type="file" accept=".csv,text/csv" className="hidden" onChange={onCsv} />
-          </label>
+          
+          {!pasteMode ? (
+            <label className={`inline-block cursor-pointer ${busy ? "opacity-60 pointer-events-none" : ""}`}>
+              <span className="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold inline-block hover:bg-black transition-colors">Choose CSV / TSV File</span>
+              <input type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" className="hidden" onChange={onCsv} />
+            </label>
+          ) : (
+            <div className="space-y-2">
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                placeholder="Paste ExoClick statistics table or CSV rows here (e.g. Zone ID, Impressions, Revenue)..."
+                rows={4}
+                className="w-full p-3 text-xs font-mono border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3cac3b]"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => processStatsText(pasteText)}
+                  disabled={busy || !pasteText.trim()}
+                  className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-black disabled:opacity-50 transition-colors"
+                >
+                  {busy ? "Processing..." : "Preview Payouts"}
+                </button>
+                <button
+                  onClick={() => setPasteText("")}
+                  className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-bold hover:bg-gray-200"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
+          
           {importInfo && <p className="text-[12px] text-emerald-700 font-semibold mt-2">{importInfo}</p>}
         </div>
       ) : (
@@ -770,7 +872,8 @@ export default function PartnersAdmin() {
                             ? <>Wallet <b className="text-gray-800">{curLabel(p.payout_currency)}</b> <span className="font-mono text-gray-500">{p.payout_address}</span></>
                             : <span className="text-gray-400">Partner hasn’t saved a wallet yet.</span>}
                         </p>
-                        <div className="flex gap-2 mt-2">
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <button onClick={() => adjustEarnings(p)} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-60">Adjust earnings</button>
                           <button onClick={() => { setApproveFundsFor(p); setAfAmount(""); }} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 disabled:opacity-60">Approve funds</button>
                           <button onClick={() => openPayout(p)} disabled={busy} className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-60">Record a payout</button>
                         </div>

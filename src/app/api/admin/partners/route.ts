@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
       const partnerId = String(body.partner_id || "");
       const zoneId = String(body.zone_id || "").trim();
       if (!partnerId || !zoneId) return NextResponse.json({ error: "partner and zone id required" }, { status: 400 });
-      if (!/^[a-zA-Z0-9_-]{3,40}$/.test(zoneId)) return NextResponse.json({ error: "That doesn't look like a Monetag zone ID" }, { status: 400 });
+      if (!/^[a-zA-Z0-9_-]{2,40}$/.test(zoneId)) return NextResponse.json({ error: "Invalid Zone ID format" }, { status: 400 });
       
       try {
         await d1.prepare(`
@@ -330,6 +330,22 @@ export async function POST(request: NextRequest) {
       if (amount <= 0) return NextResponse.json({ error: "amount must be greater than 0" }, { status: 400 });
       
       await d1.prepare("UPDATE d1_partner_balances SET approved = approved + ? WHERE partner_id = ?").bind(amount, partnerId).run();
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === "adjust_balance") {
+      const partnerId = String(body.partner_id || "");
+      const earnedDelta = num(body.earned_delta);
+      const balanceDelta = num(body.balance_delta !== undefined ? body.balance_delta : body.earned_delta);
+      if (!partnerId) return NextResponse.json({ error: "partner required" }, { status: 400 });
+      
+      await d1.prepare(`
+        UPDATE d1_partner_balances 
+        SET earned = MAX(0, earned + ?), 
+            approved = MAX(0, approved + ?),
+            balance = MAX(0, balance + ?)
+        WHERE partner_id = ?
+      `).bind(earnedDelta, balanceDelta, balanceDelta, partnerId).run();
       return NextResponse.json({ ok: true });
     }
     

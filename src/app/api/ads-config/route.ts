@@ -178,27 +178,44 @@ export async function GET(request: NextRequest) {
           
           if (pr && Boolean(pr.active) && !Boolean(pr.banned)) {
             const { results: zones } = await d1.prepare("SELECT zone_id, full_tag, format FROM d1_partner_zones WHERE partner_id = ?").bind(pr.id).all();
-            const zone: any = zones.find((z: any) => z.format === "popunder");
+            const zone: any = zones.find((z: any) => z.format === "popunder" || !z.format);
             
-            // Find a Monetag popunder ad to swap the zone ID into (prefer enabled, but fallback to disabled)
-            let targetKey = "monetag_popunder";
-            const customTarget = Object.keys(formats).find(k => {
-               const f = formats[k];
-               return String(f.network).toLowerCase().includes("monetag") && 
-                      String(f.label).toLowerCase().includes("popunder");
-            });
-            if (customTarget) targetKey = customTarget;
+            if (zone?.zone_id) {
+              // Find the active popunder format to swap the zone ID into (prefers ExoClick or enabled popunder)
+              let targetKey = Object.keys(formats).find(k => {
+                const f = formats[k];
+                return f && f.enabled && (
+                  String(f.group).toLowerCase().includes("popunder") ||
+                  String(f.label).toLowerCase().includes("popunder") ||
+                  k.toLowerCase().includes("popunder")
+                );
+              });
+              if (!targetKey) {
+                targetKey = Object.keys(formats).find(k => k.toLowerCase().includes("popunder") || String(formats[k]?.group).toLowerCase().includes("popunder"));
+              }
 
-            const target = formats[targetKey] as ({ enabled?: boolean; zone?: string; src?: string } & Fmt) | undefined;
-            if (zone?.zone_id && target) {
-              // Force enable it for this specific partner visitor
-              target.enabled = true;
-              target.zone = zone.zone_id;
-              if (zone.full_tag) {
-                const sm = String(zone.full_tag).match(/src=["']?([^"'\s>]+)/i);
-                const zm = String(zone.full_tag).match(/data-zone=["']?([^"'\s>]+)/i);
-                if (sm) target.src = sm[1];
-                if (zm) target.zone = zm[1];
+              const target = targetKey ? (formats[targetKey] as ({ enabled?: boolean; zone?: string; src?: string; rawScript?: string } & Fmt) | undefined) : undefined;
+              if (target) {
+                target.enabled = true;
+                const oldZone = target.zone;
+                target.zone = zone.zone_id;
+
+                // If rawScript is present (ExoClick popunder), replace old zone ID with partner's zone ID
+                if (typeof target.rawScript === "string" && target.rawScript) {
+                  if (oldZone) {
+                    target.rawScript = target.rawScript.split(oldZone).join(zone.zone_id);
+                  }
+                  target.rawScript = target.rawScript
+                    .replace(/(data-exo-idzone=["']?)(\d+)(["']?)/gi, `$1${zone.zone_id}$3`)
+                    .replace(/(["']?idzone["']?\s*:\s*["']?)(\d+)(["']?)/gi, `$1${zone.zone_id}$3`);
+                }
+
+                if (zone.full_tag) {
+                  const sm = String(zone.full_tag).match(/src=["']?([^"'\s>]+)/i);
+                  const zm = String(zone.full_tag).match(/data-zone=["']?([^"'\s>]+)/i);
+                  if (sm) target.src = sm[1];
+                  if (zm) target.zone = zm[1];
+                }
               }
             }
           }
