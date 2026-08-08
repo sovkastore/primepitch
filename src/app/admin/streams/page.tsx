@@ -34,6 +34,7 @@ interface FlagRow {
   auto_fallback?: boolean | null;
   force_ended: boolean;
   hot: boolean;
+  popular?: boolean;
   custom_notice?: string | null;
 }
 interface Entry {
@@ -68,6 +69,7 @@ const TOGGLE_ON: Record<string, string> = {
   emerald: "bg-emerald-500",
   blue: "bg-blue-500",
   red: "bg-red-500",
+  amber: "bg-amber-500",
 };
 
 function Toggle({ on, onClick, color = "emerald" }: { on: boolean; onClick: () => void; color?: string }) {
@@ -145,7 +147,7 @@ export default function StreamsManagerPage() {
   }
 
   async function setFlag(e: Entry, patch: Partial<FlagRow>) {
-    const base: FlagRow = e.flags ?? { match_id: e.matchId, hidden: false, hide_one: false, forced_live: false, featured: false, disable_auto: false, force_ended: false, hot: false, custom_notice: null };
+    const base: FlagRow = e.flags ?? { match_id: e.matchId, hidden: false, hide_one: false, forced_live: false, featured: false, disable_auto: false, force_ended: false, hot: false, popular: false, custom_notice: null };
     const next = { ...base, ...patch };
     patchEntry(e.matchId, (x) => ({ ...x, flags: next }));
     await fetch("/api/admin/match-flags", {
@@ -408,6 +410,10 @@ export default function StreamsManagerPage() {
                     <span>💬</span>
                     {flags?.custom_notice ? "Edit Notice" : "+ Notice"}
                   </button>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-600">
+                    <Toggle on={!!flags?.popular} onClick={() => setFlag(e, { popular: !flags?.popular })} color="amber" />
+                    ⭐ Popular
+                  </label>
                   <label className="flex items-center gap-1.5 text-[11px] font-semibold text-red-600">
                     <Toggle on={!!flags?.hot} onClick={() => setFlag(e, { hot: !flags?.hot })} color="red" />
                     🔥 Hot

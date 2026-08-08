@@ -29,6 +29,7 @@ export default function HomePage() {
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [hiddenTitles, setHiddenTitles] = useState<Set<string>>(new Set());
   const [hotIds, setHotIds] = useState<Set<string>>(new Set());
+  const [popularIds, setPopularIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activeSport, setActiveSport] = useState<string | null>("football");
   const [showPopular, setShowPopular] = useState(true);
@@ -95,13 +96,14 @@ export default function HomePage() {
 
 
   // Hidden matches (admin) — keep them out of the upcoming list. Hot fixtures
-  // (admin) get the red HOT badge.
+  // (admin) get the red HOT badge. Popular fixtures (admin) appear in Popular tab.
   useEffect(() => {
     getMatchFlags()
       .then((f) => {
         setHiddenIds(new Set(f.hidden));
         setHiddenTitles(new Set(f.hiddenTitles));
         setHotIds(new Set(f.hot));
+        setPopularIds(new Set(f.popular));
       })
       .catch(() => {});
   }, []);
@@ -137,6 +139,8 @@ export default function HomePage() {
 
   const combinedLive = dedupeMatches([...mergedLive, ...newlyLive]);
 
+  const isPopularMatch = (m: Match) => Boolean(m.popular || isFlagged(m, popularIds));
+
   // The matches actually shown as LIVE (after the premature-live guard). Build a
   // team-identity set from these so the same fixture can't also sit in Upcoming,
   // even when the live stream carries a different id or name. Using the shown
@@ -144,7 +148,7 @@ export default function HomePage() {
   // got suppressed still stays in Upcoming rather than vanishing from both.
   const liveForSportBase = filterBySport(suppressPrematureLive(combinedLive, matches), activeSport);
   const liveForSport = liveForSportBase.filter((m) => {
-    if (activeSport === "football" && showPopular && !m.popular) return false;
+    if (activeSport === "football" && showPopular && !isPopularMatch(m)) return false;
     return true;
   });
   const liveTeamKeys = new Set(liveForSport.map(normTeamKey).filter((k) => k.includes("|")));
@@ -154,10 +158,15 @@ export default function HomePage() {
       if (isFlagged(m, hiddenIds) || hiddenTitles.has(normTeamKey(m))) return false;
       const tk = normTeamKey(m);
       if (tk.includes("|") && liveTeamKeys.has(tk)) return false; // already live
-      if (activeSport === "football" && showPopular && !m.popular) return false;
+      if (activeSport === "football" && showPopular && !isPopularMatch(m)) return false;
       return true;
     })
-    .map((m) => (isFlagged(m, hotIds) ? { ...m, hot: true } : m));
+    .map((m) => {
+      let res = m;
+      if (isFlagged(m, hotIds)) res = { ...res, hot: true };
+      if (isFlagged(m, popularIds)) res = { ...res, popular: true };
+      return res;
+    });
   // Don't also list a match under Upcoming if it's already shown as Live.
   const liveKeys = new Set(combinedLive.map(getMatchKey));
 

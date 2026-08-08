@@ -20,7 +20,7 @@ export async function GET() {
     if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
 
     const fetchFlags = (async () => {
-      const res = await d1.prepare("SELECT match_id, hidden, hide_one, featured, hot, match_data, custom_notice FROM d1_match_flags WHERE hidden = 0 ORDER BY updated_at DESC LIMIT 1000").all();
+      const res = await d1.prepare("SELECT match_id, hidden, hide_one, featured, hot, popular, match_data, custom_notice FROM d1_match_flags WHERE hidden = 0 ORDER BY updated_at DESC LIMIT 1000").all();
       // SQLite booleans are returned as 0 or 1, map them to boolean
       return res.results.map((r: any) => ({
         ...r,
@@ -28,6 +28,7 @@ export async function GET() {
         hide_one: Boolean(r.hide_one),
         featured: Boolean(r.featured),
         hot: Boolean(r.hot),
+        popular: Boolean(r.popular),
         custom_notice: r.custom_notice ? String(r.custom_notice).trim() : null,
         match_data: typeof r.match_data === "string" ? JSON.parse(r.match_data) : r.match_data
       }));
@@ -42,9 +43,10 @@ export async function GET() {
     const hidden: string[] = [];
     const featured: string[] = [];
     const hot: string[] = [];
+    const popular: string[] = [];
     const hiddenTitles: string[] = [];
     const notices: Record<string, string> = {};
-    for (const r of (data ?? []) as Array<{ match_id: string; hidden: boolean; hide_one: boolean; featured: boolean; hot: boolean; match_data: unknown; custom_notice?: string | null }>) {
+    for (const r of (data ?? []) as Array<{ match_id: string; hidden: boolean; hide_one: boolean; featured: boolean; hot: boolean; popular: boolean; match_data: unknown; custom_notice?: string | null }>) {
       if (r.hidden) {
         // Whole-fixture hide: by id AND by team name (covers every copy).
         hidden.push(r.match_id);
@@ -56,14 +58,15 @@ export async function GET() {
       }
       if (r.featured) featured.push(r.match_id);
       if (r.hot) hot.push(r.match_id);
+      if (r.popular) popular.push(r.match_id);
       if (r.custom_notice) notices[r.match_id] = r.custom_notice;
     }
     
-    const result = { hidden, featured, hot, hiddenTitles, notices };
+    const result = { hidden, featured, hot, popular, hiddenTitles, notices };
     cache = { data: result, ts: now };
     return NextResponse.json(result);
   } catch {
     // If DB is down, serve stale cache so the user sees something!
-    return NextResponse.json(cache?.data ?? { hidden: [], featured: [], hot: [], hiddenTitles: [], notices: {} });
+    return NextResponse.json(cache?.data ?? { hidden: [], featured: [], hot: [], popular: [], hiddenTitles: [], notices: {} });
   }
 }

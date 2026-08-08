@@ -29,6 +29,9 @@ interface FlagRow {
   forced_live: boolean;
   featured: boolean;
   disable_auto: boolean;
+  hot?: boolean;
+  popular?: boolean;
+  force_ended?: boolean;
   custom_notice?: string | null;
 }
 
@@ -98,6 +101,9 @@ export async function GET() {
             forced_live: !!r.forced_live,
             featured: !!r.featured,
             disable_auto: !!r.disable_auto,
+            hot: !!r.hot,
+            popular: !!r.popular,
+            force_ended: !!r.force_ended,
             custom_notice: r.custom_notice || null,
           });
         }
