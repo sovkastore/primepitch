@@ -281,6 +281,20 @@ export default function PreRollGate({
     let cancelled = false;
 
     (async () => {
+      // If a full-screen interstitial is currently running, wait for it to finish first
+      if (typeof window !== "undefined" && (window as any).__interstitial_active) {
+        note("waiting for full-screen interstitial ad to finish first...");
+        await new Promise<void>((resolve) => {
+          const onFinished = () => {
+            window.removeEventListener("interstitial:finished", onFinished);
+            resolve();
+          };
+          window.addEventListener("interstitial:finished", onFinished);
+          setTimeout(onFinished, 30_000);
+        });
+      }
+      if (cancelled || doneRef.current) return;
+
       const ok = await loadIma();
       if (cancelled || doneRef.current) return;
       note(ok ? "IMA SDK loaded" : "IMA SDK FAILED to load");
@@ -441,14 +455,14 @@ export default function PreRollGate({
       }}
       aria-hidden={!showCover}
     >
-      <div ref={adContainerRef} className="absolute inset-0" />
       <video
         ref={contentRef}
-        className="absolute inset-0 h-full w-full opacity-0"
+        className="absolute inset-0 h-full w-full opacity-0 pointer-events-none"
         muted
         playsInline
         preload="auto"
       />
+      <div ref={adContainerRef} className="absolute inset-0 z-10 pointer-events-auto cursor-pointer" />
 
       {debugOn && (
         <div className="absolute inset-x-2 top-2 z-20 max-h-[70%] overflow-auto rounded-lg bg-black/85 p-3 font-mono text-[11px] leading-snug text-emerald-300">

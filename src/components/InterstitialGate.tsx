@@ -162,6 +162,10 @@ export default function InterstitialGate() {
   const finish = useCallback(() => {
     if (doneRef.current) return;
     doneRef.current = true;
+    if (typeof window !== "undefined") {
+      (window as any).__interstitial_active = false;
+      window.dispatchEvent(new CustomEvent("interstitial:finished"));
+    }
     timersRef.current.forEach((t) => clearTimeout(t));
     timersRef.current = [];
     try { adsManagerRef.current?.destroy(); } catch { /* ignore */ }
@@ -216,6 +220,9 @@ export default function InterstitialGate() {
   // Phase 3 — Play the ad.
   const playAd = useCallback(async () => {
     if (!cfg) return;
+    if (typeof window !== "undefined") {
+      (window as any).__interstitial_active = true;
+    }
     doneRef.current = false;
     startedRef.current = false;
     setAdShowing(true);
@@ -331,14 +338,14 @@ export default function InterstitialGate() {
       className="fixed inset-0 z-[9999] flex items-center justify-center"
       style={{ background: "#000" }}
     >
-      <div ref={adContainerRef} className="absolute inset-0" />
       <video
         ref={contentRef}
-        className="absolute inset-0 h-full w-full opacity-0"
+        className="absolute inset-0 h-full w-full opacity-0 pointer-events-none"
         muted
         playsInline
         preload="auto"
       />
+      <div ref={adContainerRef} className="absolute inset-0 z-10 pointer-events-auto cursor-pointer" />
     </div>
   );
 }
