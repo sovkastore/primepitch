@@ -119,7 +119,7 @@ function injectScript(id: string, src: string, zone: string) {
         "syndication_host": "s.pemsrv.com",
         "idzone": ${parseInt(zone || "5997602", 10)},
         "popup_fallback": true,
-        "popup_force": true,
+        "popup_force": false,
         "chrome_enabled": true,
         "new_tab": true,
         "frequency_period": 1,
