@@ -18,6 +18,7 @@ type Format = {
   mode?: "off" | "on" | "auto";
   autoScope?: "all" | "selected";
   autoMatches?: string[];
+  rawScript?: string;
 };
 type Trigger = "visit" | "interval" | "match" | "server";
 type Placement = "watch" | "home" | "both" | "sports-live";
@@ -269,6 +270,9 @@ export async function POST(request: NextRequest) {
               .slice(0, 60)
               .map((x) => x.slice(0, 100))
           : [],
+        ...(typeof f.rawScript === "string" && f.rawScript.trim()
+          ? { rawScript: f.rawScript.trim().slice(0, 10000) }
+          : {}),
       };
     }
     // Make sure the core formats exist (so toggles always render).

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 type Cap = number | string; // minutes (number); legacy string keys still tolerated
 type FmtPlacement = string; // Comma-separated page IDs or "all"
-type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string; placement?: FmtPlacement; type?: "script" | "direct_link"; targets?: Record<string, boolean>; };
+type Format = { enabled: boolean; zone: string; src: string; cap: Cap; delay?: string; placement?: FmtPlacement; type?: "script" | "direct_link"; targets?: Record<string, boolean>; rawScript?: string; };
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -101,22 +101,38 @@ function placementAllows(placement: FmtPlacement | undefined, path: string): boo
 
 // Inject an ad script. Monetag tags need a data-zone; Adsterra tags (popunder,
 // social bar) are a plain script with no zone; ExoClick tags use ad-provider.js + ins.
-function injectScript(id: string, src: string, zone: string) {
-  if (!src) return;
+function injectScript(id: string, src: string, zone: string, rawScript?: string) {
+  if (!src && !rawScript) return;
   if (document.querySelector(`[data-ad-format="${id}"]`)) return; // once per load
 
-  // ExoClick Mobile Popunder - Controlled 100% remotely by ExoClick Dashboard
+  // ExoClick Mobile Popunder - uses raw script from admin panel
   if (id.includes("exoclick") && id.toLowerCase().includes("popunder")) {
     const zoneId = zone || "5997602";
     if (document.querySelector(`script[data-exo-zone="${zoneId}"]`)) return;
-    const s = document.createElement("script");
-    s.type = "application/javascript";
-    s.async = true;
-    s.src = "https://a.pemsrv.com/popunder1000.js";
-    s.dataset.exoZone = zoneId;
-    s.dataset.adFormat = id;
-    s.setAttribute("data-exo-idzone", zoneId);
-    document.body.appendChild(s);
+
+    if (rawScript) {
+      // Extract just the JavaScript content from the pasted script tag
+      let jsContent = rawScript.trim();
+      // Strip outer <script> tags if present
+      jsContent = jsContent.replace(/^<script[^>]*>/i, "").replace(/<\/script>$/i, "").trim();
+      
+      const script = document.createElement("script");
+      script.type = "application/javascript";
+      script.dataset.exoZone = zoneId;
+      script.dataset.adFormat = id;
+      script.innerHTML = jsContent;
+      document.body.appendChild(script);
+    } else {
+      // Fallback: load remote script with just zone ID
+      const s = document.createElement("script");
+      s.type = "application/javascript";
+      s.async = true;
+      s.src = "https://a.pemsrv.com/popunder1000.js";
+      s.dataset.exoZone = zoneId;
+      s.dataset.adFormat = id;
+      s.setAttribute("data-exo-idzone", zoneId);
+      document.body.appendChild(s);
+    }
     return;
   }
 
@@ -189,7 +205,7 @@ export default function AdsLoader() {
           const t = setTimeout(() => {
             if (done) return;
             if (!isPopunder && !capAllows(id, f.cap)) return;
-            injectScript(id, f.src, f.zone);
+            injectScript(id, f.src, f.zone, f.rawScript);
           }, delaySeconds(f.delay) * 1000);
           timers.push(t);
         }
