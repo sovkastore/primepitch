@@ -105,7 +105,30 @@ function injectScript(id: string, src: string, zone: string) {
   if (!src) return;
   if (document.querySelector(`[data-ad-format="${id}"]`)) return; // once per load
 
-  // ExoClick Tags (ad-provider.js + <ins> tag + AdProvider push)
+  // ExoClick Popunder (uses popunder1000.js with data-exo-* attributes)
+  if (id.includes("exoclick") && id.toLowerCase().includes("popunder")) {
+    if (document.querySelector(`script[data-exo-zone="${zone}"]`)) return;
+    const s = document.createElement("script");
+    s.type = "application/javascript";
+    s.async = true;
+    s.src = src.includes("popunder") ? src : "https://a.pemsrv.com/popunder1000.js";
+    s.dataset.exoZone = zone;
+    s.dataset.adFormat = id;
+    s.setAttribute("data-exo-idzone", zone || "5997602");
+    s.setAttribute("data-exo-popup_fallback", "true");
+    s.setAttribute("data-exo-popup_force", "false");
+    s.setAttribute("data-exo-chrome_enabled", "true");
+    s.setAttribute("data-exo-new_tab", "true");
+    s.setAttribute("data-exo-frequency_period", "1");
+    s.setAttribute("data-exo-frequency_count", "3");
+    s.setAttribute("data-exo-trigger_method", "1");
+    s.setAttribute("data-exo-trigger_delay", "15");
+    s.setAttribute("data-exo-capping_enabled", "true");
+    document.body.appendChild(s);
+    return;
+  }
+
+  // ExoClick Display / Interstitial Tags (ad-provider.js + <ins> tag + AdProvider push)
   if (src.includes("ad-provider.js") || src.includes("pemsrv.com")) {
     if (!document.querySelector(`script[src*="ad-provider.js"]`)) {
       const s = document.createElement("script");
