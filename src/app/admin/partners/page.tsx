@@ -75,19 +75,19 @@ function parseStatsData(text: string): { zone_id: string; label: string; impress
   const clean = (s: string) => s.replace(/^["']|["']$/g, "").trim();
   const header = firstLine.split(delim).map((h) => clean(h).toLowerCase());
   
-  let zi = header.findIndex((h) => h === "zone id" || h === "zone_id" || h === "idzone" || (h.includes("zone") && h.includes("id")));
+  let zi = header.findIndex((h) => h === "id" || h === "zone id" || h === "zone_id" || h === "idzone" || (h.includes("zone") && h.includes("id")));
   if (zi === -1) {
     zi = header.findIndex((h) => h === "zone" || h === "zone name" || h.includes("zone"));
   }
   
-  const zn = header.findIndex((h) => h === "site" || h === "site name" || h === "label" || h === "zone name" || (h.includes("site") && !h.includes("id")));
+  const zn = header.findIndex((h) => (h.includes("zone") && !h.includes("id") && h !== "id") || h === "site" || h === "site name" || h === "label" || h === "ad zones");
   
   const pi = header.findIndex((h) => 
     h === "revenue" || h === "profit" || h === "payout" || h === "earnings" || h === "cost" ||
     h.includes("revenue") || h.includes("profit") || h.includes("payout") || h.includes("earning") || h.includes("gross")
   );
   
-  const ii = header.findIndex((h) => h.includes("impression") || h === "imps" || h === "views");
+  const ii = header.findIndex((h) => h === "impressions" || h.includes("impression") || h === "imps" || h === "views");
   
   if (zi === -1 || pi === -1) {
     // If no header row found, check if it's raw 2-column or 3-column data (e.g. ZoneID \t Revenue)
