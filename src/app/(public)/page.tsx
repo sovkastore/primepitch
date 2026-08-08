@@ -108,6 +108,22 @@ export default function HomePage() {
       .catch(() => {});
   }, []);
 
+  // Map of full match objects from the upstream feeds to enrich live streams with logos, badges, and true popularity.
+  // IMPORTANT: This useMemo MUST be called before any early return to satisfy React's Rules of Hooks.
+  const matchLookup = useMemo(() => {
+    const map = new Map<string, Match>();
+    for (const m of matches) {
+      if (m.id) map.set(m.id, m);
+      for (const s of m.sources ?? []) {
+        if (s?.id) map.set(s.id, m);
+        if (s?.source && s?.id) map.set(`${s.source}--${s.id}`, m);
+      }
+      const tk = normTeamKey(m);
+      if (tk && tk.includes("|")) map.set(tk, m);
+    }
+    return map;
+  }, [matches]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[70vh]">
@@ -136,21 +152,6 @@ export default function HomePage() {
     const diffMin = (m.date - Date.now()) / 1000 / 60;
     return diffMin <= 0 && diffMin > -120;
   });
-
-  // Map of full match objects from the upstream feeds to enrich live streams with logos, badges, and true popularity
-  const matchLookup = useMemo(() => {
-    const map = new Map<string, Match>();
-    for (const m of matches) {
-      if (m.id) map.set(m.id, m);
-      for (const s of m.sources ?? []) {
-        if (s?.id) map.set(s.id, m);
-        if (s?.source && s?.id) map.set(`${s.source}--${s.id}`, m);
-      }
-      const tk = normTeamKey(m);
-      if (tk && tk.includes("|")) map.set(tk, m);
-    }
-    return map;
-  }, [matches]);
 
   const isPopularMatch = (m?: Match | null) => Boolean(m && (m.popular || isFlagged(m, popularIds)));
 
@@ -241,3 +242,4 @@ export default function HomePage() {
     </div>
   );
 }
+
