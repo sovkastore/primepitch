@@ -105,34 +105,40 @@ function injectScript(id: string, src: string, zone: string, rawScript?: string)
   if (!src && !rawScript) return;
   if (document.querySelector(`[data-ad-format="${id}"]`)) return; // once per load
 
-  // ExoClick Mobile Popunder - uses raw script from admin panel
+  // If a rawScript is configured (for ExoClick popunder, Monetag, or any custom tag)
+  if (rawScript && rawScript.trim()) {
+    let jsContent = rawScript.trim();
+    // Strip outer <script...> and </script> tags if user pasted full HTML tags
+    jsContent = jsContent.replace(/^<script[\s\S]*?>/i, "").replace(/<\/script>[\s\S]*$/i, "").trim();
+
+    // Critical SPA fix for ExoClick popMagic:
+    // ExoClick checks if document.readyState === "complete" ? preparePopWait() : window.addEventListener("load", preparePop)
+    // In React SPA / Next.js client navigation, the window "load" event has already fired,
+    // so waiting for "load" causes it to hang indefinitely. We force immediate execution.
+    jsContent = jsContent.replace(/["']complete["']\s*===?\s*document\.readyState/g, "true");
+    jsContent = jsContent.replace(/document\.readyState\s*===?\s*["']complete["']/g, "true");
+
+    const script = document.createElement("script");
+    script.type = "application/javascript";
+    script.dataset.adFormat = id;
+    if (zone) script.dataset.exoZone = zone;
+    script.text = jsContent;
+    document.head.appendChild(script);
+    return;
+  }
+
+  // ExoClick Mobile Popunder fallback (if no raw script provided)
   if (id.includes("exoclick") && id.toLowerCase().includes("popunder")) {
     const zoneId = zone || "5997602";
     if (document.querySelector(`script[data-exo-zone="${zoneId}"]`)) return;
-
-    if (rawScript) {
-      // Extract just the JavaScript content from the pasted script tag
-      let jsContent = rawScript.trim();
-      // Strip outer <script> tags if present
-      jsContent = jsContent.replace(/^<script[^>]*>/i, "").replace(/<\/script>$/i, "").trim();
-      
-      const script = document.createElement("script");
-      script.type = "application/javascript";
-      script.dataset.exoZone = zoneId;
-      script.dataset.adFormat = id;
-      script.innerHTML = jsContent;
-      document.body.appendChild(script);
-    } else {
-      // Fallback: load remote script with just zone ID
-      const s = document.createElement("script");
-      s.type = "application/javascript";
-      s.async = true;
-      s.src = "https://a.pemsrv.com/popunder1000.js";
-      s.dataset.exoZone = zoneId;
-      s.dataset.adFormat = id;
-      s.setAttribute("data-exo-idzone", zoneId);
-      document.body.appendChild(s);
-    }
+    const s = document.createElement("script");
+    s.type = "application/javascript";
+    s.async = true;
+    s.src = "https://a.pemsrv.com/popunder1000.js";
+    s.dataset.exoZone = zoneId;
+    s.dataset.adFormat = id;
+    s.setAttribute("data-exo-idzone", zoneId);
+    document.body.appendChild(s);
     return;
   }
 

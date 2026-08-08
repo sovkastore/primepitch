@@ -925,25 +925,23 @@ export default function AdminAdsPage() {
 
             {isPopunder && (
               <div className="space-y-3">
-                {/* ExoClick Raw Script Paste */}
-                {id.includes("exoclick") && (
-                  <div className="space-y-1.5">
-                    <label className="text-[13px] font-semibold text-gray-800">ExoClick Popunder Script</label>
-                    <p className="text-[12px] text-gray-500">
-                      Paste the full script from your ExoClick dashboard here. When you change settings in ExoClick (fallback, delay, etc.), copy the new script and paste it here.
-                    </p>
-                    <textarea
-                      value={f.rawScript || ""}
-                      onChange={(e) => updateFormat(id, { rawScript: e.target.value })}
-                      placeholder={'Paste your ExoClick popunder script here...\n\n<script type="application/javascript">\n...'}
-                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[12px] text-gray-900 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-h-[120px] resize-y"
-                      rows={5}
-                    />
-                    {f.rawScript && (
-                      <p className="text-[11px] text-emerald-600 font-medium">✓ Custom script set — this will be injected directly on the site.</p>
-                    )}
-                  </div>
-                )}
+                {/* Custom/ExoClick Raw Script Paste */}
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-gray-800">Popunder Script / Tag</label>
+                  <p className="text-[12px] text-gray-500">
+                    Paste the script directly from your ExoClick or ad network dashboard here. When you change settings (fallback, delay, frequency, popup force), paste the updated script here.
+                  </p>
+                  <textarea
+                    value={f.rawScript || ""}
+                    onChange={(e) => updateFormat(id, { rawScript: e.target.value })}
+                    placeholder={'Paste your popunder script here...\n\n<script type="application/javascript">\n...'}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[12px] text-gray-900 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-h-[120px] resize-y"
+                    rows={5}
+                  />
+                  {f.rawScript && (
+                    <p className="text-[11px] text-emerald-600 font-medium">✓ Custom script active — this will be injected directly on the site.</p>
+                  )}
+                </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-gray-800">When to run</label>
