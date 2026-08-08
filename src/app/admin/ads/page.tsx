@@ -252,6 +252,7 @@ export default function AdminAdsPage() {
               autoMatches: Array.isArray(f.autoMatches) ? f.autoMatches : [],
               type: (f.type ?? seed?.type ?? "script") as "script" | "direct_link",
               targets: f.targets ?? seed?.targets ?? {},
+              rawScript: f.rawScript ?? seed?.rawScript ?? "",
             };
             u[id] = m === 0 ? "off" : m % 60 === 0 ? "hours" : "minutes";
           }
