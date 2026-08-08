@@ -100,10 +100,35 @@ function placementAllows(placement: FmtPlacement | undefined, path: string): boo
 }
 
 // Inject an ad script. Monetag tags need a data-zone; Adsterra tags (popunder,
-// social bar) are a plain script with no zone — both are supported here.
+// social bar) are a plain script with no zone; ExoClick tags use ad-provider.js + ins.
 function injectScript(id: string, src: string, zone: string) {
   if (!src) return;
-  if (document.querySelector(`script[data-ad-format="${id}"]`)) return; // once per load
+  if (document.querySelector(`[data-ad-format="${id}"]`)) return; // once per load
+
+  // ExoClick Tags (ad-provider.js + <ins> tag + AdProvider push)
+  if (src.includes("ad-provider.js") || src.includes("pemsrv.com")) {
+    if (!document.querySelector(`script[src*="ad-provider.js"]`)) {
+      const s = document.createElement("script");
+      s.async = true;
+      s.type = "application/javascript";
+      s.src = src;
+      document.body.appendChild(s);
+    }
+    if (zone && !document.querySelector(`ins[data-zoneid="${zone}"]`)) {
+      const ins = document.createElement("ins");
+      ins.className = "eas6a97888e33";
+      ins.dataset.zoneid = zone;
+      ins.dataset.adFormat = id;
+      document.body.appendChild(ins);
+
+      const run = document.createElement("script");
+      run.dataset.adFormat = `${id}-run`;
+      run.innerHTML = `(window.AdProvider = window.AdProvider || []).push({"serve": {}});`;
+      document.body.appendChild(run);
+    }
+    return;
+  }
+
   const s = document.createElement("script");
   s.async = true;
   if (zone) s.dataset.zone = zone;
