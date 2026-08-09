@@ -9,6 +9,7 @@ export async function POST() {
     // Clear Next.js cache
     // @ts-expect-error: Next.js canary has experimental typings requiring 2 args
     revalidateTag("alt-matches-page-1");
+    // @ts-expect-error: Next.js canary has experimental typings requiring 2 args
     revalidateTag("alt-matches");
 
     // We manually fetch from RapidAPI right here because the user is controlling it!
