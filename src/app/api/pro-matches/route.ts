@@ -49,6 +49,9 @@ export async function GET(req: Request) {
              console.log(`[Cache Hit] Returning D1 cache (manual fetch mode)`);
              return NextResponse.json({ matches: JSON.parse(cacheRow.data) });
           }
+        } else if (!auto_fetch) {
+           console.log(`[Cache Miss] Auto-fetch is OFF and cache is empty. Returning empty matches.`);
+           return NextResponse.json({ matches: [] });
         }
       } catch (e) {
          console.error("Failed to read matches cache from D1:", e);
@@ -71,9 +74,6 @@ export async function GET(req: Request) {
     if (auto_fetch) {
       // Revalidate every X minutes
       fetchOptions.next = { ...fetchOptions.next, revalidate: cache_minutes * 60 };
-    } else {
-      // Manual fetch only, cache indefinitely until revalidated by tag
-      fetchOptions.cache = "force-cache";
     }
 
     const fetchPage = async (p: number) => {
