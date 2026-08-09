@@ -130,19 +130,8 @@ export async function GET(req: Request) {
       return [];
     };
 
-    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
     const page1 = await fetchPage(1);
-    await delay(1200); // 1.2s delay to avoid 1 req/sec rate limits
-    const page2 = await fetchPage(2);
-    await delay(1200);
-    const page3 = await fetchPage(3);
-    await delay(1200);
-    const page4 = await fetchPage(4);
-    await delay(1200);
-    const page5 = await fetchPage(5);
-
-    const allMatches = [...page1, ...page2, ...page3, ...page4, ...page5];
+    const allMatches = [...page1];
 
     // [ROBUST CACHING] Save new data to D1 database!
     if (d1 && allMatches.length > 0) {
