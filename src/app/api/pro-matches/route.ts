@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
 const RAPID_API_HOST = "football-live-streaming-api.p.rapidapi.com";
-const RAPID_API_KEY = process.env.RAPID_API_KEY || "";
+let currentKeyIndex = 0;
 
 export async function GET(req: Request) {
   try {
+    const RAPID_API_KEYS = (process.env.RAPID_API_KEYS || process.env.RAPID_API_KEY || "")
+      .split(",")
+      .map(k => k.trim())
+      .filter(Boolean);
     const { searchParams } = new URL(req.url);
     const page = searchParams.get("page") || "1";
 
@@ -32,7 +36,7 @@ export async function GET(req: Request) {
       method: "GET",
       headers: {
         "x-rapidapi-host": RAPID_API_HOST,
-        "x-rapidapi-key": RAPID_API_KEY,
+        // The key is set inside fetchPage dynamically
       },
       next: { 
         tags: ["alt-matches"],
@@ -48,25 +52,56 @@ export async function GET(req: Request) {
     }
 
     const fetchPage = async (p: number) => {
+      if (RAPID_API_KEYS.length === 0) {
+        console.error("No RapidAPI keys configured!");
+        return [];
+      }
+
       const url = `https://${RAPID_API_HOST}/matches?page=${p}`;
-      const pageOptions = {
-        ...fetchOptions,
-        next: {
-          ...fetchOptions.next,
-          tags: ["alt-matches", `alt-matches-page-${p}`]
-        }
-      };
       
-      const res = await fetch(url, pageOptions);
-      if (!res.ok) {
+      let attempts = 0;
+      while (attempts < RAPID_API_KEYS.length) {
+        const apiKey = RAPID_API_KEYS[currentKeyIndex];
+        
+        const pageOptions = {
+          ...fetchOptions,
+          headers: {
+            ...fetchOptions.headers,
+            "x-rapidapi-key": apiKey,
+          },
+          next: {
+            ...fetchOptions.next,
+            tags: ["alt-matches", `alt-matches-page-${p}`]
+          }
+        };
+        
+        const res = await fetch(url, pageOptions);
+        
+        // If success or a non-quota error, break out and process
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) return data;
+          if (data && Array.isArray(data.matches)) return data.matches;
+          if (data && Array.isArray(data.data)) return data.data;
+          if (data && Array.isArray(data.results)) return data.results;
+          return [];
+        }
+
+        // 429 = Too Many Requests (Quota Exceeded)
+        // 403 = Forbidden (Not Subscribed)
+        if (res.status === 429 || res.status === 403) {
+          console.warn(`RapidAPI Key ${currentKeyIndex + 1}/${RAPID_API_KEYS.length} failed with ${res.status}. Switching to next key...`);
+          currentKeyIndex = (currentKeyIndex + 1) % RAPID_API_KEYS.length;
+          attempts++;
+          continue; // Try next key
+        }
+
+        // If it's some other error (500, etc), just log and return empty
         console.error(`RapidAPI Error Page ${p}:`, res.status);
         return [];
       }
-      const data = await res.json();
-      if (Array.isArray(data)) return data;
-      if (data && Array.isArray(data.matches)) return data.matches;
-      if (data && Array.isArray(data.data)) return data.data;
-      if (data && Array.isArray(data.results)) return data.results;
+      
+      console.error("All RapidAPI keys exhausted!");
       return [];
     };
 
