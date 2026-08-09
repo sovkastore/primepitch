@@ -12,7 +12,7 @@ BSD_API_KEY = "0170da071a072600419c7f8e0d30304e2fd6cf08"
 ADMIN_PASSWORD = "PrimePitch2026!"
 CRON_SECRET = "secret"
 NEXT_PUBLIC_SITE_URL = "https://primepitch.daxonicstudios.workers.dev"
-RAPID_API_KEYS = "a66c882b1cmsh00421cb207b98e2p1a82f2jsnd2f8280065c7,ad280313aemsh818e80a986d0cd3p19b72bjsn4b451392c18e,774ba9de5fmsh8cd1084661c2a36p16dc26jsn7a4bd81d1ef6"
+RAPID_API_KEYS = "a66c882b1cmsh00421cb207b98e2p1a82f2jsnd2f8280065c7,ad280313aemsh818e80a986d0cd3p19b72bjsn4b451392c18e,774ba9de5fmsh8cd1084661c2a36p16dc26jsn7a4bd81d1ef6,001d250f43msh0a5e479d6fc7a68p1121cfjsncae776bd58cd"
 
 [[d1_databases]]
 binding = "DB"
