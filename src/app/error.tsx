@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import Logo from "@/components/Logo";
 
@@ -11,17 +11,8 @@ export default function ErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const [showDetails, setShowDetails] = useState(false);
-
   useEffect(() => {
     console.error("Application error:", error);
-    // Also report to a beacon so we can see it server-side
-    try {
-      navigator.sendBeacon(
-        "/api/track/pageview",
-        JSON.stringify({ error: error.message, stack: error.stack?.slice(0, 500) })
-      );
-    } catch {}
   }, [error]);
 
   return (
@@ -48,20 +39,9 @@ export default function ErrorBoundary({
             Go Home
           </Link>
         </div>
-        <button
-          onClick={() => setShowDetails(!showDetails)}
-          className="text-[10px] text-gray-600 hover:text-gray-400 underline"
-        >
-          {showDetails ? "Hide" : "Show"} Debug Info
-        </button>
-        {showDetails && (
-          <div className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-left overflow-auto max-h-40">
-            <p className="text-[10px] text-red-400 font-mono break-all">{error.message}</p>
-            <p className="text-[9px] text-gray-600 font-mono break-all mt-1 whitespace-pre-wrap">{error.stack?.slice(0, 800)}</p>
-          </div>
-        )}
       </div>
     </div>
   );
 }
+
 

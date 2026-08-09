@@ -32,11 +32,12 @@ export default function StaleSessionReset() {
       const onCricket = window.location.pathname.startsWith("/cricket");
       const onSportsLive = window.location.pathname.startsWith("/sports-live");
       const onPPV = window.location.pathname.startsWith("/ppv");
+      const onAlt = window.location.pathname.startsWith("/alt");
       const onTV = window.location.pathname.startsWith("/tv-channels") || window.location.pathname.startsWith("/watch/tv-");
       
       // Do not redirect to home if they are on a standalone manual stream page,
       // even if they had a sport selected previously.
-      const isSpecialPage = onHome || onCricket || onSportsLive || onPPV || onTV;
+      const isSpecialPage = onHome || onCricket || onSportsLive || onPPV || onAlt || onTV;
       if (!isSpecialPage || (onHome && hadSport)) {
         window.location.replace("/");
       }

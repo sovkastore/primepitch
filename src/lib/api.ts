@@ -303,18 +303,43 @@ export function bothTeamsHaveVisuals(match?: Match | null): boolean {
   return hasTeamVisual(match.teams?.home) && hasTeamVisual(match.teams?.away);
 }
 
-// The upstream feed sometimes lists an always-on TV channel as "live" hours
-// before kickoff — it shows unrelated programming until the match starts.
-// Drop those premature copies: if the same fixture is still scheduled as
-// upcoming (kickoff comfortably in the future), it isn't really live yet.
-// Self-healing: once the real kickoff time passes, the upcoming copy is no
-// longer "future" and the live copy is allowed through normally.
-// Admin-created live events (source "admin") are always kept, so anything you
-// force live yourself still wins.
+// Streamed.pk rule: A match is only marked as LIVE if its official kickoff time has arrived (<= Date.now()).
+// If a 3rd-party broadcast server turns on early for an upcoming fixture, suppress it from the Live shelf
+// until its official scheduled kickoff time arrives (keeping it in Upcoming with its scheduled time pill).
+// Admin-created live events (source "admin") are always kept immediately.
 export function suppressPrematureLive(live: Match[], allMatches: Match[]): Match[] {
-  // User requested to remove this delay so matches mirror streamed.pk exactly.
-  // We trust the upstream live feed directly, with no time-based filtering.
-  return live;
+  if (!live || !live.length) return [];
+  const now = Date.now();
+
+  const futureSchedule = new Map<string, Match>();
+  for (const m of allMatches) {
+    if (m && m.date && m.date > now) {
+      const tk = normTeamKey(m);
+      if (tk && tk.includes("|")) futureSchedule.set(tk, m);
+      if (m.id) futureSchedule.set(m.id, m);
+    }
+  }
+
+  return live.filter((m) => {
+    if (!m) return false;
+    if (m.sources?.some((s) => s.source === "admin") || m.id?.startsWith("admin-") || m.id?.startsWith("ppv-")) {
+      return true;
+    }
+
+    const tk = normTeamKey(m);
+    const scheduled = (tk && tk.includes("|") ? futureSchedule.get(tk) : undefined) || (m.id ? futureSchedule.get(m.id) : undefined);
+    if (scheduled && scheduled.date > now) {
+      // Official kickoff is still in the future! Keep in Upcoming, do not show in Live yet.
+      return false;
+    }
+
+    // If not in schedule, check if the match's own timestamp is in the future
+    if (m.date && m.date > now) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 // streamed.pk sends two rows for the same fixture (e.g. "South Korea vs Czechia"
@@ -329,21 +354,45 @@ export function dedupeMatches(matches: Match[]): Match[] {
   const best = new Map<string, Match>();
   const order: string[] = [];
   for (const m of matches) {
-    // Generate a highly aggressive key based on title to catch cross-sport leaks
+    if (!m) continue;
+    // Generate a key based on title to catch cross-sport leaks
     let key = m.title ? m.title.toLowerCase().replace(/[^a-z0-9]/g, "") : m.id;
 
     // Use a secondary key for events that might have generic titles across days
     if (EVENT_SPORTS.has(m.category)) {
-        const hour = m.date ? Math.round(m.date / 3_600_000) : 0;
-        key = `${key}|${hour}`;
+      const hour = m.date ? Math.round(m.date / 3_600_000) : 0;
+      key = `${key}|${hour}`;
     }
 
     const existing = best.get(key);
     if (!existing) {
       best.set(key, m);
       order.push(key);
-    } else if (richness(m) > richness(existing)) {
-      best.set(key, m);
+    } else {
+      const preferNew = richness(m) > richness(existing);
+      const chosen = preferNew ? m : existing;
+      const other = preferNew ? existing : m;
+
+      // Union sources so all streams remain available
+      const combinedSources = [...(chosen.sources || [])];
+      const seenSources = new Set(combinedSources.map((s) => `${s.source}--${s.id}`));
+      for (const s of other.sources || []) {
+        const sKey = `${s.source}--${s.id}`;
+        if (!seenSources.has(sKey)) {
+          seenSources.add(sKey);
+          combinedSources.push(s);
+        }
+      }
+
+      best.set(key, {
+        ...chosen,
+        sources: combinedSources,
+        popular: Boolean(chosen.popular || other.popular),
+        hot: Boolean(chosen.hot || other.hot),
+        isLive: Boolean(chosen.isLive || other.isLive),
+        forced: Boolean(chosen.forced || other.forced),
+        ended: Boolean(chosen.ended || other.ended),
+      });
     }
   }
   return order.map((k) => best.get(k)!);

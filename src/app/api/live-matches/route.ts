@@ -224,13 +224,15 @@ export async function GET() {
     );
     // Admin "HOT": flag the match so live cards + the watch page get the
     // premium treatment.
-    matches = matches.map((m) =>
-      flags.hot.has(keyOf(m)) || flags.hot.has(m.id) ? { ...m, hot: true } : m
-    );
+    matches = matches.map((m) => {
+      const tk = normTeamKey(m);
+      return flags.hot.has(keyOf(m)) || flags.hot.has(m.id) || (tk && flags.hot.has(tk)) ? { ...m, hot: true } : m;
+    });
     // Admin "POPULAR": flag the match so it displays in Popular tab.
-    matches = matches.map((m) =>
-      flags.popular.has(keyOf(m)) || flags.popular.has(m.id) ? { ...m, popular: true } : m
-    );
+    matches = matches.map((m) => {
+      const tk = normTeamKey(m);
+      return flags.popular.has(keyOf(m)) || flags.popular.has(m.id) || (tk && flags.popular.has(tk)) ? { ...m, popular: true } : m;
+    });
 
     // Deduplicate live matches by category + normalized team names
     const richness = (m: Match) =>
@@ -270,20 +272,21 @@ export async function GET() {
         const mergedMatch: Match = {
           ...(preferNew ? m : existing),
           sources: combinedSources,
-          hot: existing.hot || m.hot,
-          forced: existing.forced || m.forced,
-          ended: existing.ended || m.ended,
+          popular: Boolean(existing.popular || m.popular),
+          hot: Boolean(existing.hot || m.hot),
+          forced: Boolean(existing.forced || m.forced),
+          ended: Boolean(existing.ended || m.ended),
         };
         merged.set(key, mergedMatch);
       }
     }
-    matches = matches
+    const finalMatches = Array.from(merged.values())
       .map((m, i) => ({ m, i, f: flags.featured.has(keyOf(m)) ? 1 : 0 }))
       .sort((a, b) => b.f - a.f || a.i - b.i)
       .map((x) => ({ ...x.m, isLive: true }));
 
-    cache = { data: matches, ts: now };
-    return NextResponse.json({ matches });
+    cache = { data: finalMatches, ts: now };
+    return NextResponse.json({ matches: finalMatches });
   } catch {
     return NextResponse.json({ matches: cache?.data ?? [] });
   }

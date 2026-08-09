@@ -170,6 +170,7 @@ const SITE_PAGES = [
   { id: "leagues", label: "League Pages", path: "/league/" },
   { id: "help", label: "Help Page", path: "/help" },
   { id: "subscribe", label: "Subscribe Page", path: "/subscribe" },
+  { id: "alt", label: "Alternative Matches", path: "/alt" },
 ];
 
 const FMT_PLACEMENT_LABELS: Record<string, string> = {

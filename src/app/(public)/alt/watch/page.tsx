@@ -1,0 +1,157 @@
+"use client";
+
+import { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { ProMatch } from "../page";
+import Hls from "hls.js";
+
+import Script from "next/script";
+
+import { Suspense } from "react";
+
+function AltWatchContent() {
+  const searchParams = useSearchParams();
+  const idx = searchParams.get("idx");
+  
+  const [match, setMatch] = useState<ProMatch | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeServer, setActiveServer] = useState<any>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch("/api/pro-matches");
+        const data = await res.json();
+        
+        let matchList: ProMatch[] = [];
+        if (Array.isArray(data)) matchList = data;
+        else if (data && Array.isArray(data.matches)) matchList = data.matches;
+        else if (data && Array.isArray(data.data)) matchList = data.data;
+        else if (data && Array.isArray(data.results)) matchList = data.results;
+        
+        if (idx !== null && matchList[Number(idx)]) {
+          setMatch(matchList[Number(idx)]);
+          if (matchList[Number(idx)].servers && matchList[Number(idx)].servers.length > 0) {
+            setActiveServer(matchList[Number(idx)].servers[0]);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load match:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [idx]);
+
+  useEffect(() => {
+    let hls: Hls | null = null;
+    
+    // Attempt to load Hls.js if needed
+    if (activeServer && videoRef.current) {
+      if (activeServer.type === "iframe") {
+        // Handled in render
+      } else if (activeServer.url.includes(".m3u8")) {
+        const video = videoRef.current;
+        // Upgrade HTTP to HTTPS automatically to avoid Mixed Content errors
+        const src = activeServer.url.replace("http://", "https://");
+
+        // Try to load HLS
+        if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          // Native Safari
+          video.src = src;
+        } else if (Hls.isSupported()) {
+          // Hls.js
+          hls = new Hls();
+          hls.loadSource(src);
+          hls.attachMedia(video);
+        }
+      }
+    }
+    
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [activeServer]);
+
+  if (loading) {
+    return <div className="p-10 text-center text-gray-400">Loading alternative stream...</div>;
+  }
+
+  if (!match) {
+    return <div className="p-10 text-center text-gray-400">Match not found.</div>;
+  }
+
+  return (
+    <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-8 min-h-screen">
+      <div className="mb-6">
+        <Link href="/alt" className="text-emerald-500 hover:text-emerald-400 font-bold text-sm">
+          &larr; Back to Alternative Matches
+        </Link>
+        <h1 className="text-2xl font-black text-white mt-4">{match.home_team_name} vs {match.away_team_name}</h1>
+        <p className="text-gray-400 text-sm">{match.league_name} • {match.match_status === "live" ? "🔴 LIVE" : "Upcoming"}</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          <div className="aspect-video bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl relative">
+            {activeServer ? (
+              activeServer.type === "iframe" || activeServer.url.includes("embed") ? (
+                <iframe 
+                  src={activeServer.url.replace("http://", "https://")} 
+                  className="w-full h-full border-0" 
+                  allowFullScreen
+                  sandbox="allow-same-origin allow-scripts"
+                />
+              ) : (
+                <video 
+                  ref={videoRef}
+                  controls 
+                  autoPlay
+                  playsInline
+                  className="w-full h-full bg-black outline-none"
+                />
+              )
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-500">
+                No streams available yet.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="lg:col-span-1">
+          <h3 className="text-lg font-bold text-white mb-4">Servers</h3>
+          <div className="flex flex-col gap-2">
+            {match.servers?.map((server, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveServer(server)}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  activeServer === server 
+                    ? "bg-emerald-500/20 border-emerald-500 text-emerald-400 font-bold" 
+                    : "bg-white/5 border-white/10 hover:bg-white/10 text-gray-300"
+                }`}
+              >
+                {server.name} {server.type && <span className="text-[10px] uppercase opacity-50 ml-2">({server.type})</span>}
+                {server.url.startsWith("http://") && <span className="block text-[9px] text-red-400 mt-1">HTTP Only (May require new tab)</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AltWatchPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center text-gray-400">Loading alternative stream...</div>}>
+      <AltWatchContent />
+    </Suspense>
+  );
+}

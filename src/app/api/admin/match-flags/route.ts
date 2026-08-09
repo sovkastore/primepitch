@@ -18,7 +18,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { match_id, match_data, hidden, hide_one, forced_live, featured, disable_auto, auto_fallback, display_title, force_ended, hot, popular, custom_notice } =
+    const { match_id, match_data, hidden, hide_one, forced_live, featured, disable_auto, auto_fallback, display_title, force_ended, hot, popular, custom_notice, alt_visible } =
       await request.json();
     if (!match_id) {
       return NextResponse.json({ error: "match_id required" }, { status: 400 });
@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     if (typeof force_ended === "boolean") row.force_ended = force_ended;
     if (typeof hot === "boolean") row.hot = hot;
     if (typeof popular === "boolean") row.popular = popular;
+    if (typeof alt_visible === "boolean") row.alt_visible = alt_visible;
     if (typeof custom_notice === "string") row.custom_notice = custom_notice.trim() || null;
     else if (custom_notice === null) row.custom_notice = null;
 

@@ -20,7 +20,7 @@ export async function GET() {
     if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
 
     const fetchFlags = (async () => {
-      const res = await d1.prepare("SELECT match_id, hidden, hide_one, featured, hot, popular, match_data, custom_notice FROM d1_match_flags ORDER BY updated_at DESC LIMIT 1000").all();
+      const res = await d1.prepare("SELECT match_id, hidden, hide_one, featured, hot, popular, match_data, custom_notice, alt_visible, force_ended FROM d1_match_flags ORDER BY updated_at DESC LIMIT 1000").all();
       // SQLite booleans are returned as 0 or 1, map them to boolean
       return res.results.map((r: any) => ({
         ...r,
@@ -29,6 +29,7 @@ export async function GET() {
         featured: Boolean(r.featured),
         hot: Boolean(r.hot),
         popular: Boolean(r.popular),
+        alt_visible: Boolean(r.alt_visible),
         custom_notice: r.custom_notice ? String(r.custom_notice).trim() : null,
         match_data: typeof r.match_data === "string" ? JSON.parse(r.match_data) : r.match_data
       }));
@@ -45,8 +46,11 @@ export async function GET() {
     const hot: string[] = [];
     const popular: string[] = [];
     const hiddenTitles: string[] = [];
+    const altVisible: string[] = [];
+    const forceEnded: string[] = [];
+    const mockFixtures: any[] = [];
     const notices: Record<string, string> = {};
-    for (const r of (data ?? []) as Array<{ match_id: string; hidden: boolean; hide_one: boolean; featured: boolean; hot: boolean; popular: boolean; match_data: unknown; custom_notice?: string | null }>) {
+    for (const r of (data ?? []) as Array<{ match_id: string; hidden: boolean; hide_one: boolean; featured: boolean; hot: boolean; popular: boolean; alt_visible: boolean; force_ended: boolean; match_data: unknown; custom_notice?: string | null }>) {
       const teamKey = normTeamKey((r.match_data ?? {}) as { teams?: { home?: { name?: string }; away?: { name?: string } }; title?: string });
       if (r.hidden) {
         // Whole-fixture hide: by id AND by team name (covers every copy).
@@ -65,13 +69,21 @@ export async function GET() {
         popular.push(r.match_id);
         if (teamKey && teamKey.includes("|")) popular.push(teamKey);
       }
+      if (r.alt_visible) {
+        altVisible.push(r.match_id);
+        if (r.match_data && (r.match_data as any).is_mock) {
+          mockFixtures.push({ ...r.match_data, match_id: r.match_id });
+        }
+      }
+      if (r.force_ended) forceEnded.push(r.match_id);
       if (r.custom_notice) notices[r.match_id] = r.custom_notice;
     }
     
-    const result = { hidden, featured, hot, popular, hiddenTitles, notices };
+    const result = { hidden, featured, hot, popular, hiddenTitles, altVisible, forceEnded, notices, mockFixtures };
     cache = { data: result, ts: now };
     return NextResponse.json(result);
-  } catch {
+  } catch (e) {
+    console.error("DB error in match-flags:", e);
     // If DB is down, serve stale cache so the user sees something!
     return NextResponse.json(cache?.data ?? { hidden: [], featured: [], hot: [], popular: [], hiddenTitles: [], notices: {} });
   }

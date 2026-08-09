@@ -153,34 +153,42 @@ export default function HomePage() {
     return diffMin <= 0 && diffMin > -120;
   });
 
-  const isPopularMatch = (m?: Match | null) => Boolean(m && (m.popular || isFlagged(m, popularIds)));
+  const isPopularMatch = (m?: Match | null) => {
+    if (!m) return false;
+    if (m.popular) return true;
+    if (isFlagged(m, popularIds)) return true;
+    const tk = normTeamKey(m);
+    if (tk && popularIds.has(tk)) return true;
+    return false;
+  };
 
   const combinedLive = dedupeMatches([...(mergedLive || []), ...(newlyLive || [])]).map((liveM) => {
     if (!liveM) return liveM;
     const tk = normTeamKey(liveM);
-    const upstream = (tk && matchLookup.get(tk)) || (liveM.id && matchLookup.get(liveM.id));
+    const upstream = (tk ? matchLookup.get(tk) : undefined) || (liveM.id ? matchLookup.get(liveM.id) : undefined);
+    const pop = Boolean(liveM.popular || upstream?.popular || isPopularMatch(liveM) || isPopularMatch(upstream));
+    const ht = Boolean(liveM.hot || upstream?.hot || isFlagged(liveM, hotIds) || isFlagged(upstream, hotIds));
     if (upstream) {
       return {
         ...upstream,
         ...liveM,
         teams: (upstream.teams?.home?.name && upstream.teams) ? upstream.teams : (liveM.teams || {}),
         poster: upstream.poster || liveM.poster,
-        popular: Boolean(upstream.popular || liveM.popular || isFlagged(upstream, popularIds) || isFlagged(liveM, popularIds)),
-        hot: Boolean(upstream.hot || liveM.hot || isFlagged(upstream, hotIds) || isFlagged(liveM, hotIds)),
+        popular: pop,
+        hot: ht,
       };
     }
     return {
       ...liveM,
-      popular: isPopularMatch(liveM),
-      hot: Boolean(liveM.hot || isFlagged(liveM, hotIds)),
+      popular: pop,
+      hot: ht,
     };
   }).filter(Boolean);
 
   // The matches actually shown as LIVE (after the premature-live guard). Build a
   // team-identity set from these so the same fixture can't also sit in Upcoming,
-  // even when the live stream carries a different id or name. Using the shown
-  // (post-suppression) list — not mergedLive — means a fixture whose early stream
-  // got suppressed still stays in Upcoming rather than vanishing from both.
+  // even when the live stream carries a different id or name.
+  // In Popular mode, only show popular live matches (matching streamed.pk). In All Matches mode, show all live matches.
   const liveForSportBase = filterBySport(suppressPrematureLive(combinedLive, matches), activeSport);
   const liveForSport = liveForSportBase.filter((m) => {
     if (activeSport === "football" && showPopular && !isPopularMatch(m)) return false;
@@ -199,7 +207,7 @@ export default function HomePage() {
     .map((m) => {
       let res = m;
       if (isFlagged(m, hotIds)) res = { ...res, hot: true };
-      if (isFlagged(m, popularIds)) res = { ...res, popular: true };
+      if (isPopularMatch(m)) res = { ...res, popular: true };
       return res;
     });
   // Don't also list a match under Upcoming if it's already shown as Live.

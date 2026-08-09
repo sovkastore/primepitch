@@ -103,6 +103,10 @@ CREATE TABLE IF NOT EXISTS d1_match_flags (
     display_title TEXT,
     force_ended INTEGER DEFAULT 0,
     hot INTEGER DEFAULT 0,
+    hide_one INTEGER DEFAULT 0,
+    popular INTEGER DEFAULT 0,
+    custom_notice TEXT,
+    alt_visible INTEGER DEFAULT 0,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

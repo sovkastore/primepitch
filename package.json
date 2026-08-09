@@ -16,6 +16,7 @@
     "@next/third-parties": "^16.2.11",
     "@opennextjs/cloudflare": "^1.20.2",
     "date-fns": "^4.4.0",
+    "hls.js": "^1.6.17",
     "next": "^16.2.11",
     "react": "19.2.4",
     "react-dom": "19.2.4",
