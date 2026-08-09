@@ -111,6 +111,12 @@ CREATE TABLE IF NOT EXISTS d1_match_flags (
 );
 
 -- 8) Global Site Settings
+CREATE TABLE IF NOT EXISTS d1_pro_matches_cache (
+    id TEXT PRIMARY KEY,
+    data TEXT,
+    updated_at INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS d1_site_settings (
     key TEXT PRIMARY KEY,
     value TEXT, -- JSON configuration or text value
