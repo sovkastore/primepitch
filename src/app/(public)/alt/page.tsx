@@ -94,7 +94,7 @@ export default function AltPage() {
           </div>
           <div className="text-center">
             <Logo size="sm" />
-            <p className="text-gray-400 text-xs mt-2">Loading alternative matches...</p>
+            <p className="text-gray-600 text-xs mt-2">Loading alternative matches...</p>
           </div>
         </div>
       </div>
@@ -114,10 +114,10 @@ export default function AltPage() {
   return (
     <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-8 min-h-screen">
       <div className="mb-8">
-        <h1 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-          Alternative <span className="text-emerald-500">Matches</span>
+        <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight flex items-center gap-3">
+          Alternative <span className="text-emerald-600">Matches</span>
         </h1>
-        <p className="text-gray-400 text-sm mt-1">Backup streams for selected matches.</p>
+        <p className="text-gray-500 text-sm mt-1">Backup streams for selected matches.</p>
       </div>
 
       {sortedDates.length === 0 ? (
@@ -126,7 +126,7 @@ export default function AltPage() {
         <div className="space-y-12">
           {sortedDates.map(date => (
             <div key={date}>
-              <h2 className="text-lg font-black text-gray-300 uppercase tracking-wider mb-4 border-b border-white/5 pb-2">{date}</h2>
+              <h2 className="text-lg font-black text-gray-800 uppercase tracking-wider mb-4 border-b border-gray-200 pb-2">{date}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {matchesByDay[date].map((match, i) => {
                   // Reconstruct index based on original matches array for the watch page routing
@@ -143,57 +143,57 @@ export default function AltPage() {
                       key={i} 
                       {...wrapperProps as any}
                     >
-                      <div className="relative rounded-2xl border border-blue-300/[0.05] hover:border-emerald-500/30 overflow-hidden transition-all bg-gradient-to-br from-white/[0.03] via-[#111a2e] to-[#111a2e]">
+                      <div className="relative rounded-2xl border border-gray-200 hover:border-emerald-500/30 overflow-hidden transition-all bg-white shadow-sm hover:shadow-md">
                         <div className="relative p-5">
                           <div className="flex items-center justify-between mb-4">
-                            <span className="text-xs font-semibold text-gray-400 truncate max-w-[70%]">{match.league_name}</span>
+                            <span className="text-xs font-semibold text-gray-500 truncate max-w-[70%]">{match.league_name}</span>
                             {match.match_status === "live" ? (
-                              <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-1 rounded-full uppercase tracking-wider">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                              <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
                                 LIVE
                               </span>
                             ) : match.match_status === "ended" ? (
-                              <span className="text-[11px] text-gray-400 bg-white/[0.04] px-3 py-1 rounded-full font-medium">Ended</span>
+                              <span className="text-[11px] text-gray-600 bg-gray-100 px-3 py-1 rounded-full font-medium border border-gray-200">Ended</span>
                             ) : (
-                              <span className="text-[11px] text-gray-500 bg-white/[0.04] px-3 py-1 rounded-full font-medium">Upcoming</span>
+                              <span className="text-[11px] text-gray-600 bg-gray-100 px-3 py-1 rounded-full font-medium border border-gray-200">Upcoming</span>
                             )}
                           </div>
 
                           <div className="flex items-center gap-3 mb-4">
                             {/* Home Team */}
                             <div className="flex-1 flex flex-col items-center">
-                              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center p-1.5 mb-2 border border-white/5">
+                              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center p-1.5 mb-2 border border-gray-200">
                                 {match.home_team_logo && match.home_team_logo.length > 5 ? (
                                   <img src={match.home_team_logo} alt={match.home_team_name} className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                 ) : (
                                   <span className="text-lg">⚽</span>
                                 )}
                               </div>
-                              <p className="text-sm font-bold text-white text-center line-clamp-1">{match.home_team_name}</p>
+                              <p className="text-sm font-bold text-gray-900 text-center line-clamp-1">{match.home_team_name}</p>
                             </div>
                             
                             <div className="flex flex-col items-center justify-center px-2">
                               {match.match_status === "live" ? (
-                                <p className="text-lg font-black text-emerald-400">{match.homeTeamScore} - {match.awayTeamScore}</p>
+                                <p className="text-lg font-black text-emerald-600">{match.homeTeamScore} - {match.awayTeamScore}</p>
                               ) : (
-                                <p className="text-[10px] text-emerald-400 font-bold">VS</p>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase">VS</p>
                               )}
                             </div>
                             
                             {/* Away Team */}
                             <div className="flex-1 flex flex-col items-center">
-                              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center p-1.5 mb-2 border border-white/5">
+                              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center p-1.5 mb-2 border border-gray-200">
                                 {match.away_team_logo && match.away_team_logo.length > 5 ? (
                                   <img src={match.away_team_logo} alt={match.away_team_name} className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                 ) : (
                                   <span className="text-lg">⚽</span>
                                 )}
                               </div>
-                              <p className="text-sm font-bold text-white text-center line-clamp-1">{match.away_team_name}</p>
+                              <p className="text-sm font-bold text-gray-900 text-center line-clamp-1">{match.away_team_name}</p>
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between pt-3 border-t border-blue-300/[0.04]">
+                          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                             <span className="text-[11px] text-gray-600">
                               {new Date(Number(match.match_time) * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                             </span>

@@ -89,21 +89,21 @@ function AltWatchContent() {
   return (
     <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-8 min-h-screen">
       <div className="mb-6">
-        <Link href="/alt" className="text-emerald-500 hover:text-emerald-400 font-bold text-sm">
+        <Link href="/alt" className="text-emerald-600 hover:text-emerald-500 font-bold text-sm">
           &larr; Back to Alternative Matches
         </Link>
-        <h1 className="text-2xl font-black text-white mt-4">{match.home_team_name} vs {match.away_team_name}</h1>
-        <p className="text-gray-400 text-sm">{match.league_name} • {match.match_status === "live" ? "🔴 LIVE" : "Upcoming"}</p>
+        <h1 className="text-2xl font-black text-gray-900 mt-4">{match.home_team_name} vs {match.away_team_name}</h1>
+        <p className="text-gray-500 text-sm">{match.league_name} • {match.match_status === "live" ? "🔴 LIVE" : "Upcoming"}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3">
-          <div className="aspect-video bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl relative">
+          <div className="aspect-video bg-black rounded-2xl overflow-hidden shadow-xl relative">
             {activeServer ? (
               activeServer.type === "iframe" || activeServer.url.includes("embed") ? (
                 <iframe 
                   src={activeServer.url.replace("http://", "https://")} 
-                  className="w-full h-full border-0" 
+                  className="w-full h-full border-0 bg-black" 
                   allowFullScreen
                   sandbox="allow-same-origin allow-scripts"
                 />
@@ -125,7 +125,7 @@ function AltWatchContent() {
         </div>
 
         <div className="lg:col-span-1">
-          <h3 className="text-lg font-bold text-white mb-4">Servers</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">Servers</h3>
           <div className="flex flex-col gap-2">
             {match.servers?.map((server, i) => (
               <button
@@ -133,8 +133,8 @@ function AltWatchContent() {
                 onClick={() => setActiveServer(server)}
                 className={`p-3 rounded-xl border text-left transition-all ${
                   activeServer === server 
-                    ? "bg-emerald-500/20 border-emerald-500 text-emerald-400 font-bold" 
-                    : "bg-white/5 border-white/10 hover:bg-white/10 text-gray-300"
+                    ? "bg-emerald-50 border-emerald-500 text-emerald-600 font-bold shadow-sm" 
+                    : "bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700 hover:border-gray-300"
                 }`}
               >
                 {server.name} {server.type && <span className="text-[10px] uppercase opacity-50 ml-2">({server.type})</span>}
