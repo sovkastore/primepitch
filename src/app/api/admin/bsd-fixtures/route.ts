@@ -25,7 +25,12 @@ export async function GET(req: Request) {
     }
 
     const data = await res.json();
-    return NextResponse.json({ fixtures: data.results || [] });
+    let fixtures = data.results || [];
+    if (date) {
+      fixtures = fixtures.filter((f: any) => f.event_date && f.event_date.startsWith(date));
+    }
+    
+    return NextResponse.json({ fixtures });
   } catch (error: any) {
     console.error("Failed to fetch BSD fixtures:", error);
     return NextResponse.json({ error: error.message, fixtures: [] }, { status: 500 });

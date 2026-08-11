@@ -68,8 +68,8 @@ function Chip({
   );
 }
 
-// Football subcategory nav: All → World Cup 2026 → enabled competitions.
-export default function LeagueNav({ active }: { active: "all" | "wc" | number }) {
+// Football subcategory nav: All → Alt → World Cup 2026 → enabled competitions.
+export default function LeagueNav({ active }: { active: "all" | "wc" | "alt" | number }) {
   const [leagues, setLeagues] = useState<LeagueConfig[]>([]);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLAnchorElement>(null);
@@ -95,6 +95,7 @@ export default function LeagueNav({ active }: { active: "all" | "wc" | number })
     <section className="max-w-[1400px] mx-auto px-4 lg:px-6 pb-1">
       <div ref={scrollerRef} className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
         <Chip href="/" label="All" active={active === "all"} logo="/icons/sports/football.svg" chipRef={active === "all" ? activeRef : undefined} />
+        <Chip href="/alt" label="Alt" active={active === "alt"} logo="/icons/sports/football.svg" chipRef={active === "alt" ? activeRef : undefined} />
         <Chip href="/world-cup" label="World Cup 2026" active={active === "wc"} logo="/icons/brands/fifa.svg" chipRef={active === "wc" ? activeRef : undefined} invertInactive />
         {leagues.map((l) => (
           <Chip
