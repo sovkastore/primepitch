@@ -21,6 +21,7 @@ export interface ProMatch {
 export default function AltPage() {
   const [matches, setMatches] = useState<ProMatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [globalNotice, setGlobalNotice] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -34,6 +35,10 @@ export default function AltPage() {
         const flagsData = await flagsRes.json();
         const visibleIds = new Set(flagsData.altVisible || []);
         const forceEndedIds = new Set(flagsData.forceEnded || []);
+        
+        if (flagsData.globalNotice) {
+          setGlobalNotice(flagsData.globalNotice);
+        }
 
         let matchList: ProMatch[] = [];
         if (Array.isArray(data)) matchList = data;
@@ -119,6 +124,17 @@ export default function AltPage() {
         </h1>
         <p className="text-gray-500 text-sm mt-1">Backup streams for selected matches.</p>
       </div>
+
+      {globalNotice && (
+        <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm text-blue-800 whitespace-pre-wrap">{globalNotice}</p>
+          </div>
+        </div>
+      )}
 
       {sortedDates.length === 0 ? (
         <div className="text-center py-20 text-gray-500">No alternative matches available right now.</div>

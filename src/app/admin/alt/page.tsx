@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ProMatch } from "@/app/(public)/alt/page";
+import MatchNoticeModal from "@/components/admin/MatchNoticeModal";
 
 interface FlagRow {
   match_id: string;
@@ -31,9 +32,12 @@ export default function AdminAltMatchesPage() {
   
   const [autoFetch, setAutoFetch] = useState(true);
   const [cacheMinutes, setCacheMinutes] = useState(30);
+  const [globalNotice, setGlobalNotice] = useState("");
   const [savingConfig, setSavingConfig] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
   const [revalidatingLive, setRevalidatingLive] = useState(false);
+  
+  const [activeNoticeMatch, setActiveNoticeMatch] = useState<ProMatch | null>(null);
 
   async function loadData() {
     try {
@@ -64,6 +68,7 @@ export default function AdminAltMatchesPage() {
       const configData = await configRes.json();
       setAutoFetch(configData.auto_fetch ?? true);
       setCacheMinutes(configData.cache_minutes ?? 30);
+      setGlobalNotice(configData.global_notice || "");
       
       await loadBsdFixtures(bsdDate);
     } catch (e) {
@@ -96,16 +101,17 @@ export default function AdminAltMatchesPage() {
     }
   }, [bsdDate]);
 
-  async function saveConfig(newAutoFetch: boolean, newCacheMinutes: number) {
+  async function saveConfig(newAutoFetch: boolean, newCacheMinutes: number, newGlobalNotice: string) {
     setSavingConfig(true);
     try {
       await fetch("/api/admin/alt-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ auto_fetch: newAutoFetch, cache_minutes: newCacheMinutes })
+        body: JSON.stringify({ auto_fetch: newAutoFetch, cache_minutes: newCacheMinutes, global_notice: newGlobalNotice })
       });
       setAutoFetch(newAutoFetch);
       setCacheMinutes(newCacheMinutes);
+      setGlobalNotice(newGlobalNotice);
     } catch (e) {
       console.error("Failed to save config:", e);
     } finally {
@@ -338,7 +344,7 @@ export default function AdminAltMatchesPage() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[12px] font-medium text-gray-500">{autoFetch ? "ON" : "OFF"}</span>
-            <Toggle on={autoFetch} onClick={() => saveConfig(!autoFetch, cacheMinutes)} />
+            <Toggle on={autoFetch} onClick={() => saveConfig(!autoFetch, cacheMinutes, globalNotice)} />
           </div>
         </div>
 
@@ -357,7 +363,7 @@ export default function AdminAltMatchesPage() {
                 className="w-20 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
               />
               <button 
-                onClick={() => saveConfig(autoFetch, cacheMinutes)}
+                onClick={() => saveConfig(autoFetch, cacheMinutes, globalNotice)}
                 disabled={savingConfig}
                 className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[12px] font-bold rounded-lg disabled:opacity-50"
               >
@@ -366,6 +372,29 @@ export default function AdminAltMatchesPage() {
             </div>
           </div>
         )}
+
+        <div className="pt-3 border-t border-gray-100">
+          <div className="flex flex-col gap-1 mb-2">
+            <span className="text-[13px] font-semibold text-gray-700">Global Notice Text (Alt Page)</span>
+            <span className="text-[11px] text-gray-500">Custom message displayed at the top of the public Alternative Matches page</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <textarea
+              rows={2}
+              value={globalNotice}
+              onChange={(e) => setGlobalNotice(e.target.value)}
+              placeholder="e.g., We are currently experiencing issues with server 1, please use server 2..."
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-y"
+            />
+            <button 
+              onClick={() => saveConfig(autoFetch, cacheMinutes, globalNotice)}
+              disabled={savingConfig}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[12px] font-bold rounded-lg disabled:opacity-50 shrink-0 mt-1"
+            >
+              {savingConfig ? "Saving..." : "Save Notice"}
+            </button>
+          </div>
+        </div>
 
         <div className="flex items-center justify-between gap-4 flex-wrap pt-3 border-t border-gray-100">
           <div className="flex flex-col gap-1">
@@ -428,6 +457,17 @@ export default function AdminAltMatchesPage() {
                       </div>
                       <div className="flex items-center gap-6">
                         <label className="flex flex-col items-center gap-1 cursor-pointer">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${flags[matchId]?.custom_notice ? "text-emerald-600" : "text-gray-400"}`}>Notice</span>
+                          <button
+                            onClick={() => setActiveNoticeMatch(match)}
+                            className={`p-1.5 rounded-lg border transition-colors ${flags[matchId]?.custom_notice ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-white border-gray-200 text-gray-400 hover:text-gray-600"}`}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            </svg>
+                          </button>
+                        </label>
+                        <label className="flex flex-col items-center gap-1 cursor-pointer">
                           <span className={`text-[10px] font-bold uppercase tracking-wider ${isVisible ? "text-emerald-600" : "text-gray-400"}`}>Visible</span>
                           <Toggle on={isVisible} onClick={() => toggleVisible(match)} />
                         </label>
@@ -443,6 +483,26 @@ export default function AdminAltMatchesPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {activeNoticeMatch && (
+        <MatchNoticeModal
+          matchId={`alt-${activeNoticeMatch.home_team_name.replace(/\\s+/g, '')}-${activeNoticeMatch.away_team_name.replace(/\\s+/g, '')}-${activeNoticeMatch.match_time}`}
+          matchTitle={`${activeNoticeMatch.home_team_name} vs ${activeNoticeMatch.away_team_name}`}
+          matchData={{
+            title: `${activeNoticeMatch.home_team_name} vs ${activeNoticeMatch.away_team_name}`,
+            category: activeNoticeMatch.league_name
+          }}
+          currentNotice={flags[`alt-${activeNoticeMatch.home_team_name.replace(/\\s+/g, '')}-${activeNoticeMatch.away_team_name.replace(/\\s+/g, '')}-${activeNoticeMatch.match_time}`]?.custom_notice || ""}
+          onClose={() => setActiveNoticeMatch(null)}
+          onSaved={(newNotice) => {
+            const mId = `alt-${activeNoticeMatch.home_team_name.replace(/\\s+/g, '')}-${activeNoticeMatch.away_team_name.replace(/\\s+/g, '')}-${activeNoticeMatch.match_time}`;
+            setFlags(prev => ({
+              ...prev,
+              [mId]: { ...prev[mId], match_id: mId, custom_notice: newNotice || undefined }
+            }));
+          }}
+        />
       )}
     </div>
   );

@@ -16,7 +16,7 @@ export async function GET() {
       .bind(CONFIG_KEY)
       .first<{ value: string }>();
 
-    let config = { auto_fetch: true, cache_minutes: 30 };
+    let config = { auto_fetch: true, cache_minutes: 30, global_notice: "" };
     if (row && row.value) {
       try {
         config = { ...config, ...JSON.parse(row.value) };
@@ -38,6 +38,7 @@ export async function POST(req: Request) {
     const config = {
       auto_fetch: Boolean(body.auto_fetch ?? true),
       cache_minutes: Number(body.cache_minutes ?? 30),
+      global_notice: body.global_notice || "",
     };
 
     const d1 = await getD1();

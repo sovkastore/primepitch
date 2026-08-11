@@ -17,13 +17,23 @@ function AltWatchContent() {
   const [match, setMatch] = useState<ProMatch | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeServer, setActiveServer] = useState<any>(null);
+  const [customNotice, setCustomNotice] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/pro-matches");
+        const [res, flagsRes] = await Promise.all([
+          fetch("/api/pro-matches"),
+          fetch(`/api/match-flags?t=${Date.now()}`)
+        ]);
+        
         const data = await res.json();
+        const flagsData = await flagsRes.json();
+        
+        if (id && flagsData.notices && flagsData.notices[id]) {
+          setCustomNotice(flagsData.notices[id]);
+        }
         
         let matchList: ProMatch[] = [];
         if (Array.isArray(data)) matchList = data;
@@ -105,6 +115,12 @@ function AltWatchContent() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3">
+          {customNotice && (
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+              <span className="text-xl shrink-0">💡</span>
+              <p className="text-sm text-amber-900 font-medium whitespace-pre-wrap mt-0.5">{customNotice}</p>
+            </div>
+          )}
           <div className="aspect-video bg-black rounded-2xl overflow-hidden shadow-xl relative">
             {activeServer ? (
               activeServer.type === "iframe" || activeServer.url.includes("embed") ? (
