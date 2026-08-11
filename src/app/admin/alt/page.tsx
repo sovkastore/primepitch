@@ -40,6 +40,9 @@ export default function AdminAltMatchesPage() {
   
   const [activeNoticeMatch, setActiveNoticeMatch] = useState<ProMatch | null>(null);
 
+  const [bsdSearchQuery, setBsdSearchQuery] = useState("");
+  const [rapidSearchQuery, setRapidSearchQuery] = useState("");
+
   async function loadData() {
     try {
       const [matchesRes, flagsRes, configRes] = await Promise.all([
@@ -253,8 +256,19 @@ export default function AdminAltMatchesPage() {
     );
   }
 
+  // Filter matches by search query
+  const filteredRapidMatches = matches.filter(match => {
+    if (!rapidSearchQuery) return true;
+    const q = rapidSearchQuery.toLowerCase();
+    return (
+      match.home_team_name?.toLowerCase().includes(q) ||
+      match.away_team_name?.toLowerCase().includes(q) ||
+      match.league_name?.toLowerCase().includes(q)
+    );
+  });
+
   // Group matches by day
-  const matchesByDay = matches.reduce((acc, match) => {
+  const matchesByDay = filteredRapidMatches.reduce((acc, match) => {
     const date = new Date(Number(match.match_time) * 1000).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
     if (!acc[date]) acc[date] = [];
     acc[date].push(match);
@@ -263,6 +277,17 @@ export default function AdminAltMatchesPage() {
 
   // Sort dates so today is first
   const sortedDates = Object.keys(matchesByDay).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+  // Filter BSD fixtures
+  const filteredBsdFixtures = bsdFixtures.filter(fixture => {
+    if (!bsdSearchQuery) return true;
+    const q = bsdSearchQuery.toLowerCase();
+    return (
+      fixture.home_team?.toLowerCase().includes(q) ||
+      fixture.away_team?.toLowerCase().includes(q) ||
+      fixture.league?.name?.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="space-y-10 max-w-5xl">
@@ -276,24 +301,33 @@ export default function AdminAltMatchesPage() {
         </div>
         
         <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <h2 className="text-[14px] font-bold text-gray-900">Select Date</h2>
-            <input 
-              type="date"
-              value={bsdDate}
-              onChange={(e) => setBsdDate(e.target.value)}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
-            />
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+              <input 
+                type="text"
+                placeholder="Search teams or leagues..."
+                value={bsdSearchQuery}
+                onChange={(e) => setBsdSearchQuery(e.target.value)}
+                className="w-full sm:w-64 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+              />
+              <input 
+                type="date"
+                value={bsdDate}
+                onChange={(e) => setBsdDate(e.target.value)}
+                className="w-full sm:w-auto px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+              />
+            </div>
           </div>
           
           <div className="pt-3 border-t border-gray-100">
             {loadingBsd ? (
               <div className="text-center py-8 text-sm text-gray-500">Loading fixtures...</div>
-            ) : bsdFixtures.length === 0 ? (
-              <div className="text-center py-8 text-sm text-gray-500">No fixtures found for this date.</div>
+            ) : filteredBsdFixtures.length === 0 ? (
+              <div className="text-center py-8 text-sm text-gray-500">No fixtures found.</div>
             ) : (
               <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto pr-2">
-                {bsdFixtures.map((fixture) => {
+                {filteredBsdFixtures.map((fixture) => {
                   const matchId = `bsd-${fixture.id}`;
                   const isVisible = flags[matchId]?.alt_visible || false;
                   const time = new Date(fixture.event_date).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
@@ -329,11 +363,20 @@ export default function AdminAltMatchesPage() {
 
       {/* RapidAPI Live Streams Section */}
       <div className="space-y-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Live Streams (RapidAPI)</h1>
-          <p className="text-[13px] text-gray-500 mt-1">
-            Manage the actual streams from the RapidAPI feed. Use "Update Live (1 Request)" when a match is starting to grab the stream link.
-          </p>
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Live Streams (RapidAPI)</h1>
+            <p className="text-[13px] text-gray-500 mt-1">
+              Manage the actual streams from the RapidAPI feed. Use "Update Live (1 Request)" when a match is starting to grab the stream link.
+            </p>
+          </div>
+          <input 
+            type="text"
+            placeholder="Search teams or leagues..."
+            value={rapidSearchQuery}
+            onChange={(e) => setRapidSearchQuery(e.target.value)}
+            className="w-full md:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+          />
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
