@@ -118,6 +118,15 @@ export default function AltPage() {
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-8 min-h-screen">
+      <div className="mb-6 flex items-center">
+        <Link href="/" className="inline-flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-900 transition-colors">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          <span className="font-semibold">Back</span>
+        </Link>
+      </div>
+
       <div className="mb-8">
         <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight flex items-center gap-3">
           Alternative <span className="text-emerald-600">Matches</span>
@@ -189,11 +198,7 @@ export default function AltPage() {
                             </div>
                             
                             <div className="flex flex-col items-center justify-center px-2">
-                              {match.match_status === "live" ? (
-                                <p className="text-lg font-black text-emerald-600">{match.homeTeamScore} - {match.awayTeamScore}</p>
-                              ) : (
-                                <p className="text-[10px] text-gray-400 font-bold uppercase">VS</p>
-                              )}
+                              <p className="text-[10px] text-gray-400 font-bold uppercase">VS</p>
                             </div>
                             
                             {/* Away Team */}
