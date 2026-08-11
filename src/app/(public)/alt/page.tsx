@@ -129,14 +129,14 @@ export default function AltPage() {
               <h2 className="text-lg font-black text-gray-800 uppercase tracking-wider mb-4 border-b border-gray-200 pb-2">{date}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {matchesByDay[date].map((match, i) => {
-                  // Reconstruct index based on original matches array for the watch page routing
-                  const originalIndex = matches.findIndex(m => m === match);
+                  // Reconstruct a stable ID for the watch page instead of relying on array index
+                  const matchId = `alt-${match.home_team_name.replace(/\\s+/g, '')}-${match.away_team_name.replace(/\\s+/g, '')}-${match.match_time}`;
                   const isEnded = match.match_status === "ended";
                   // Mock matches (from BSD) don't have servers yet, so they are not clickable
                   const isMock = match.servers && match.servers.length === 0;
                   const isPlayable = !isEnded && !isMock;
                   const CardWrapper = isPlayable ? Link : "div";
-                  const wrapperProps = isPlayable ? { href: `/alt/watch?idx=${originalIndex}`, className: "block group" } : { className: "block group opacity-75 cursor-default" };
+                  const wrapperProps = isPlayable ? { href: `/alt/watch?id=${matchId}`, className: "block group" } : { className: "block group opacity-75 cursor-default" };
                   
                   return (
                     <CardWrapper 

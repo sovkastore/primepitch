@@ -12,7 +12,7 @@ import { Suspense } from "react";
 
 function AltWatchContent() {
   const searchParams = useSearchParams();
-  const idx = searchParams.get("idx");
+  const id = searchParams.get("id");
   
   const [match, setMatch] = useState<ProMatch | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,10 +31,17 @@ function AltWatchContent() {
         else if (data && Array.isArray(data.data)) matchList = data.data;
         else if (data && Array.isArray(data.results)) matchList = data.results;
         
-        if (idx !== null && matchList[Number(idx)]) {
-          setMatch(matchList[Number(idx)]);
-          if (matchList[Number(idx)].servers && matchList[Number(idx)].servers.length > 0) {
-            setActiveServer(matchList[Number(idx)].servers[0]);
+        if (id) {
+          const targetMatch = matchList.find((m: ProMatch) => {
+            const mId = `alt-${m.home_team_name.replace(/\\s+/g, '')}-${m.away_team_name.replace(/\\s+/g, '')}-${m.match_time}`;
+            return mId === id;
+          });
+          
+          if (targetMatch) {
+            setMatch(targetMatch);
+            if (targetMatch.servers && targetMatch.servers.length > 0) {
+              setActiveServer(targetMatch.servers[0]);
+            }
           }
         }
       } catch (e) {
@@ -44,7 +51,7 @@ function AltWatchContent() {
       }
     }
     load();
-  }, [idx]);
+  }, [id]);
 
   useEffect(() => {
     let hls: Hls | null = null;
