@@ -8,6 +8,7 @@ interface FlagRow {
   match_id: string;
   alt_visible?: boolean;
   force_ended?: boolean;
+  custom_notice?: string;
 }
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
