@@ -69,6 +69,13 @@ export default function Navbar() {
              <div className="text-[14px] text-gray-900">FIFA World Cup 2026</div>
           </Link>
 
+          <Link href="/alt" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-3 rounded-2xl border border-red-50 bg-red-50/50">
+             <span className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0 text-red-500 shadow-sm">
+               <span className="text-xl">🔥</span>
+             </span>
+             <div className="text-[14px] font-bold text-red-700">Big Games</div>
+          </Link>
+
           <Link href="/help" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-3 rounded-2xl border border-gray-50 bg-white">
              <span className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 text-gray-400">
                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>

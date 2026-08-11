@@ -25,11 +25,42 @@ export default function MatchNoticeModal({
   onClose: () => void;
   onSaved: (notice: string | null) => void;
 }) {
-  const [notice, setNotice] = useState(currentNotice);
+  let initialText = currentNotice;
+  let initialUrl = "";
+  let initialLinkText = "";
+  if (currentNotice) {
+    try {
+      if (currentNotice.startsWith("{")) {
+        const parsed = JSON.parse(currentNotice);
+        initialText = parsed.text || "";
+        initialUrl = parsed.linkUrl || "";
+        initialLinkText = parsed.linkText || "";
+      }
+    } catch {
+      // It's a plain string
+    }
+  }
+
+  const [notice, setNotice] = useState(initialText);
+  const [linkUrl, setLinkUrl] = useState(initialUrl);
+  const [linkText, setLinkText] = useState(initialLinkText);
   const [saving, setSaving] = useState(false);
 
   async function handleSave(newNotice: string | null) {
     setSaving(true);
+    let finalNoticeToSave: string | null = null;
+    if (newNotice) {
+      if (linkUrl.trim()) {
+        finalNoticeToSave = JSON.stringify({
+          text: newNotice.trim(),
+          linkUrl: linkUrl.trim(),
+          linkText: linkText.trim() || "Click Here"
+        });
+      } else {
+        finalNoticeToSave = newNotice.trim();
+      }
+    }
+
     try {
       await fetch("/api/admin/match-flags", {
         method: "POST",
@@ -37,10 +68,10 @@ export default function MatchNoticeModal({
         body: JSON.stringify({
           match_id: matchId,
           match_data: matchData,
-          custom_notice: newNotice ? newNotice.trim() : null,
+          custom_notice: finalNoticeToSave,
         }),
       });
-      onSaved(newNotice ? newNotice.trim() : null);
+      onSaved(finalNoticeToSave);
       onClose();
     } catch {
       alert("Failed to save notice. Please try again.");
@@ -98,6 +129,35 @@ export default function MatchNoticeModal({
             autoFocus
             className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all placeholder:text-gray-400"
           />
+        </div>
+
+        {/* Button Fields */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider">
+              Button URL (Optional)
+            </label>
+            <input
+              type="url"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://t.me/..."
+              className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all placeholder:text-gray-400"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider">
+              Button Text
+            </label>
+            <input
+              type="text"
+              value={linkText}
+              onChange={(e) => setLinkText(e.target.value)}
+              placeholder="e.g. Join Telegram"
+              disabled={!linkUrl.trim()}
+              className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all placeholder:text-gray-400 disabled:opacity-50"
+            />
+          </div>
         </div>
 
         {/* Quick Presets */}

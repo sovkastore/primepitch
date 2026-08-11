@@ -526,6 +526,22 @@ export default function WatchPage() {
     } catch {}
   }
 
+  let noticeText = matchNotice || "";
+  let noticeLink = "";
+  let noticeLinkText = "";
+  if (matchNotice) {
+    try {
+      if (matchNotice.startsWith("{")) {
+        const parsed = JSON.parse(matchNotice);
+        noticeText = parsed.text || "";
+        noticeLink = parsed.linkUrl || "";
+        noticeLinkText = parsed.linkText || "";
+      }
+    } catch {
+      // It's a plain string
+    }
+  }
+
   return (
     <div className="pb-20 md:pb-0">
       {/* Top bar */}
@@ -541,21 +557,33 @@ export default function WatchPage() {
       {/* Video player (live) OR Match card (upcoming) */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
         {/* Custom Admin Match Recommendation / Notice */}
-        {matchNotice && !isEnded && (
-          <div className="mb-3.5 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-400/50 shadow-sm flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0 text-amber-800">
-              <span className="text-base">💡</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded bg-amber-500 text-white shadow-xs">
-                  Recommendation
-                </span>
+        {noticeText && !isEnded && (
+          <div className="mb-3.5 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-400/50 shadow-sm flex items-center gap-3 flex-wrap">
+            <div className="flex-1 min-w-0 flex items-start gap-3">
+              <div className="w-8 h-8 mt-0.5 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0 text-amber-800">
+                <span className="text-base">💡</span>
               </div>
-              <p className="text-[13px] font-bold text-gray-900 leading-snug">
-                {matchNotice}
-              </p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded bg-amber-500 text-white shadow-xs">
+                    Recommendation
+                  </span>
+                </div>
+                <p className="text-[13px] font-bold text-gray-900 leading-snug whitespace-pre-wrap">
+                  {noticeText}
+                </p>
+              </div>
             </div>
+            {noticeLink && (
+              <a
+                href={noticeLink}
+                target={noticeLink.startsWith("http") ? "_blank" : undefined}
+                rel={noticeLink.startsWith("http") ? "noopener noreferrer" : undefined}
+                className="shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-[12px] font-black tracking-wide uppercase rounded-xl shadow-sm transition-colors"
+              >
+                {noticeLinkText || "Click Here"}
+              </a>
+            )}
           </div>
         )}
 
