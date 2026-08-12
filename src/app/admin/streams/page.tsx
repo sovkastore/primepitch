@@ -309,7 +309,7 @@ export default function StreamsManagerPage() {
                 <button onClick={() => toggleExpand(e)} className="w-full px-4 py-3 flex items-center gap-3 text-left">
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     {t?.home?.badge && <img src={getBadgeUrl(t.home.badge)} alt="" className="w-6 h-6 object-contain shrink-0" />}
-                    <span className="text-[13px] font-bold text-gray-900 truncate">
+                    <span className="text-[13px] font-bold text-gray-900 line-clamp-2">
                       {t?.home && t?.away ? `${t.home.name} vs ${t.away.name}` : e.match.title}
                     </span>
                     {t?.away?.badge && <img src={getBadgeUrl(t.away.badge)} alt="" className="w-6 h-6 object-contain shrink-0" />}

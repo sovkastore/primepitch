@@ -335,7 +335,7 @@ export default function AdminAltMatchesPage() {
                   return (
                     <div key={fixture.id} className={`py-3 flex items-center justify-between transition-colors ${isVisible ? "bg-emerald-50/30" : "hover:bg-gray-50"}`}>
                       <div className="flex-1 min-w-0 pr-4">
-                        <div className="text-[14px] font-bold text-gray-900 truncate mb-1">
+                        <div className="text-[14px] font-bold text-gray-900 line-clamp-2 mb-1">
                           {fixture.home_team} vs {fixture.away_team}
                         </div>
                         <div className="text-[12px] text-gray-500 flex items-center gap-2">
@@ -481,16 +481,16 @@ export default function AdminAltMatchesPage() {
                   const time = new Date(Number(match.match_time) * 1000).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
                   return (
-                    <div key={i} className={`p-4 flex items-center justify-between transition-colors ${isVisible ? "bg-emerald-50/30" : "hover:bg-gray-50"}`}>
-                      <div className="flex-1 min-w-0 pr-4">
+                    <div key={i} className={`p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between transition-colors ${isVisible ? "bg-emerald-50/30" : "hover:bg-gray-50"}`}>
+                      <div className="flex-1 min-w-0 sm:pr-4">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[14px] font-bold text-gray-900 truncate">
+                          <span className="text-[14px] font-bold text-gray-900 line-clamp-2">
                             {match.home_team_name} vs {match.away_team_name}
                           </span>
                           {match.match_status === "live" ? (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 uppercase tracking-wider">Live</span>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 uppercase tracking-wider shrink-0">Live</span>
                           ) : (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase tracking-wider">Upcoming</span>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase tracking-wider shrink-0">Upcoming</span>
                           )}
                         </div>
                         <div className="text-[12px] text-gray-500 flex items-center gap-2">
