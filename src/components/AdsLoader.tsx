@@ -78,6 +78,7 @@ function getCurrentPageId(path: string): string {
   if (path === "/") return "home";
   if (path.startsWith("/watch/tv-")) return "tv_channels";
   if (path.startsWith("/watch/")) return "watch";
+  if (path === "/alt" || path.startsWith("/alt/")) return "alt";
   if (path.startsWith("/league/")) return "leagues";
   if (path === "/tv-channels" || path === "/tv-channels/") return "tv_channels";
   const found = PAGE_MAP.find(p => path === p.path || path === p.path + "/");
