@@ -1,7 +1,11 @@
 name = "primepitch"
-main = ".open-next/worker.js"
+main = "worker.js"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+# Every minute: auto-live kickoff check. 05:00 UTC (06:00 WAT): daily big-game picker.
+crons = ["* * * * *", "0 5 * * *"]
 
 [assets]
 directory = ".open-next/assets"

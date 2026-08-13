@@ -12,6 +12,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
     "@google-analytics/data": "^6.1.0",
     "@next/third-parties": "^16.2.11",
     "@opennextjs/cloudflare": "^1.20.2",

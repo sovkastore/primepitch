@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ProMatch } from "@/app/(public)/alt/page";
 import MatchNoticeModal from "@/components/admin/MatchNoticeModal";
+import AutoLivePanel from "@/components/admin/AutoLivePanel";
 
 interface FlagRow {
   match_id: string;
@@ -291,6 +292,10 @@ export default function AdminAltMatchesPage() {
 
   return (
     <div className="space-y-10 max-w-5xl">
+      <AutoLivePanel />
+
+      <hr className="border-gray-200 border-2 rounded" />
+
       {/* BSD Upcoming Fixtures Section */}
       <div className="space-y-4">
         <div>
