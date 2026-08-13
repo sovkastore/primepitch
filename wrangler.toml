@@ -4,8 +4,9 @@ compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
 [triggers]
-# Every minute: auto-live kickoff check. 05:00 UTC (06:00 WAT): daily big-game picker.
-crons = ["* * * * *", "0 5 * * *"]
+# Every minute: auto-live kickoff check. 00:00 UTC (01:00 WAT): daily big-game
+# picker — right after midnight, so the new day's games are set as the date changes.
+crons = ["* * * * *", "0 0 * * *"]
 
 [assets]
 directory = ".open-next/assets"

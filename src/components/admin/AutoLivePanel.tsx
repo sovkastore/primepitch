@@ -225,9 +225,9 @@ export default function AutoLivePanel() {
           <div>
             <h2 className="text-[15px] font-bold text-gray-900">📅 Daily Big-Game Picker</h2>
             <p className="text-[12px] text-gray-500 mt-0.5">
-              Every morning (6:00 AM) the AI reads today&apos;s BSD fixtures and activates every
-              match that fits your rules — no maximum. Turn off any pick you don&apos;t want; it
-              stays off.
+              Runs automatically just after midnight: the AI reads the new day&apos;s BSD fixtures
+              and activates every match that fits your rules — no maximum. Turn off any pick you
+              don&apos;t want; it stays off.
             </p>
           </div>
           <label className="flex items-center gap-2 text-[12px] font-semibold text-gray-600 cursor-pointer">
