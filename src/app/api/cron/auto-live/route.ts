@@ -3,7 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getD1 } from "@/lib/d1";
 import { setMatchFlag } from "@/lib/match-flags";
 import { findAiMatch } from "@/lib/ai-match";
-import { findDeterministicMatch, type CandidateMatch } from "@/lib/team-match";
+import { findDeterministicMatch, namesMatch, normalizeTeamName, type CandidateMatch } from "@/lib/team-match";
 
 // Auto-live robot: runs every minute via the Cloudflare cron trigger.
 // For every admin-activated BSD fixture past kickoff, it makes ONE RapidAPI
@@ -24,9 +24,38 @@ interface RapidMatch {
   home_team_name: string;
   away_team_name: string;
   match_time: string | number;
+  match_status?: string;
   league_name?: string;
   home_team_logo?: string;
   away_team_logo?: string;
+  servers?: unknown[];
+}
+
+// The feed sometimes lists one real match under several entries (different
+// name spellings/languages) where only one carries stream servers. Given a
+// matched entry, return the same-teams sibling with the most streams.
+function bestVariantIndex(matches: RapidMatch[], idx: number): number {
+  const norm = (m: RapidMatch) => ({
+    h: normalizeTeamName(m.home_team_name || ""),
+    a: normalizeTeamName(m.away_team_name || ""),
+    t: Number(m.match_time || 0),
+  });
+  const score = (m: RapidMatch) =>
+    ((m.servers?.length ?? 0) > 0 ? 1000 : 0) +
+    (m.servers?.length ?? 0) +
+    (m.match_status === "live" ? 500 : 0);
+  const target = norm(matches[idx]);
+  let best = idx;
+  for (let i = 0; i < matches.length; i++) {
+    if (i === best) continue;
+    const c = norm(matches[i]);
+    const sameTeams =
+      (namesMatch(target.h, c.h) && namesMatch(target.a, c.a)) ||
+      (namesMatch(target.h, c.a) && namesMatch(target.a, c.h));
+    const sameWindow = !target.t || !c.t || Math.abs(target.t - c.t) <= 3 * 3600;
+    if (sameTeams && sameWindow && score(matches[i]) > score(matches[best])) best = i;
+  }
+  return best;
 }
 
 async function ensureTable(d1: D1Database) {
@@ -333,8 +362,11 @@ export async function GET(req: Request) {
       continue;
     }
 
-    // 5) The swap: live match visible, BSD fixture hidden
-    const m = matches[matchedIndex];
+    // 5) The swap: live match visible, BSD fixture hidden. If the feed lists
+    // the same match under several entries, publish the copy with streams.
+    const finalIndex = bestVariantIndex(matches, matchedIndex);
+    if (finalIndex !== matchedIndex) detail += " → switched to the copy carrying streams";
+    const m = matches[finalIndex];
     const altId = `alt-${m.home_team_name.replace(/\s+/g, "")}-${m.away_team_name.replace(/\s+/g, "")}-${m.match_time}`;
     await setMatchFlag(d1, altId, true, {
       title: `${m.home_team_name} vs ${m.away_team_name}`,

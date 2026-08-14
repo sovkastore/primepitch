@@ -27,7 +27,7 @@ export function normalizeTeamName(name: string): string {
     .trim();
 }
 
-function namesMatch(a: string, b: string): boolean {
+export function namesMatch(a: string, b: string): boolean {
   if (!a || !b) return false;
   if (a === b) return true;
   // Containment for partial names ("tobol" vs "tobol kostanay")
