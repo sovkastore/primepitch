@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
+import { countRapidRequest } from "@/lib/rapid-count";
 
 const RAPID_API_HOST = "football-live-streaming-api.p.rapidapi.com";
 let currentKeyIndex = 0;
@@ -100,8 +101,9 @@ export async function GET(req: Request) {
           }
         };
         
+        await countRapidRequest("visitor cache");
         const res = await fetch(url, pageOptions);
-        
+
         // If success or a non-quota error, break out and process
         if (res.ok) {
           const data = await res.json();

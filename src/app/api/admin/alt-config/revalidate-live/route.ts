@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getD1 } from "@/lib/d1";
+import { countRapidRequest } from "@/lib/rapid-count";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export async function POST() {
     
     // Try keys until one works
     for (const apiKey of RAPID_API_KEYS) {
+      await countRapidRequest("manual button");
       const res = await fetch(`https://${RAPID_API_HOST}/matches?page=1`, {
         headers: {
           "x-rapidapi-host": RAPID_API_HOST,

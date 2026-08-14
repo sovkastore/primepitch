@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getD1 } from "@/lib/d1";
+import { countRapidRequest } from "@/lib/rapid-count";
 import { setMatchFlag } from "@/lib/match-flags";
 import { findAiMatch } from "@/lib/ai-match";
 import { findDeterministicMatch, namesMatch, normalizeTeamName, type CandidateMatch } from "@/lib/team-match";
@@ -80,13 +81,14 @@ async function ensureTable(d1: D1Database) {
   }
 }
 
-async function fetchRapidMatches(): Promise<RapidMatch[] | null> {
+async function fetchRapidMatches(source: string): Promise<RapidMatch[] | null> {
   const keys = (process.env.RAPID_API_KEYS || process.env.RAPID_API_KEY || "")
     .split(",")
     .map((k) => k.trim())
     .filter(Boolean);
   for (const apiKey of keys) {
     try {
+      await countRapidRequest(source);
       const res = await fetch(`https://${RAPID_API_HOST}/matches?page=1`, {
         headers: { "x-rapidapi-host": RAPID_API_HOST, "x-rapidapi-key": apiKey },
       });
@@ -166,7 +168,7 @@ async function refreshLiveStreams(
     return { live: live.length, refreshed: false, cacheAgeSeconds: Math.round(ageMs / 1000) };
   }
 
-  const matches = await fetchRapidMatches();
+  const matches = await fetchRapidMatches("live refresh");
   if (!matches) return { live: live.length, refreshed: false, error: "RapidAPI unavailable" };
   await saveMatchesCache(d1, matches);
 
@@ -294,7 +296,7 @@ export async function GET(req: Request) {
   }
 
   // 3) The ONE RapidAPI request, shared by all due fixtures and all visitors
-  const matches = await fetchRapidMatches();
+  const matches = await fetchRapidMatches("robot kickoff");
   if (!matches) {
     for (const f of due) {
       await logState(d1, f.matchId, {

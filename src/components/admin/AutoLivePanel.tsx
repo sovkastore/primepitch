@@ -55,6 +55,7 @@ export default function AutoLivePanel() {
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
 
+  const [usage, setUsage] = useState<{ total: number; bySource: Record<string, number> } | null>(null);
   const [refreshMinutes, setRefreshMinutes] = useState(5);
   const [savingRefresh, setSavingRefresh] = useState(false);
   const [refreshSaved, setRefreshSaved] = useState(false);
@@ -87,6 +88,13 @@ export default function AutoLivePanel() {
       const res = await fetch("/api/admin/alt-config");
       const data = await res.json();
       if (Number(data.live_refresh_minutes) > 0) setRefreshMinutes(Number(data.live_refresh_minutes));
+    } catch {
+      /* ignore */
+    }
+    try {
+      const res = await fetch("/api/admin/rapid-usage");
+      const data = await res.json();
+      setUsage(data.today || null);
     } catch {
       /* ignore */
     }
@@ -208,6 +216,22 @@ export default function AutoLivePanel() {
                 </span>
               </>
             )}
+          </div>
+        )}
+
+        {usage && (
+          <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center gap-2">
+            <span className="text-[12px] font-semibold text-gray-600">📊 RapidAPI requests today:</span>
+            <span
+              className={`text-[13px] font-black ${usage.total > 200 ? "text-red-600" : usage.total > 125 ? "text-amber-600" : "text-emerald-600"}`}
+            >
+              {usage.total} / 250
+            </span>
+            {Object.entries(usage.bySource).map(([source, n]) => (
+              <span key={source} className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                {source}: {n}
+              </span>
+            ))}
           </div>
         )}
 
