@@ -5,16 +5,19 @@ import { countRapidRequest } from "@/lib/rapid-count";
 import { setMatchFlag } from "@/lib/match-flags";
 import { findAiMatch } from "@/lib/ai-match";
 import { findDeterministicMatch, namesMatch, normalizeTeamName, type CandidateMatch } from "@/lib/team-match";
+import { saveMatchesCache } from "@/lib/match-cache";
 
 // Auto-live robot: runs every minute via the Cloudflare cron trigger.
-// For every admin-activated BSD fixture past kickoff, it makes ONE RapidAPI
-// request, finds the matching live stream (Claude first, name-rules fallback),
-// makes it visible on /alt and hides the upcoming fixture.
+// For every admin-activated BSD fixture past kickoff, it deep-scans the paged
+// RapidAPI feed (page by page, only as deep as needed, max 5 pages), finds the
+// matching live stream (Claude first, name-rules fallback), makes it visible
+// on /alt and hides the upcoming fixture. A completed scan that finds nothing
+// is proof the match isn't in the feed — no retry loop.
 export const dynamic = "force-dynamic";
 
 const KICKOFF_OFFSET_MS = 30_000; // ask 30s after kickoff
-const MAX_ATTEMPTS = 8; // ~8 minutes of retries, then leave it for the admin
-const ACCEPT_MEDIUM_AFTER = 3; // early attempts require high AI confidence
+const MAX_SCAN_PAGES = 5; // deepest we'll scan the paged feed (1 request per page)
+const PAGE_SIZE = 20; // a page shorter than this means the list ended
 const LIVE_WINDOW_MINUTES = 130; // kickoff → ~full match incl. stoppage
 const DEFAULT_REFRESH_MINUTES = 5; // shared stream refresh while anything is live
 const EXPIRE_MINUTES = 150; // hide upcoming cards this long after kickoff — match is over
@@ -81,7 +84,7 @@ async function ensureTable(d1: D1Database) {
   }
 }
 
-async function fetchRapidMatches(source: string): Promise<RapidMatch[] | null> {
+async function fetchRapidPage(source: string, page: number): Promise<RapidMatch[] | null> {
   const keys = (process.env.RAPID_API_KEYS || process.env.RAPID_API_KEY || "")
     .split(",")
     .map((k) => k.trim())
@@ -89,7 +92,7 @@ async function fetchRapidMatches(source: string): Promise<RapidMatch[] | null> {
   for (const apiKey of keys) {
     try {
       await countRapidRequest(source);
-      const res = await fetch(`https://${RAPID_API_HOST}/matches?page=1`, {
+      const res = await fetch(`https://${RAPID_API_HOST}/matches?page=${page}`, {
         headers: { "x-rapidapi-host": RAPID_API_HOST, "x-rapidapi-key": apiKey },
       });
       if (!res.ok) continue;
@@ -105,16 +108,6 @@ async function fetchRapidMatches(source: string): Promise<RapidMatch[] | null> {
     }
   }
   return null;
-}
-
-async function saveMatchesCache(d1: D1Database, matches: RapidMatch[]) {
-  await d1
-    .prepare(
-      `INSERT INTO d1_pro_matches_cache (id, data, updated_at) VALUES (?, ?, ?)
-       ON CONFLICT (id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`
-    )
-    .bind("matches_cache", JSON.stringify(matches), Date.now())
-    .run();
 }
 
 // One shared refresh for ALL currently-live matches: while any converted match
@@ -168,7 +161,7 @@ async function refreshLiveStreams(
     return { live: live.length, refreshed: false, cacheAgeSeconds: Math.round(ageMs / 1000) };
   }
 
-  const matches = await fetchRapidMatches("live refresh");
+  const matches = await fetchRapidPage("live refresh", 1);
   if (!matches) return { live: live.length, refreshed: false, error: "RapidAPI unavailable" };
   await saveMatchesCache(d1, matches);
 
@@ -229,8 +222,8 @@ export async function GET(req: Request) {
     away: string;
     kickoff: number;
     league?: string;
-    attempts: number;
     targetMs: number;
+    held?: { index: number; detail: string };
   };
   const due: Due[] = [];
 
@@ -259,17 +252,6 @@ export async function GET(req: Request) {
     if (st && (st.status === "converted" || st.status === "given_up")) continue;
     if (!meta.home_team_name || !meta.away_team_name || !kickoff) continue;
 
-    const attempts = st?.attempts ?? 0;
-    if (attempts >= MAX_ATTEMPTS) {
-      await logState(d1, row.match_id, {
-        title: meta.title || row.match_id,
-        kickoff,
-        status: "given_up",
-        detail: `No stream found after ${attempts} attempts — left for manual handling`,
-      });
-      continue;
-    }
-
     const targetMs = kickoff * 1000 + KICKOFF_OFFSET_MS;
     // Due now, or due within this cron tick (we'll wait for the 30s offset)
     if (now >= targetMs || targetMs - now < 55_000) {
@@ -279,7 +261,6 @@ export async function GET(req: Request) {
         away: meta.away_team_name,
         kickoff,
         league: meta.category,
-        attempts,
         targetMs,
       });
     }
@@ -297,80 +278,21 @@ export async function GET(req: Request) {
     await new Promise((r) => setTimeout(r, Math.min(latestTarget - Date.now(), 55_000)));
   }
 
-  // 3) The ONE RapidAPI request, shared by all due fixtures and all visitors
-  const matches = await fetchRapidMatches("robot kickoff");
-  if (!matches) {
-    for (const f of due) {
-      await logState(d1, f.matchId, {
-        title: `${f.home} vs ${f.away}`,
-        kickoff: f.kickoff,
-        status: "pending",
-        attempts: f.attempts + 1,
-        detail: "RapidAPI request failed — will retry",
-      });
-    }
-    return NextResponse.json({ ok: false, error: "RapidAPI unavailable" }, { status: 502 });
-  }
-  await saveMatchesCache(d1, matches);
-
-  const candidates: CandidateMatch[] = matches.map((m, index) => ({
-    index,
-    home: m.home_team_name || "",
-    away: m.away_team_name || "",
-    matchTime: Number(m.match_time || 0),
-  }));
-
-  // 4) Match each due fixture: Claude first, rules fallback
+  // 3) Deep scan: fetch the paged feed only as deep as needed (max 5 pages).
+  // A completed scan with no match is proof the fixture isn't in the feed.
+  let pending: Due[] = [...due];
+  const all: RapidMatch[] = [];
+  let pagesFetched = 0;
+  let feedEnded = false;
+  let apiFailed = false;
   const outcomes: object[] = [];
-  for (const f of due) {
-    let matchedIndex: number | null = null;
-    let method = "ai";
-    let detail = "";
 
-    try {
-      const ai = await findAiMatch(
-        { home: f.home, away: f.away, kickoff: f.kickoff, league: f.league },
-        candidates
-      );
-      const accept =
-        ai.confidence === "high" || (ai.confidence === "medium" && f.attempts >= ACCEPT_MEDIUM_AFTER);
-      matchedIndex = accept ? ai.index : null;
-      detail =
-        ai.index === null
-          ? `AI found no match in feed (${ai.inputTokens}+${ai.outputTokens} tokens)`
-          : accept
-            ? `AI matched with ${ai.confidence} confidence (${ai.inputTokens}+${ai.outputTokens} tokens)`
-            : `AI match rejected: ${ai.confidence} confidence too low`;
-    } catch (e: unknown) {
-      method = "rules";
-      matchedIndex = findDeterministicMatch(
-        { home: f.home, away: f.away, kickoff: f.kickoff },
-        candidates
-      );
-      const reason = (e instanceof Error ? e.message : String(e)).slice(0, 120);
-      detail = `AI unavailable (${reason}) — rules fallback ${
-        matchedIndex === null ? "found no match" : "matched"
-      }`;
-    }
-
-    if (matchedIndex === null) {
-      await logState(d1, f.matchId, {
-        title: `${f.home} vs ${f.away}`,
-        kickoff: f.kickoff,
-        status: "pending",
-        attempts: f.attempts + 1,
-        method,
-        detail,
-      });
-      outcomes.push({ fixture: f.matchId, matched: false, method, detail });
-      continue;
-    }
-
-    // 5) The swap: live match visible, BSD fixture hidden. If the feed lists
-    // the same match under several entries, publish the copy with streams.
-    const finalIndex = bestVariantIndex(matches, matchedIndex);
+  const convert = async (f: Due, matchedIndex: number, method: string, detail: string) => {
+    // If the feed lists the same match under several entries, publish the
+    // copy carrying streams.
+    const finalIndex = bestVariantIndex(all, matchedIndex);
     if (finalIndex !== matchedIndex) detail += " → switched to the copy carrying streams";
-    const m = matches[finalIndex];
+    const m = all[finalIndex];
     const altId = `alt-${m.home_team_name.replace(/\s+/g, "")}-${m.away_team_name.replace(/\s+/g, "")}-${m.match_time}`;
     await setMatchFlag(d1, altId, true, {
       title: `${m.home_team_name} vs ${m.away_team_name}`,
@@ -381,12 +303,99 @@ export async function GET(req: Request) {
       title: `${f.home} vs ${f.away}`,
       kickoff: f.kickoff,
       status: "converted",
-      attempts: f.attempts + 1,
+      attempts: pagesFetched,
       method,
       detail: `${detail} → live as ${altId}`,
       live_id: altId,
     });
     outcomes.push({ fixture: f.matchId, matched: true, live: altId, method });
+  };
+
+  while (pending.length > 0 && pagesFetched < MAX_SCAN_PAGES && !feedEnded && !apiFailed) {
+    const batch = await fetchRapidPage("robot kickoff", pagesFetched + 1);
+    if (batch === null) {
+      apiFailed = true;
+      break;
+    }
+    pagesFetched++;
+    all.push(...batch);
+    if (batch.length < PAGE_SIZE) feedEnded = true;
+
+    const candidates: CandidateMatch[] = all.map((m, index) => ({
+      index,
+      home: m.home_team_name || "",
+      away: m.away_team_name || "",
+      matchTime: Number(m.match_time || 0),
+    }));
+
+    const stillPending: Due[] = [];
+    for (const f of pending) {
+      try {
+        const ai = await findAiMatch(
+          { home: f.home, away: f.away, kickoff: f.kickoff, league: f.league },
+          candidates
+        );
+        if (ai.index !== null && ai.confidence === "high") {
+          await convert(
+            f,
+            ai.index,
+            "ai",
+            `AI matched with high confidence on page ${pagesFetched} (${ai.inputTokens}+${ai.outputTokens} tokens)`
+          );
+        } else if (ai.index !== null && ai.confidence === "medium") {
+          // Hold the medium match — a deeper page may yield a high-confidence
+          // one; accepted after the scan completes otherwise.
+          f.held = {
+            index: ai.index,
+            detail: `AI matched with medium confidence on page ${pagesFetched} (${ai.inputTokens}+${ai.outputTokens} tokens)`,
+          };
+          stillPending.push(f);
+        } else {
+          stillPending.push(f);
+        }
+      } catch (e: unknown) {
+        const idx = findDeterministicMatch(
+          { home: f.home, away: f.away, kickoff: f.kickoff },
+          candidates
+        );
+        if (idx !== null) {
+          const reason = (e instanceof Error ? e.message : String(e)).slice(0, 120);
+          await convert(f, idx, "rules", `AI unavailable (${reason}) — rules fallback matched on page ${pagesFetched}`);
+        } else {
+          stillPending.push(f);
+        }
+      }
+    }
+    pending = stillPending;
+  }
+
+  if (all.length > 0) await saveMatchesCache(d1, all);
+
+  // Scan finished: accept held medium-confidence matches; anything else has
+  // been proven absent from the (scanned) feed — no retry loop.
+  for (const f of pending) {
+    if (f.held) {
+      await convert(f, f.held.index, "ai", `${f.held.detail} — accepted after full scan`);
+      continue;
+    }
+    if (apiFailed) {
+      await logState(d1, f.matchId, {
+        title: `${f.home} vs ${f.away}`,
+        kickoff: f.kickoff,
+        status: "pending",
+        detail: "RapidAPI request failed mid-scan — will retry next minute",
+      });
+      outcomes.push({ fixture: f.matchId, matched: false, retry: true });
+      continue;
+    }
+    await logState(d1, f.matchId, {
+      title: `${f.home} vs ${f.away}`,
+      kickoff: f.kickoff,
+      status: "given_up",
+      attempts: pagesFetched,
+      detail: `Not in the feed — scanned ${pagesFetched} page${pagesFetched === 1 ? "" : "s"} (${all.length} matches${feedEnded ? ", full list" : ""}) — left for manual handling`,
+    });
+    outcomes.push({ fixture: f.matchId, matched: false });
   }
 
   try {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 import { countRapidRequest } from "@/lib/rapid-count";
+import { saveMatchesCache } from "@/lib/match-cache";
 
 const RAPID_API_HOST = "football-live-streaming-api.p.rapidapi.com";
 let currentKeyIndex = 0;
@@ -135,14 +136,11 @@ export async function GET(req: Request) {
     const page1 = await fetchPage(1);
     const allMatches = [...page1];
 
-    // [ROBUST CACHING] Save new data to D1 database!
+    // [ROBUST CACHING] Save new data to D1 (preserves live matches from
+    // deeper feed pages so their watch pages keep working)
     if (d1 && allMatches.length > 0) {
       try {
-        await d1.prepare(`
-          INSERT INTO d1_pro_matches_cache (id, data, updated_at) 
-          VALUES (?, ?, ?) 
-          ON CONFLICT (id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
-        `).bind("matches_cache", JSON.stringify(allMatches), Date.now()).run();
+        await saveMatchesCache(d1, allMatches);
         console.log(`[Cache Write] Saved ${allMatches.length} matches to D1 database.`);
       } catch(e) {
         console.error("Failed to save matches cache to D1:", e);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getD1 } from "@/lib/d1";
 import { countRapidRequest } from "@/lib/rapid-count";
+import { saveMatchesCache } from "@/lib/match-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -46,15 +47,11 @@ export async function POST() {
       }
     }
 
-    // Save to D1 Database Cache
+    // Save to D1 Database Cache (preserves live matches from deeper feed pages)
     try {
       const d1 = await getD1();
       if (d1 && matches.length > 0) {
-        await d1.prepare(`
-          INSERT INTO d1_pro_matches_cache (id, data, updated_at) 
-          VALUES (?, ?, ?) 
-          ON CONFLICT (id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
-        `).bind("matches_cache", JSON.stringify(matches), Date.now()).run();
+        await saveMatchesCache(d1, matches);
       }
     } catch(e) {
       console.error("Failed to update D1 cache:", e);
