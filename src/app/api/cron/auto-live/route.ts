@@ -284,6 +284,7 @@ export async function GET(req: Request) {
   const all: RapidMatch[] = [];
   let pagesFetched = 0;
   let feedEnded = false;
+  let pastLiveSection = false;
   let apiFailed = false;
   const outcomes: object[] = [];
 
@@ -311,7 +312,7 @@ export async function GET(req: Request) {
     outcomes.push({ fixture: f.matchId, matched: true, live: altId, method });
   };
 
-  while (pending.length > 0 && pagesFetched < MAX_SCAN_PAGES && !feedEnded && !apiFailed) {
+  while (pending.length > 0 && pagesFetched < MAX_SCAN_PAGES && !feedEnded && !pastLiveSection && !apiFailed) {
     const batch = await fetchRapidPage("robot kickoff", pagesFetched + 1);
     if (batch === null) {
       apiFailed = true;
@@ -320,6 +321,11 @@ export async function GET(req: Request) {
     pagesFetched++;
     all.push(...batch);
     if (batch.length < PAGE_SIZE) feedEnded = true;
+    // The provider lists ALL live matches before ALL upcoming ones. A page
+    // with zero live entries means we're past the live section — a match
+    // that already kicked off can't appear on any later page. We still
+    // process this page (it holds the earliest upcoming entries), then stop.
+    if (!batch.some((m) => m.match_status === "live")) pastLiveSection = true;
 
     const candidates: CandidateMatch[] = all.map((m, index) => ({
       index,
@@ -393,7 +399,7 @@ export async function GET(req: Request) {
       kickoff: f.kickoff,
       status: "given_up",
       attempts: pagesFetched,
-      detail: `Not in the feed — scanned ${pagesFetched} page${pagesFetched === 1 ? "" : "s"} (${all.length} matches${feedEnded ? ", full list" : ""}) — left for manual handling`,
+      detail: `Not in the feed — scanned ${pagesFetched} page${pagesFetched === 1 ? "" : "s"} (${all.length} matches${feedEnded ? ", full list" : pastLiveSection ? ", covered the whole live section" : ""}) — left for manual handling`,
     });
     outcomes.push({ fixture: f.matchId, matched: false });
   }
