@@ -16,6 +16,7 @@ const MAX_ATTEMPTS = 8; // ~8 minutes of retries, then leave it for the admin
 const ACCEPT_MEDIUM_AFTER = 3; // early attempts require high AI confidence
 const LIVE_WINDOW_MINUTES = 130; // kickoff → ~full match incl. stoppage
 const DEFAULT_REFRESH_MINUTES = 5; // shared stream refresh while anything is live
+const EXPIRE_MINUTES = 150; // hide upcoming cards this long after kickoff — match is over
 
 const RAPID_API_HOST = "football-live-streaming-api.p.rapidapi.com";
 
@@ -203,16 +204,28 @@ export async function GET(req: Request) {
   const due: Due[] = [];
 
   for (const row of flagRows ?? []) {
-    const st = state.get(row.match_id);
-    if (st && (st.status === "converted" || st.status === "given_up")) continue;
-
-    let meta: { home_team_name?: string; away_team_name?: string; match_time?: string; category?: string } = {};
+    let meta: { home_team_name?: string; away_team_name?: string; match_time?: string; category?: string; title?: string } = {};
     try {
       meta = JSON.parse(row.match_data || "{}");
     } catch {
       /* ignore */
     }
     const kickoff = Number(meta.match_time || 0);
+
+    // Match long over (converted or not): remove the stale upcoming card
+    if (kickoff && now > (kickoff + EXPIRE_MINUTES * 60) * 1000) {
+      await setMatchFlag(d1, row.match_id, false);
+      await logState(d1, row.match_id, {
+        title: meta.title || row.match_id,
+        kickoff,
+        status: "expired",
+        detail: "Match over — upcoming card removed automatically",
+      });
+      continue;
+    }
+
+    const st = state.get(row.match_id);
+    if (st && (st.status === "converted" || st.status === "given_up")) continue;
     if (!meta.home_team_name || !meta.away_team_name || !kickoff) continue;
 
     const attempts = st?.attempts ?? 0;

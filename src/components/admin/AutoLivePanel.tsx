@@ -47,6 +47,7 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-100 text-amber-700",
   given_up: "bg-red-100 text-red-700",
   refresh: "bg-sky-100 text-sky-700",
+  expired: "bg-gray-200 text-gray-600",
 };
 
 export default function AutoLivePanel() {
