@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { findScore, type ScoreInfo } from "@/lib/score-match";
 import Link from "next/link";
 import Logo from "@/components/Logo";
 
 export interface ProMatch {
+  match_id?: string;
   match_time: string | number;
   match_status: string;
   home_team_name: string;
@@ -22,6 +24,28 @@ export default function AltPage() {
   const [matches, setMatches] = useState<ProMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalNotice, setGlobalNotice] = useState("");
+  const [scores, setScores] = useState<ScoreInfo[]>([]);
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    let stopped = false;
+    async function loadScores() {
+      if (!stopped) setNow(Date.now());
+      try {
+        const res = await fetch("/api/alt-scores");
+        const data = await res.json();
+        if (!stopped) setScores(data.scores || []);
+      } catch {
+        /* scores are an enhancement — never break the page */
+      }
+    }
+    loadScores();
+    const interval = setInterval(loadScores, 60_000);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -156,10 +180,18 @@ export default function AltPage() {
                 {matchesByDay[date].map((match, i) => {
                   // Reconstruct a stable ID for the watch page instead of relying on array index
                   const matchId = `alt-${match.home_team_name.replace(/\\s+/g, '')}-${match.away_team_name.replace(/\\s+/g, '')}-${match.match_time}`;
-                  const isEnded = match.match_status === "ended";
+                  const score = findScore(scores, matchId, match.home_team_name, match.away_team_name, match.match_id);
+                  // Ended = admin force-end, OR the score feed says full-time,
+                  // OR the clock says the match must be over (kickoff + 130min)
+                  const endedByClock =
+                    now > 0 &&
+                    Number(match.match_time) > 0 &&
+                    now > Number(match.match_time) * 1000 + 130 * 60_000;
+                  const isEnded = match.match_status === "ended" || !!score?.ended || endedByClock;
                   // Mock matches (from BSD) don't have servers yet, so they are not clickable
                   const isMock = match.servers && match.servers.length === 0;
                   const isPlayable = !isEnded && !isMock;
+                  const hasScore = score != null && score.homeScore != null && score.awayScore != null;
                   const CardWrapper = isPlayable ? Link : "div";
                   const wrapperProps = isPlayable ? { href: `/alt/watch?id=${matchId}`, className: "block group" } : { className: "block group opacity-75 cursor-default" };
                   
@@ -172,14 +204,15 @@ export default function AltPage() {
                         <div className="relative p-5">
                           <div className="flex items-center justify-between mb-4">
                             <span className="text-xs font-semibold text-gray-500 truncate max-w-[70%]">{match.league_name}</span>
-                            {match.match_status === "live" ? (
+                            {isEnded ? (
+                              <span className="text-[11px] text-gray-600 bg-gray-100 px-3 py-1 rounded-full font-medium border border-gray-200">Ended</span>
+                            ) : match.match_status === "live" ? (
                               <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full uppercase tracking-wider">
                                 <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
                                 LIVE
+                                {score?.period === "HT" ? " · HT" : score?.minute ? ` · ${score.minute}'` : ""}
                               </span>
-                            ) : match.match_status === "ended" ? (
-                              <span className="text-[11px] text-gray-600 bg-gray-100 px-3 py-1 rounded-full font-medium border border-gray-200">Ended</span>
-                            ) : Number(match.match_time) * 1000 < Date.now() ? (
+                            ) : now > 0 && Number(match.match_time) * 1000 < now ? (
                               <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full uppercase tracking-wider">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                                 Finding stream…
@@ -203,7 +236,13 @@ export default function AltPage() {
                             </div>
                             
                             <div className="flex flex-col items-center justify-center px-2">
-                              <p className="text-[10px] text-gray-400 font-bold uppercase">VS</p>
+                              {hasScore ? (
+                                <p className="text-xl font-black text-gray-900 whitespace-nowrap">
+                                  {score.homeScore} <span className="text-gray-300">-</span> {score.awayScore}
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-gray-400 font-bold uppercase">VS</p>
+                              )}
                             </div>
                             
                             {/* Away Team */}

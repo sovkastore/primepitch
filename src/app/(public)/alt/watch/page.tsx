@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ProMatch } from "../page";
+import { findScore, type ScoreInfo } from "@/lib/score-match";
 import Hls from "hls.js";
 
 import Script from "next/script";
@@ -18,7 +19,29 @@ function AltWatchContent() {
   const [loading, setLoading] = useState(true);
   const [activeServer, setActiveServer] = useState<any>(null);
   const [customNotice, setCustomNotice] = useState<string | null>(null);
+  const [scores, setScores] = useState<ScoreInfo[]>([]);
+  const [now, setNow] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    let stopped = false;
+    async function loadScores() {
+      if (!stopped) setNow(Date.now());
+      try {
+        const res = await fetch("/api/alt-scores");
+        const data = await res.json();
+        if (!stopped) setScores(data.scores || []);
+      } catch {
+        /* scores are an enhancement */
+      }
+    }
+    loadScores();
+    const interval = setInterval(loadScores, 60_000);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -109,7 +132,29 @@ function AltWatchContent() {
           &larr; Back to Alternative Matches
         </Link>
         <h1 className="text-2xl font-black text-gray-900 mt-4">{match.home_team_name} vs {match.away_team_name}</h1>
-        <p className="text-gray-500 text-sm">{match.league_name} • {match.match_status === "live" ? "🔴 LIVE" : "Upcoming"}</p>
+        {(() => {
+          const score = id
+            ? findScore(scores, id, match.home_team_name, match.away_team_name)
+            : null;
+          const endedByClock =
+            now > 0 &&
+            Number(match.match_time) > 0 &&
+            now > Number(match.match_time) * 1000 + 130 * 60_000;
+          const isEnded = match.match_status === "ended" || !!score?.ended || endedByClock;
+          const scoreText =
+            score && score.homeScore != null && score.awayScore != null
+              ? ` • ${score.homeScore} - ${score.awayScore}${
+                  isEnded ? "" : score.period === "HT" ? " (HT)" : score.minute ? ` (${score.minute}')` : ""
+                }`
+              : "";
+          return (
+            <p className="text-gray-500 text-sm">
+              {match.league_name} •{" "}
+              {isEnded ? "⏹ Ended" : match.match_status === "live" ? "🔴 LIVE" : "Upcoming"}
+              {scoreText}
+            </p>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
