@@ -13,9 +13,7 @@ import { findDeterministicMatch, namesMatch, normalizeTeamName, type CandidateMa
 export const dynamic = "force-dynamic";
 
 const KICKOFF_OFFSET_MS = 30_000; // ask 30s after kickoff
-const FAST_ATTEMPTS = 8; // every-minute attempts right after kickoff…
-const LATE_RETRY_EVERY_MIN = 5; // …then relaxed retries (providers add streams late)…
-const GIVE_UP_MINUTES = 60; // …until an hour past kickoff, then leave it for the admin
+const MAX_ATTEMPTS = 8; // ~8 minutes of retries, then leave it for the admin
 const ACCEPT_MEDIUM_AFTER = 3; // early attempts require high AI confidence
 const LIVE_WINDOW_MINUTES = 130; // kickoff → ~full match incl. stoppage
 const DEFAULT_REFRESH_MINUTES = 5; // shared stream refresh while anything is live
@@ -262,22 +260,17 @@ export async function GET(req: Request) {
     if (!meta.home_team_name || !meta.away_team_name || !kickoff) continue;
 
     const attempts = st?.attempts ?? 0;
-    const targetMs = kickoff * 1000 + KICKOFF_OFFSET_MS;
-    const minutesSince = (now - targetMs) / 60_000;
-
-    if (minutesSince > GIVE_UP_MINUTES) {
+    if (attempts >= MAX_ATTEMPTS) {
       await logState(d1, row.match_id, {
         title: meta.title || row.match_id,
         kickoff,
         status: "given_up",
-        detail: `No stream appeared within ${GIVE_UP_MINUTES} minutes of kickoff (${attempts} attempts) — left for manual handling`,
+        detail: `No stream found after ${attempts} attempts — left for manual handling`,
       });
       continue;
     }
-    // After the fast phase, keep trying on a relaxed cadence — feeds often
-    // add streams minutes late or at halftime.
-    if (attempts >= FAST_ATTEMPTS && Math.floor(minutesSince) % LATE_RETRY_EVERY_MIN !== 0) continue;
 
+    const targetMs = kickoff * 1000 + KICKOFF_OFFSET_MS;
     // Due now, or due within this cron tick (we'll wait for the 30s offset)
     if (now >= targetMs || targetMs - now < 55_000) {
       due.push({
