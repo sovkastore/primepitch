@@ -43,6 +43,7 @@ export default function AdminAltMatchesPage() {
 
   const [bsdSearchQuery, setBsdSearchQuery] = useState("");
   const [rapidSearchQuery, setRapidSearchQuery] = useState("");
+  const [pageToFetch, setPageToFetch] = useState(2);
 
   async function loadData() {
     try {
@@ -137,10 +138,10 @@ export default function AdminAltMatchesPage() {
     }
   }
 
-  async function triggerManualRevalidateLive() {
+  async function triggerManualRevalidateLive(page = 1) {
     setRevalidatingLive(true);
     try {
-      await fetch("/api/admin/alt-config/revalidate-live", { method: "POST" });
+      await fetch(`/api/admin/alt-config/revalidate-live?page=${page}`, { method: "POST" });
       setLoading(true);
       await loadData();
     } catch (e) {
@@ -452,12 +453,30 @@ export default function AdminAltMatchesPage() {
           </div>
           <div className="flex items-center gap-3">
             <button 
-              onClick={triggerManualRevalidateLive}
+              onClick={() => triggerManualRevalidateLive(1)}
               disabled={revalidating || revalidatingLive}
               className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold rounded-lg disabled:opacity-50 transition-colors"
             >
               {revalidatingLive ? "Fetching..." : "Update Live (1 Request)"}
             </button>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={pageToFetch}
+                onChange={(e) => setPageToFetch(Number(e.target.value))}
+                className="px-2 py-2 border border-gray-200 rounded-lg text-[12px] font-bold text-gray-700 bg-white"
+              >
+                {[2, 3, 4, 5].map((p) => (
+                  <option key={p} value={p}>Page {p}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => triggerManualRevalidateLive(pageToFetch)}
+                disabled={revalidating || revalidatingLive}
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-bold rounded-lg disabled:opacity-50 transition-colors"
+              >
+                {revalidatingLive ? "Fetching..." : `Fetch Page ${pageToFetch} (1 Request)`}
+              </button>
+            </div>
             <button 
               onClick={triggerManualRevalidate}
               disabled={revalidating || revalidatingLive}

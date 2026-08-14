@@ -6,8 +6,12 @@ import { saveMatchesCache } from "@/lib/match-cache";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    // Optional ?page=N (1-5): fetch a specific feed page. Page 1 replaces the
+    // cache; deeper pages MERGE into it so the admin can accumulate the list.
+    const pageParam = Number(new URL(req.url).searchParams.get("page") || 1);
+    const page = Math.min(5, Math.max(1, Number.isFinite(pageParam) ? pageParam : 1));
     // Clear Next.js cache
     // @ts-expect-error: Next.js canary has experimental typings requiring 2 args
     revalidateTag("alt-matches-page-1");
@@ -30,7 +34,7 @@ export async function POST() {
     // Try keys until one works
     for (const apiKey of RAPID_API_KEYS) {
       await countRapidRequest("manual button");
-      const res = await fetch(`https://${RAPID_API_HOST}/matches?page=1`, {
+      const res = await fetch(`https://${RAPID_API_HOST}/matches?page=${page}`, {
         headers: {
           "x-rapidapi-host": RAPID_API_HOST,
           "x-rapidapi-key": apiKey,
@@ -47,17 +51,28 @@ export async function POST() {
       }
     }
 
-    // Save to D1 Database Cache (preserves live matches from deeper feed pages)
+    // Save to D1 Database Cache (preserves live matches from deeper feed
+    // pages). Page 1 replaces; deeper pages merge into the existing cache.
     try {
       const d1 = await getD1();
       if (d1 && matches.length > 0) {
-        await saveMatchesCache(d1, matches);
+        let toSave = matches;
+        if (page > 1) {
+          const row = await d1
+            .prepare("SELECT data FROM d1_pro_matches_cache WHERE id = 'matches_cache'")
+            .first<{ data: string }>();
+          const old: any[] = row?.data ? JSON.parse(row.data) : [];
+          const key = (m: any) => `${m.home_team_name}|${m.away_team_name}|${m.match_time}`;
+          const fetchedKeys = new Set(matches.map(key));
+          toSave = [...old.filter((m) => !fetchedKeys.has(key(m))), ...matches];
+        }
+        await saveMatchesCache(d1, toSave);
       }
     } catch(e) {
       console.error("Failed to update D1 cache:", e);
     }
 
-    return NextResponse.json({ ok: true, revalidated: true, type: "live-only", matchCount: matches.length });
+    return NextResponse.json({ ok: true, revalidated: true, type: "live-only", page, matchCount: matches.length });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
