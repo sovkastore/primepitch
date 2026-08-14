@@ -17,6 +17,16 @@ export const DEFAULT_CRITERIA = `PICK (no maximum — every fixture that qualifi
 - MLS: ONLY matches involving Inter Miami
 DO NOT pick any other matches.`;
 
+function normalizeTitle(title: string): string {
+  return title
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 interface BsdFixture {
   id: string | number;
   home_team: string;
@@ -141,19 +151,34 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
   }
 
   // Activate each pick, unless we already processed it (so an admin turning a
-  // pick off stays off — re-runs never re-activate it)
+  // pick off stays off — re-runs never re-activate it). The BSD feed sometimes
+  // lists the same real-world match under two ids, so also dedupe by teams+day.
   const byId = new Map(fixtures.map((f) => [String(f.id), f]));
+  const activatedTitles = new Set<string>();
+  try {
+    const { results: priorPicks } = await d1
+      .prepare("SELECT title FROM d1_auto_pick WHERE pick_date = ?")
+      .bind(today)
+      .all<{ title: string }>();
+    for (const r of priorPicks ?? []) activatedTitles.add(normalizeTitle(r.title));
+  } catch {
+    /* table empty */
+  }
   let newlyActivated = 0;
   for (const pick of picks) {
     const f = byId.get(String(pick.id));
     if (!f) continue;
     const matchId = `bsd-${f.id}`;
+    const titleKey = normalizeTitle(`${f.home_team} vs ${f.away_team}`);
+
+    if (activatedTitles.has(titleKey)) continue;
 
     const seen = await d1
       .prepare("SELECT match_id FROM d1_auto_pick WHERE match_id = ?")
       .bind(matchId)
       .first();
     if (seen) continue;
+    activatedTitles.add(titleKey);
 
     await setMatchFlag(d1, matchId, true, {
       is_mock: true,

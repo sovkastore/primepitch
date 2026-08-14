@@ -65,7 +65,11 @@ export async function pickBigGames(
           `Select EVERY fixture that matches the criteria below — there is no maximum. ` +
           `Select nothing that doesn't match. League and team names may be abbreviated, ` +
           `transliterated, or in another language; judge what they refer to. Be careful with ` +
-          `same-named leagues from other countries (e.g. Brazilian "Serie A" is NOT the Italian one).\n\n` +
+          `same-named leagues from other countries (e.g. Brazilian "Serie A" is NOT the Italian one). ` +
+          `Only pick fixtures you are CERTAIN qualify — if you are unsure (for example whether a ` +
+          `club currently plays in a listed division), leave it out; never pick "just in case". ` +
+          `A rule about clubs from a league's first division means the club must currently play in ` +
+          `that first division — second-division clubs do not qualify.\n\n` +
           `CRITERIA:\n${criteria}\n\n` +
           `TODAY'S FIXTURES:\n${lines}\n\n` +
           `Return the ids of every qualifying fixture.`,
