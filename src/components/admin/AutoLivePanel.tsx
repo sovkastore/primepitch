@@ -46,6 +46,7 @@ const STATUS_STYLES: Record<string, string> = {
   converted: "bg-emerald-100 text-emerald-700",
   pending: "bg-amber-100 text-amber-700",
   given_up: "bg-red-100 text-red-700",
+  refresh: "bg-sky-100 text-sky-700",
 };
 
 export default function AutoLivePanel() {

@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 const KICKOFF_OFFSET_MS = 30_000; // ask 30s after kickoff
 const MAX_ATTEMPTS = 8; // ~8 minutes of retries, then leave it for the admin
 const ACCEPT_MEDIUM_AFTER = 3; // early attempts require high AI confidence
+const LIVE_WINDOW_MINUTES = 130; // kickoff → ~full match incl. stoppage
+const DEFAULT_REFRESH_MINUTES = 5; // shared stream refresh while anything is live
 
 const RAPID_API_HOST = "football-live-streaming-api.p.rapidapi.com";
 
@@ -41,6 +43,11 @@ async function ensureTable(d1: D1Database) {
       )`
     )
     .run();
+  try {
+    await d1.prepare("ALTER TABLE d1_auto_live ADD COLUMN live_id TEXT").run();
+  } catch {
+    /* column already exists */
+  }
 }
 
 async function fetchRapidMatches(): Promise<RapidMatch[] | null> {
@@ -78,10 +85,75 @@ async function saveMatchesCache(d1: D1Database, matches: RapidMatch[]) {
     .run();
 }
 
+// One shared refresh for ALL currently-live matches: while any converted match
+// is inside its live window (and not force-ended), re-pull the feed every
+// N minutes so viewers always get the provider's latest server list. One
+// request per tick regardless of how many games overlap.
+async function refreshLiveStreams(
+  d1: D1Database,
+  state: Map<string, { match_id: string; status: string; attempts: number }>
+): Promise<object | null> {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const { results: liveRows } = await d1
+    .prepare(
+      "SELECT match_id, live_id FROM d1_auto_live WHERE status = 'converted' AND kickoff >= ? AND kickoff <= ?"
+    )
+    .bind(nowSec - LIVE_WINDOW_MINUTES * 60, nowSec)
+    .all<{ match_id: string; live_id: string | null }>();
+  if (!liveRows?.length) return null;
+
+  // Skip matches the admin force-ended
+  let live = liveRows;
+  const liveIds = liveRows.map((r) => r.live_id).filter(Boolean) as string[];
+  if (liveIds.length) {
+    const { results: ended } = await d1
+      .prepare(
+        `SELECT match_id FROM d1_match_flags WHERE force_ended = 1 AND match_id IN (${liveIds.map(() => "?").join(",")})`
+      )
+      .bind(...liveIds)
+      .all<{ match_id: string }>();
+    const endedSet = new Set(ended?.map((r) => r.match_id) ?? []);
+    live = liveRows.filter((r) => !r.live_id || !endedSet.has(r.live_id));
+  }
+  if (!live.length) return null;
+
+  let refreshMinutes = DEFAULT_REFRESH_MINUTES;
+  try {
+    const row = await d1
+      .prepare("SELECT value FROM d1_site_settings WHERE key = 'alt_api_config'")
+      .first<{ value: string }>();
+    const cfg = row?.value ? JSON.parse(row.value) : {};
+    if (Number(cfg.live_refresh_minutes) > 0) refreshMinutes = Number(cfg.live_refresh_minutes);
+  } catch {
+    /* keep default */
+  }
+
+  const cacheRow = await d1
+    .prepare("SELECT updated_at FROM d1_pro_matches_cache WHERE id = 'matches_cache'")
+    .first<{ updated_at: number }>();
+  const ageMs = Date.now() - Number(cacheRow?.updated_at || 0);
+  if (ageMs < refreshMinutes * 60 * 1000) {
+    return { live: live.length, refreshed: false, cacheAgeSeconds: Math.round(ageMs / 1000) };
+  }
+
+  const matches = await fetchRapidMatches();
+  if (!matches) return { live: live.length, refreshed: false, error: "RapidAPI unavailable" };
+  await saveMatchesCache(d1, matches);
+
+  const refreshCount = (state.get("live-refresh")?.attempts ?? 0) + 1;
+  await logState(d1, "live-refresh", {
+    title: "Live stream refresh",
+    status: "refresh",
+    attempts: refreshCount,
+    detail: `Refreshed servers for ${live.length} live ${live.length === 1 ? "match" : "matches"} (one shared request, every ${refreshMinutes} min)`,
+  });
+  return { live: live.length, refreshed: true };
+}
+
 async function logState(
   d1: D1Database,
   matchId: string,
-  fields: { title?: string; kickoff?: number; status?: string; attempts?: number; method?: string; detail?: string }
+  fields: { title?: string; kickoff?: number; status?: string; attempts?: number; method?: string; detail?: string; live_id?: string }
 ) {
   const row: Record<string, unknown> = {
     match_id: matchId,
@@ -168,7 +240,9 @@ export async function GET(req: Request) {
   }
 
   if (due.length === 0) {
-    return NextResponse.json({ ok: true, checked: flagRows?.length ?? 0, due: 0 });
+    // No kickoffs due — but keep live matches' streams fresh (one shared request)
+    const refresh = await refreshLiveStreams(d1, state);
+    return NextResponse.json({ ok: true, checked: flagRows?.length ?? 0, due: 0, refresh });
   }
 
   // 2) Wait inside the tick so the request fires ~30s after kickoff, not at :00
@@ -261,6 +335,7 @@ export async function GET(req: Request) {
       attempts: f.attempts + 1,
       method,
       detail: `${detail} → live as ${altId}`,
+      live_id: altId,
     });
     outcomes.push({ fixture: f.matchId, matched: true, live: altId, method });
   }
@@ -274,5 +349,9 @@ export async function GET(req: Request) {
     /* cache purge is best-effort */
   }
 
-  return NextResponse.json({ ok: true, due: due.length, outcomes });
+  // The conversion fetch just updated the cache, so this only fires a request
+  // if the cache is genuinely stale (i.e. never right after a conversion).
+  const refresh = await refreshLiveStreams(d1, state);
+
+  return NextResponse.json({ ok: true, due: due.length, outcomes, refresh });
 }
