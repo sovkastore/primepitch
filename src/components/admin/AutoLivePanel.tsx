@@ -54,6 +54,10 @@ export default function AutoLivePanel() {
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
 
+  const [refreshMinutes, setRefreshMinutes] = useState(5);
+  const [savingRefresh, setSavingRefresh] = useState(false);
+  const [refreshSaved, setRefreshSaved] = useState(false);
+
   const [pickEnabled, setPickEnabled] = useState(true);
   const [criteria, setCriteria] = useState("");
   const [picks, setPicks] = useState<PickEntry[]>([]);
@@ -77,6 +81,29 @@ export default function AutoLivePanel() {
       setPicks(data.picks || []);
     } catch {
       /* ignore */
+    }
+    try {
+      const res = await fetch("/api/admin/alt-config");
+      const data = await res.json();
+      if (Number(data.live_refresh_minutes) > 0) setRefreshMinutes(Number(data.live_refresh_minutes));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function saveRefreshMinutes() {
+    setSavingRefresh(true);
+    setRefreshSaved(false);
+    try {
+      await fetch("/api/admin/alt-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ live_refresh_minutes: refreshMinutes }),
+      });
+      setRefreshSaved(true);
+      setTimeout(() => setRefreshSaved(false), 3000);
+    } finally {
+      setSavingRefresh(false);
     }
   }
 
@@ -182,6 +209,32 @@ export default function AutoLivePanel() {
             )}
           </div>
         )}
+
+        <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center gap-2">
+          <span className="text-[12px] font-semibold text-gray-600">
+            🔄 While matches are live, refresh streams every
+          </span>
+          <input
+            type="number"
+            min={1}
+            max={60}
+            value={refreshMinutes}
+            onChange={(e) => setRefreshMinutes(Math.max(1, Number(e.target.value) || 1))}
+            className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-[13px] text-center font-bold"
+          />
+          <span className="text-[12px] font-semibold text-gray-600">minutes</span>
+          <button
+            onClick={saveRefreshMinutes}
+            disabled={savingRefresh}
+            className="text-[11px] font-bold text-white bg-gray-800 hover:bg-gray-900 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {savingRefresh ? "Saving…" : refreshSaved ? "✓ Saved" : "Save"}
+          </button>
+          <span className="text-[11px] text-gray-400 w-full">
+            One shared request covers every live match — lower is fresher, higher saves API
+            requests.
+          </span>
+        </div>
 
         <div className="pt-2 border-t border-gray-100">
           <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
