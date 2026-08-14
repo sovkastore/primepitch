@@ -48,10 +48,9 @@ function AltWatchContent() {
           });
           
           if (targetMatch) {
+            // Deliberately no auto-play: the viewer picks a server themselves,
+            // so a dead first server never becomes the first impression.
             setMatch(targetMatch);
-            if (targetMatch.servers && targetMatch.servers.length > 0) {
-              setActiveServer(targetMatch.servers[0]);
-            }
           }
         }
       } catch (e) {
@@ -121,6 +120,15 @@ function AltWatchContent() {
               <p className="text-sm text-amber-900 font-medium whitespace-pre-wrap mt-0.5">{customNotice}</p>
             </div>
           )}
+          {(match.servers?.length ?? 0) > 0 && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
+              <span className="text-lg shrink-0">⚠️</span>
+              <p className="text-[13px] text-blue-900 font-medium mt-0.5">
+                Stream not working? Tap a different server — servers vary in speed and quality, so
+                switch until one plays well for you.
+              </p>
+            </div>
+          )}
           <div className="aspect-video bg-black rounded-2xl overflow-hidden shadow-xl relative">
             {activeServer ? (
               activeServer.type === "iframe" || activeServer.url.includes("embed") ? (
@@ -139,6 +147,17 @@ function AltWatchContent() {
                   className="w-full h-full bg-black outline-none"
                 />
               )
+            ) : (match.servers?.length ?? 0) > 0 ? (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-center px-6">
+                <span className="text-4xl">▶</span>
+                <p className="text-white font-bold text-lg">
+                  {match.home_team_name} vs {match.away_team_name}
+                </p>
+                <p className="text-gray-400 text-sm">
+                  Choose a server {`(${match.servers.length} available)`} to start watching
+                </p>
+                <span className="lg:hidden text-gray-500 text-xs">Server list is below ↓</span>
+              </div>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-500">
                 No streams available yet.
