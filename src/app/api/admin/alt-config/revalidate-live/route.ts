@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getD1 } from "@/lib/d1";
-import { countRapidRequest } from "@/lib/rapid-count";
+import { fetchRapidPage, type RapidFeedMatch } from "@/lib/rapid-fetch";
 import { saveMatchesCache } from "@/lib/match-cache";
 
 export const dynamic = "force-dynamic";
@@ -19,37 +19,7 @@ export async function POST(req: Request) {
     revalidateTag("alt-matches");
 
     // We manually fetch from RapidAPI right here because the user is controlling it!
-    const RAPID_API_KEYS = (process.env.RAPID_API_KEYS || process.env.RAPID_API_KEY || "")
-      .split(",")
-      .map(k => k.trim())
-      .filter(Boolean);
-
-    if (RAPID_API_KEYS.length === 0) {
-      return NextResponse.json({ error: "No RapidAPI keys configured" }, { status: 500 });
-    }
-
-    const RAPID_API_HOST = "football-live-streaming-api.p.rapidapi.com";
-    let matches: any[] = [];
-    
-    // Try keys until one works
-    for (const apiKey of RAPID_API_KEYS) {
-      await countRapidRequest("manual button");
-      const res = await fetch(`https://${RAPID_API_HOST}/matches?page=${page}`, {
-        headers: {
-          "x-rapidapi-host": RAPID_API_HOST,
-          "x-rapidapi-key": apiKey,
-        }
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) matches = data;
-        else if (data && Array.isArray(data.matches)) matches = data.matches;
-        else if (data && Array.isArray(data.data)) matches = data.data;
-        else if (data && Array.isArray(data.results)) matches = data.results;
-        break; // Success, stop trying keys
-      }
-    }
+    const matches = (await fetchRapidPage("manual button", page)) ?? [];
 
     // Save to D1 Database Cache (preserves live matches from deeper feed
     // pages). Page 1 replaces; deeper pages merge into the existing cache.
@@ -61,8 +31,8 @@ export async function POST(req: Request) {
           const row = await d1
             .prepare("SELECT data FROM d1_pro_matches_cache WHERE id = 'matches_cache'")
             .first<{ data: string }>();
-          const old: any[] = row?.data ? JSON.parse(row.data) : [];
-          const key = (m: any) => `${m.home_team_name}|${m.away_team_name}|${m.match_time}`;
+          const old: RapidFeedMatch[] = row?.data ? JSON.parse(row.data) : [];
+          const key = (m: RapidFeedMatch) => `${m.home_team_name}|${m.away_team_name}|${m.match_time}`;
           const fetchedKeys = new Set(matches.map(key));
           toSave = [...old.filter((m) => !fetchedKeys.has(key(m))), ...matches];
         }

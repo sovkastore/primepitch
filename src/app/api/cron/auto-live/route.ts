@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getD1 } from "@/lib/d1";
-import { countRapidRequest } from "@/lib/rapid-count";
+import { fetchRapidPage, type RapidFeedMatch } from "@/lib/rapid-fetch";
 import { setMatchFlag } from "@/lib/match-flags";
 import { findAiMatch } from "@/lib/ai-match";
 import { findDeterministicMatch, namesMatch, normalizeTeamName, type CandidateMatch } from "@/lib/team-match";
@@ -22,18 +22,7 @@ const LIVE_WINDOW_MINUTES = 130; // kickoff → ~full match incl. stoppage
 const DEFAULT_REFRESH_MINUTES = 5; // shared stream refresh while anything is live
 const EXPIRE_MINUTES = 150; // hide upcoming cards this long after kickoff — match is over
 
-const RAPID_API_HOST = "football-live-streaming-api.p.rapidapi.com";
-
-interface RapidMatch {
-  home_team_name: string;
-  away_team_name: string;
-  match_time: string | number;
-  match_status?: string;
-  league_name?: string;
-  home_team_logo?: string;
-  away_team_logo?: string;
-  servers?: unknown[];
-}
+type RapidMatch = RapidFeedMatch;
 
 // The feed sometimes lists one real match under several entries (different
 // name spellings/languages) where only one carries stream servers. Given a
@@ -84,31 +73,6 @@ async function ensureTable(d1: D1Database) {
   }
 }
 
-async function fetchRapidPage(source: string, page: number): Promise<RapidMatch[] | null> {
-  const keys = (process.env.RAPID_API_KEYS || process.env.RAPID_API_KEY || "")
-    .split(",")
-    .map((k) => k.trim())
-    .filter(Boolean);
-  for (const apiKey of keys) {
-    try {
-      await countRapidRequest(source);
-      const res = await fetch(`https://${RAPID_API_HOST}/matches?page=${page}`, {
-        headers: { "x-rapidapi-host": RAPID_API_HOST, "x-rapidapi-key": apiKey },
-      });
-      if (!res.ok) continue;
-      const data = (await res.json()) as
-        | RapidMatch[]
-        | { matches?: RapidMatch[]; data?: RapidMatch[]; results?: RapidMatch[] };
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data?.matches)) return data.matches;
-      if (Array.isArray(data?.data)) return data.data;
-      if (Array.isArray(data?.results)) return data.results;
-    } catch {
-      /* try next key */
-    }
-  }
-  return null;
-}
 
 // One shared refresh for ALL currently-live matches: while any converted match
 // is inside its live window (and not force-ended), re-pull the feed every

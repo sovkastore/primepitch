@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
-import { countRapidRequest } from "@/lib/rapid-count";
+import { fetchRapidPage } from "@/lib/rapid-fetch";
 import { saveMatchesCache } from "@/lib/match-cache";
-
-const RAPID_API_HOST = "football-live-streaming-api.p.rapidapi.com";
-let currentKeyIndex = 0;
 
 export async function GET(req: Request) {
   try {
-    const RAPID_API_KEYS = (process.env.RAPID_API_KEYS || process.env.RAPID_API_KEY || "")
-      .split(",")
-      .map(k => k.trim())
-      .filter(Boolean);
     const { searchParams } = new URL(req.url);
     const page = searchParams.get("page") || "1";
 
@@ -60,80 +53,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const url = `https://${RAPID_API_HOST}/matches?page=${page}`;
-    
-    const fetchOptions: RequestInit = {
-      method: "GET",
-      headers: {
-        "x-rapidapi-host": RAPID_API_HOST,
-        // The key is set inside fetchPage dynamically
-      },
-      next: { 
-        tags: ["alt-matches"],
-      }
-    };
-
-    if (auto_fetch) {
-      // Revalidate every X minutes
-      fetchOptions.next = { ...fetchOptions.next, revalidate: cache_minutes * 60 };
-    }
-
-    const fetchPage = async (p: number) => {
-      if (RAPID_API_KEYS.length === 0) {
-        console.error("No RapidAPI keys configured!");
-        return [];
-      }
-
-      const url = `https://${RAPID_API_HOST}/matches?page=${p}`;
-      
-      let attempts = 0;
-      while (attempts < RAPID_API_KEYS.length) {
-        const apiKey = RAPID_API_KEYS[currentKeyIndex];
-        
-        const pageOptions = {
-          ...fetchOptions,
-          headers: {
-            ...fetchOptions.headers,
-            "x-rapidapi-key": apiKey,
-          },
-          next: {
-            ...fetchOptions.next,
-            tags: ["alt-matches", `alt-matches-page-${p}`]
-          }
-        };
-        
-        await countRapidRequest("visitor cache");
-        const res = await fetch(url, pageOptions);
-
-        // If success or a non-quota error, break out and process
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) return data;
-          if (data && Array.isArray(data.matches)) return data.matches;
-          if (data && Array.isArray(data.data)) return data.data;
-          if (data && Array.isArray(data.results)) return data.results;
-          return [];
-        }
-
-        // 429 = Too Many Requests (Quota Exceeded)
-        // 403 = Forbidden (Not Subscribed)
-        if (res.status === 429 || res.status === 403) {
-          console.warn(`RapidAPI Key ${currentKeyIndex + 1}/${RAPID_API_KEYS.length} failed with ${res.status}. Switching to next key...`);
-          currentKeyIndex = (currentKeyIndex + 1) % RAPID_API_KEYS.length;
-          attempts++;
-          continue; // Try next key
-        }
-
-        // If it's some other error (500, etc), just log and return empty
-        console.error(`RapidAPI Error Page ${p}:`, res.status);
-        return [];
-      }
-      
-      console.error("All RapidAPI keys exhausted!");
-      return [];
-    };
-
-    const page1 = await fetchPage(1);
+    const page1 = (await fetchRapidPage("visitor cache", Number(page) || 1)) ?? [];
     const allMatches = [...page1];
 
     // [ROBUST CACHING] Save new data to D1 (preserves live matches from
