@@ -95,12 +95,17 @@ export async function GET(req: Request) {
     const d1 = await getD1();
     if (!d1) return NextResponse.json({ error: "D1 not available" }, { status: 500 });
 
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10);
+    // ?days=N (1-90) backfills the last N days in one run; default is today
+    // only, which is what the hourly cron uses. Every report carries the date
+    // dimension so multi-day responses split into per-day rows.
+    const daysParam = Number(new URL(req.url).searchParams.get("days") || 1);
+    const days = Math.min(90, Math.max(1, Number.isFinite(daysParam) ? daysParam : 1));
+    const range = { startDate: days > 1 ? `${days - 1}daysAgo` : "today", endDate: "today" };
+    const fmtDate = (s: string) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 
     const response = await runReport({
-      dateRanges: [{ startDate: "today", endDate: "today" }],
-      dimensions: [{ name: "customEvent:ref_code" }],
+      dateRanges: [range],
+      dimensions: [{ name: "date" }, { name: "customEvent:ref_code" }],
       metrics: [
         { name: "screenPageViews" },
         { name: "activeUsers" },
@@ -110,18 +115,18 @@ export async function GET(req: Request) {
 
     const [devicesRes, referrersRes, pagesRes] = await Promise.all([
       runReport({
-        dateRanges: [{ startDate: "today", endDate: "today" }],
-        dimensions: [{ name: "customEvent:ref_code" }, { name: "deviceCategory" }],
+        dateRanges: [range],
+        dimensions: [{ name: "date" }, { name: "customEvent:ref_code" }, { name: "deviceCategory" }],
         metrics: [{ name: "screenPageViews" }],
       }),
       runReport({
-        dateRanges: [{ startDate: "today", endDate: "today" }],
-        dimensions: [{ name: "customEvent:ref_code" }, { name: "sessionSource" }],
+        dateRanges: [range],
+        dimensions: [{ name: "date" }, { name: "customEvent:ref_code" }, { name: "sessionSource" }],
         metrics: [{ name: "screenPageViews" }],
       }),
       runReport({
-        dateRanges: [{ startDate: "today", endDate: "today" }],
-        dimensions: [{ name: "customEvent:ref_code" }, { name: "pagePath" }],
+        dateRanges: [range],
+        dimensions: [{ name: "date" }, { name: "customEvent:ref_code" }, { name: "pagePath" }],
         metrics: [{ name: "screenPageViews" }],
       })
     ]);
@@ -130,15 +135,18 @@ export async function GET(req: Request) {
     const referrersMap: Record<string, Record<string, number>> = {};
     const pagesMap: Record<string, Record<string, number>> = {};
 
+    // Maps are keyed by `${date}|${refCode}` so multi-day backfills stay separated
     const processAdvanced = (res: any, map: Record<string, Record<string, number>>) => {
       if (res.rows) {
         for (const row of res.rows) {
-          let refCode = row.dimensionValues?.[0]?.value || 'none';
+          const date = fmtDate(row.dimensionValues?.[0]?.value || '');
+          let refCode = row.dimensionValues?.[1]?.value || 'none';
           if (refCode === '(not set)') refCode = 'none';
-          const dimVal = row.dimensionValues?.[1]?.value || 'unknown';
+          const dimVal = row.dimensionValues?.[2]?.value || 'unknown';
           const views = parseInt(row.metricValues?.[0]?.value || '0');
-          if (!map[refCode]) map[refCode] = {};
-          map[refCode][dimVal] = (map[refCode][dimVal] || 0) + views;
+          const key = `${date}|${refCode}`;
+          if (!map[key]) map[key] = {};
+          map[key][dimVal] = (map[key][dimVal] || 0) + views;
         }
       }
     };
@@ -151,7 +159,8 @@ export async function GET(req: Request) {
 
     if (response.rows) {
       for (const row of response.rows) {
-        let refCode = row.dimensionValues?.[0]?.value || 'none';
+        const dateStr = fmtDate(row.dimensionValues?.[0]?.value || '');
+        let refCode = row.dimensionValues?.[1]?.value || 'none';
         if (refCode === '(not set)') refCode = 'none';
 
         const pageViews = parseInt(row.metricValues?.[0]?.value || '0');
@@ -159,9 +168,10 @@ export async function GET(req: Request) {
         const newUsers = parseInt(row.metricValues?.[2]?.value || '0');
         const returningUsers = Math.max(0, activeUsers - newUsers);
 
-        const devJson = JSON.stringify(devicesMap[refCode] || {});
-        const refJson = JSON.stringify(referrersMap[refCode] || {});
-        const pgJson = JSON.stringify(pagesMap[refCode] || {});
+        const key = `${dateStr}|${refCode}`;
+        const devJson = JSON.stringify(devicesMap[key] || {});
+        const refJson = JSON.stringify(referrersMap[key] || {});
+        const pgJson = JSON.stringify(pagesMap[key] || {});
 
         const id = `${dateStr}-${refCode}`;
 
