@@ -44,6 +44,8 @@ export default function AdminAltMatchesPage() {
   const [bsdSearchQuery, setBsdSearchQuery] = useState("");
   const [rapidSearchQuery, setRapidSearchQuery] = useState("");
   const [pageToFetch, setPageToFetch] = useState(2);
+  const [bsdTimeFilter, setBsdTimeFilter] = useState<string | null>(null);
+  const [rapidTimeFilter, setRapidTimeFilter] = useState<string | null>(null);
 
   const TABS = [
     { id: "robot", label: "🤖 Robot" },
@@ -283,7 +285,61 @@ export default function AdminAltMatchesPage() {
   }
 
   // Filter matches by search query
+  const timeLabel = (ms: number) =>
+    new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  // Distinct kickoff times (with counts) for the tap-to-filter chip rows
+  const timeChips = (items: { ms: number }[]) => {
+    const counts = new Map<string, { ms: number; n: number }>();
+    for (const it of items) {
+      if (!it.ms) continue;
+      const label = timeLabel(it.ms);
+      const cur = counts.get(label);
+      if (cur) cur.n++;
+      else counts.set(label, { ms: it.ms, n: 1 });
+    }
+    return [...counts.entries()]
+      .sort((a, b) => a[1].ms - b[1].ms)
+      .map(([label, v]) => ({ label, count: v.n }));
+  };
+
+  function TimeChipRow({
+    chips,
+    active,
+    onPick,
+  }: {
+    chips: { label: string; count: number }[];
+    active: string | null;
+    onPick: (label: string | null) => void;
+  }) {
+    if (chips.length < 2) return null;
+    return (
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <button
+          onClick={() => onPick(null)}
+          className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
+            active === null ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          All times
+        </button>
+        {chips.map((c) => (
+          <button
+            key={c.label}
+            onClick={() => onPick(active === c.label ? null : c.label)}
+            className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
+              active === c.label ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {c.label} ({c.count})
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   const filteredRapidMatches = matches.filter(match => {
+    if (rapidTimeFilter && timeLabel(Number(match.match_time) * 1000) !== rapidTimeFilter) return false;
     if (!rapidSearchQuery) return true;
     const q = rapidSearchQuery.toLowerCase();
     return (
@@ -292,6 +348,7 @@ export default function AdminAltMatchesPage() {
       match.league_name?.toLowerCase().includes(q)
     );
   });
+  const rapidChips = timeChips(matches.map((m) => ({ ms: Number(m.match_time) * 1000 })));
 
   // Group matches by day
   const matchesByDay = filteredRapidMatches.reduce((acc, match) => {
@@ -306,6 +363,7 @@ export default function AdminAltMatchesPage() {
 
   // Filter BSD fixtures
   const filteredBsdFixtures = bsdFixtures.filter(fixture => {
+    if (bsdTimeFilter && timeLabel(new Date(fixture.event_date).getTime()) !== bsdTimeFilter) return false;
     if (!bsdSearchQuery) return true;
     const q = bsdSearchQuery.toLowerCase();
     return (
@@ -314,6 +372,7 @@ export default function AdminAltMatchesPage() {
       fixture.league?.name?.toLowerCase().includes(q)
     );
   });
+  const bsdChips = timeChips(bsdFixtures.map((f) => ({ ms: new Date(f.event_date).getTime() })));
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -368,6 +427,8 @@ export default function AdminAltMatchesPage() {
             </div>
           </div>
           
+          <TimeChipRow chips={bsdChips} active={bsdTimeFilter} onPick={setBsdTimeFilter} />
+
           <div className="pt-3 border-t border-gray-100">
             {loadingBsd ? (
               <div className="text-center py-8 text-sm text-gray-500">Loading fixtures...</div>
@@ -420,7 +481,7 @@ export default function AdminAltMatchesPage() {
               Manage the actual streams from the RapidAPI feed. Use &quot;Update Live (1 Request)&quot; when a match is starting to grab the stream link.
             </p>
           </div>
-          <input 
+          <input
             type="text"
             placeholder="Search teams or leagues..."
             value={rapidSearchQuery}
@@ -428,6 +489,8 @@ export default function AdminAltMatchesPage() {
             className="w-full md:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm"
           />
         </div>
+
+        <TimeChipRow chips={rapidChips} active={rapidTimeFilter} onPick={setRapidTimeFilter} />
 
         <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
         <h2 className="text-[14px] font-bold text-gray-900">Feed Actions</h2>
