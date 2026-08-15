@@ -110,6 +110,33 @@ async function refreshLiveStreams(
   }
   if (!live.length) return null;
 
+  // Skip matches BSD reports finished (free check, exact fixture-id match) —
+  // refreshes stop at the real final whistle instead of the 130-min clock.
+  let finished = 0;
+  try {
+    const res = await fetch(`https://sports.bzzoiro.com/api/events/?limit=100`, {
+      headers: { Authorization: `Token ${process.env.BSD_API_KEY || ""}` },
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { results?: { id?: number | string; status?: string }[] };
+      const FT = new Set([
+        "finished", "ft", "aet", "after_penalties", "ended", "awarded",
+        "fulltime", "full_time", "full-time", "match_finished", "complete", "completed",
+      ]);
+      const doneIds = new Set(
+        (data.results || [])
+          .filter((e) => FT.has((e.status || "").toLowerCase().replace(/\s+/g, "_")))
+          .map((e) => `bsd-${e.id}`)
+      );
+      const before = live.length;
+      live = live.filter((r) => !doneIds.has(r.match_id));
+      finished = before - live.length;
+    }
+  } catch {
+    /* BSD unavailable — fall back to the clock window */
+  }
+  if (!live.length) return { live: 0, refreshed: false, finished };
+
   let refreshMinutes = DEFAULT_REFRESH_MINUTES;
   try {
     const row = await d1
@@ -183,7 +210,7 @@ async function refreshLiveStreams(
     title: "Live stream refresh",
     status: "refresh",
     attempts: refreshCount,
-    detail: `Refreshed servers for ${live.length} live ${live.length === 1 ? "match" : "matches"} (${page} page${page === 1 ? "" : "s"}${switched ? `, switched ${switched} to stream-carrying copies` : ""}, every ${refreshMinutes} min)`,
+    detail: `Refreshed servers for ${live.length} live ${live.length === 1 ? "match" : "matches"} (${page} page${page === 1 ? "" : "s"}${switched ? `, switched ${switched} to stream-carrying copies` : ""}${finished ? `, ${finished} finished excluded` : ""}, every ${refreshMinutes} min)`,
   });
   return { live: live.length, refreshed: true, pages: page, switched };
 }
