@@ -12,7 +12,12 @@ export default {
   // the app without leaving the worker.
   async scheduled(event, env, ctx) {
     const origin = env.NEXT_PUBLIC_SITE_URL || "https://primepitch.daxonicstudios.workers.dev";
-    const path = event.cron === "0 0 * * *" ? "/api/cron/auto-pick" : "/api/cron/auto-live";
+    const path =
+      event.cron === "0 0 * * *"
+        ? "/api/cron/auto-pick"
+        : event.cron === "5 * * * *"
+          ? "/api/cron/sync-ga4"
+          : "/api/cron/auto-live";
     const request = new Request(`${origin}${path}`, {
       headers: { authorization: `Bearer ${env.CRON_SECRET || "secret"}` },
     });
