@@ -12,6 +12,59 @@ interface FlagRow {
   custom_notice?: string;
 }
 
+const timeLabel = (ms: number) =>
+  new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+// Distinct kickoff times (with counts) for the tap-to-filter chip rows
+function timeChips(items: { ms: number }[]) {
+  const counts = new Map<string, { ms: number; n: number }>();
+  for (const it of items) {
+    if (!it.ms) continue;
+    const label = timeLabel(it.ms);
+    const cur = counts.get(label);
+    if (cur) cur.n++;
+    else counts.set(label, { ms: it.ms, n: 1 });
+  }
+  return [...counts.entries()]
+    .sort((a, b) => a[1].ms - b[1].ms)
+    .map(([label, v]) => ({ label, count: v.n }));
+}
+
+function TimeChipRow({
+  chips,
+  active,
+  onPick,
+}: {
+  chips: { label: string; count: number }[];
+  active: string | null;
+  onPick: (label: string | null) => void;
+}) {
+  if (chips.length < 2) return null;
+  return (
+    <div className="flex gap-1.5 overflow-x-auto pb-1">
+      <button
+        onClick={() => onPick(null)}
+        className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
+          active === null ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+        }`}
+      >
+        All times
+      </button>
+      {chips.map((c) => (
+        <button
+          key={c.label}
+          onClick={() => onPick(active === c.label ? null : c.label)}
+          className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
+            active === c.label ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          {c.label} ({c.count})
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
     <button
@@ -285,59 +338,6 @@ export default function AdminAltMatchesPage() {
   }
 
   // Filter matches by search query
-  const timeLabel = (ms: number) =>
-    new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-
-  // Distinct kickoff times (with counts) for the tap-to-filter chip rows
-  const timeChips = (items: { ms: number }[]) => {
-    const counts = new Map<string, { ms: number; n: number }>();
-    for (const it of items) {
-      if (!it.ms) continue;
-      const label = timeLabel(it.ms);
-      const cur = counts.get(label);
-      if (cur) cur.n++;
-      else counts.set(label, { ms: it.ms, n: 1 });
-    }
-    return [...counts.entries()]
-      .sort((a, b) => a[1].ms - b[1].ms)
-      .map(([label, v]) => ({ label, count: v.n }));
-  };
-
-  function TimeChipRow({
-    chips,
-    active,
-    onPick,
-  }: {
-    chips: { label: string; count: number }[];
-    active: string | null;
-    onPick: (label: string | null) => void;
-  }) {
-    if (chips.length < 2) return null;
-    return (
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
-        <button
-          onClick={() => onPick(null)}
-          className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
-            active === null ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-          }`}
-        >
-          All times
-        </button>
-        {chips.map((c) => (
-          <button
-            key={c.label}
-            onClick={() => onPick(active === c.label ? null : c.label)}
-            className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
-              active === c.label ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            {c.label} ({c.count})
-          </button>
-        ))}
-      </div>
-    );
-  }
-
   const filteredRapidMatches = matches.filter(match => {
     if (rapidTimeFilter && timeLabel(Number(match.match_time) * 1000) !== rapidTimeFilter) return false;
     if (!rapidSearchQuery) return true;
