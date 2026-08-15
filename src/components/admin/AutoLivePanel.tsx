@@ -51,7 +51,9 @@ const STATUS_STYLES: Record<string, string> = {
   expired: "bg-gray-200 text-gray-600",
 };
 
-export default function AutoLivePanel() {
+export default function AutoLivePanel({ section = "all" }: { section?: "all" | "robot" | "picker" }) {
+  const showRobot = section === "all" || section === "robot";
+  const showPicker = section === "all" || section === "picker";
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
@@ -166,6 +168,8 @@ export default function AutoLivePanel() {
 
   return (
     <div className="space-y-4">
+      {showRobot && (
+      <>
       <div>
         <h1 className="text-xl font-bold text-gray-900">🤖 Auto-Live Robot</h1>
         <p className="text-[13px] text-gray-500 mt-1">
@@ -299,7 +303,10 @@ export default function AutoLivePanel() {
           )}
         </div>
       </div>
+      </>
+      )}
 
+      {showPicker && (
       <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -408,6 +415,7 @@ export default function AutoLivePanel() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

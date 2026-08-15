@@ -455,30 +455,82 @@ export async function getPartnerVisitorsD1(
   const DAY_MS = 24 * 60 * 60 * 1000;
   const trendStart = new Date(Date.now() - 30 * DAY_MS).toISOString();
 
-  // 1) Lifetime stats (overall users ever joined)
-  const lifeRes = await d1.prepare(`
-    SELECT 
-      COUNT(DISTINCT visitor_id) as total,
-      COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as his
-    FROM d1_page_views
-  `).bind(refCode).first<any>();
+  // 1+2) Lifetime totals and came-back counts scan the entire page-views
+  // table — far too heavy to run on every page load. Cached per partner for
+  // 6 hours; on a miss the queries get an 8s budget and fall back to zeros
+  // (cached briefly) so the page always loads even when the DB is busy.
+  let life = { at: 0, lt: 0, lh: 0, ct: 0, ch: 0 };
+  let haveLife = false;
+  const lifeCacheKey = `pvis_life_${refCode}`;
+  try {
+    const row = await d1
+      .prepare("SELECT value FROM d1_site_settings WHERE key = ?")
+      .bind(lifeCacheKey)
+      .first<{ value: string }>();
+    if (row?.value) {
+      const cached = JSON.parse(row.value);
+      const maxAge = cached.fallback ? 15 * 60_000 : 6 * 3600_000;
+      if (Date.now() - Number(cached.at || 0) < maxAge) {
+        life = cached;
+        haveLife = true;
+      }
+    }
+  } catch {
+    /* cache miss */
+  }
 
-  const totalVisitors = split(lifeRes?.total || 0, lifeRes?.his || 0);
+  if (!haveLife) {
+    let fallback = false;
+    try {
+      const heavy = (async () => {
+        const lifeRes = await d1.prepare(`
+          SELECT
+            COUNT(DISTINCT visitor_id) as total,
+            COUNT(DISTINCT CASE WHEN ref_code = ? THEN visitor_id END) as his
+          FROM d1_page_views
+        `).bind(refCode).first<any>();
+        const cbRes = await d1.prepare(`
+          SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
+          FROM (
+            SELECT visitor_id, MAX(ref_code) as ref_code
+            FROM d1_page_views
+            GROUP BY visitor_id
+            HAVING COUNT(DISTINCT strftime('%Y-%m-%d', created_at)) > 1
+          )
+        `).bind(refCode).first<any>();
+        return { lifeRes, cbRes };
+      })();
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("lifetime query budget exceeded")), 8000)
+      );
+      const { lifeRes, cbRes } = await Promise.race([heavy, timeout]);
+      life = {
+        at: Date.now(),
+        lt: lifeRes?.total || 0,
+        lh: lifeRes?.his || 0,
+        ct: cbRes?.total || 0,
+        ch: cbRes?.his || 0,
+      };
+    } catch {
+      fallback = true;
+      life = { at: Date.now(), lt: 0, lh: 0, ct: 0, ch: 0 };
+    }
+    try {
+      await d1
+        .prepare(
+          "INSERT INTO d1_site_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        )
+        .bind(lifeCacheKey, JSON.stringify({ ...life, fallback }))
+        .run();
+    } catch {
+      /* best-effort */
+    }
+  }
 
-  // 2) Came Back (visited on more than one calendar date)
-  const cbRes = await d1.prepare(`
-    SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN ref_code = ? THEN 1 ELSE 0 END) as his
-    FROM (
-      SELECT visitor_id, MAX(ref_code) as ref_code
-      FROM d1_page_views
-      GROUP BY visitor_id
-      HAVING COUNT(DISTINCT strftime('%Y-%m-%d', created_at)) > 1
-    )
-  `).bind(refCode).first<any>();
-
-  const cameBack = split(cbRes?.total || 0, cbRes?.his || 0);
+  const totalVisitors = split(life.lt, life.lh);
+  const cameBack = split(life.ct, life.ch);
 
   // 3) One Time Only
   const oneTime = split(

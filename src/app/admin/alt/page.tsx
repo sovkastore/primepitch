@@ -45,6 +45,29 @@ export default function AdminAltMatchesPage() {
   const [rapidSearchQuery, setRapidSearchQuery] = useState("");
   const [pageToFetch, setPageToFetch] = useState(2);
 
+  const TABS = [
+    { id: "robot", label: "🤖 Robot" },
+    { id: "picker", label: "📅 Picker" },
+    { id: "upcoming", label: "📋 Upcoming" },
+    { id: "streams", label: "📡 Streams" },
+    { id: "settings", label: "⚙️ Settings" },
+  ] as const;
+  const [tab, setTab] = useState<string>("robot");
+  useEffect(() => {
+    const saved = localStorage.getItem("alt_admin_tab");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time restore of the saved tab
+    if (saved && TABS.some((t) => t.id === saved)) setTab(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  function switchTab(id: string) {
+    setTab(id);
+    try {
+      localStorage.setItem("alt_admin_tab", id);
+    } catch {
+      /* private mode */
+    }
+  }
+
   async function loadData() {
     try {
       const [matchesRes, flagsRes, configRes] = await Promise.all([
@@ -98,6 +121,7 @@ export default function AdminAltMatchesPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- setState runs after await, not synchronously
     loadData();
   }, []);
 
@@ -292,17 +316,35 @@ export default function AdminAltMatchesPage() {
   });
 
   return (
-    <div className="space-y-10 max-w-5xl">
-      <AutoLivePanel />
+    <div className="space-y-6 max-w-5xl">
+      <div className="sticky top-0 z-20 -mx-2 px-2 py-2 bg-gray-50/95 backdrop-blur border-b border-gray-200">
+        <div className="flex gap-2 overflow-x-auto">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => switchTab(t.id)}
+              className={`px-4 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${
+                tab === t.id
+                  ? "bg-gray-900 text-white shadow-sm"
+                  : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <hr className="border-gray-200 border-2 rounded" />
+      {tab === "robot" && <AutoLivePanel section="robot" />}
+      {tab === "picker" && <AutoLivePanel section="picker" />}
 
       {/* BSD Upcoming Fixtures Section */}
+      {tab === "upcoming" && (
       <div className="space-y-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Upcoming Fixtures (BSD API)</h1>
           <p className="text-[13px] text-gray-500 mt-1">
-            Browse upcoming matches for any date. Make them "Visible" to add them to your public site before they go live!
+            Browse upcoming matches for any date. Make them &quot;Visible&quot; to add them to your public site before they go live!
           </p>
         </div>
         
@@ -365,15 +407,17 @@ export default function AdminAltMatchesPage() {
         </div>
       </div>
 
-      <hr className="border-gray-200 border-2 rounded" />
+      )}
 
       {/* RapidAPI Live Streams Section */}
+      {tab === "streams" && (
+      <>
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Live Streams (RapidAPI)</h1>
             <p className="text-[13px] text-gray-500 mt-1">
-              Manage the actual streams from the RapidAPI feed. Use "Update Live (1 Request)" when a match is starting to grab the stream link.
+              Manage the actual streams from the RapidAPI feed. Use &quot;Update Live (1 Request)&quot; when a match is starting to grab the stream link.
             </p>
           </div>
           <input 
@@ -386,67 +430,8 @@ export default function AdminAltMatchesPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-        <h2 className="text-[14px] font-bold text-gray-900">API Cache Settings</h2>
+        <h2 className="text-[14px] font-bold text-gray-900">Feed Actions</h2>
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex flex-col gap-1">
-            <span className="text-[13px] font-semibold text-gray-700">Auto Fetch</span>
-            <span className="text-[11px] text-gray-500">Automatically request new matches in the background</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-[12px] font-medium text-gray-500">{autoFetch ? "ON" : "OFF"}</span>
-            <Toggle on={autoFetch} onClick={() => saveConfig(!autoFetch, cacheMinutes, globalNotice)} />
-          </div>
-        </div>
-
-        {autoFetch && (
-          <div className="flex items-center justify-between gap-4 flex-wrap pt-3 border-t border-gray-100">
-            <div className="flex flex-col gap-1">
-              <span className="text-[13px] font-semibold text-gray-700">Cache Duration (Minutes)</span>
-              <span className="text-[11px] text-gray-500">How long to wait before automatically fetching again</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <input 
-                type="number" 
-                min="1"
-                value={cacheMinutes}
-                onChange={(e) => setCacheMinutes(Number(e.target.value) || 1)}
-                className="w-20 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
-              />
-              <button 
-                onClick={() => saveConfig(autoFetch, cacheMinutes, globalNotice)}
-                disabled={savingConfig}
-                className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[12px] font-bold rounded-lg disabled:opacity-50"
-              >
-                {savingConfig ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="pt-3 border-t border-gray-100">
-          <div className="flex flex-col gap-1 mb-2">
-            <span className="text-[13px] font-semibold text-gray-700">Global Notice Text (Alt Page)</span>
-            <span className="text-[11px] text-gray-500">Custom message displayed at the top of the public Alternative Matches page</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <textarea
-              rows={2}
-              value={globalNotice}
-              onChange={(e) => setGlobalNotice(e.target.value)}
-              placeholder="e.g., We are currently experiencing issues with server 1, please use server 2..."
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-y"
-            />
-            <button 
-              onClick={() => saveConfig(autoFetch, cacheMinutes, globalNotice)}
-              disabled={savingConfig}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[12px] font-bold rounded-lg disabled:opacity-50 shrink-0 mt-1"
-            >
-              {savingConfig ? "Saving..." : "Save Notice"}
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-4 flex-wrap pt-3 border-t border-gray-100">
           <div className="flex flex-col gap-1">
             <span className="text-[13px] font-semibold text-gray-700">Manual Refresh</span>
             <span className="text-[11px] text-gray-500">Instantly fetch fresh matches from the API exactly once</span>
@@ -551,6 +536,80 @@ export default function AdminAltMatchesPage() {
             </div>
           ))}
         </div>
+      )}
+      </>
+      )}
+
+      {/* Settings */}
+      {tab === "settings" && (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">⚙️ Settings</h1>
+          <p className="text-[13px] text-gray-500 mt-1">
+            Cache behavior and the notice shown on the public alt page.
+          </p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex flex-col gap-1">
+              <span className="text-[13px] font-semibold text-gray-700">Auto Fetch</span>
+              <span className="text-[11px] text-gray-500">Automatically request new matches in the background</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[12px] font-medium text-gray-500">{autoFetch ? "ON" : "OFF"}</span>
+              <Toggle on={autoFetch} onClick={() => saveConfig(!autoFetch, cacheMinutes, globalNotice)} />
+            </div>
+          </div>
+
+          {autoFetch && (
+            <div className="flex items-center justify-between gap-4 flex-wrap pt-3 border-t border-gray-100">
+              <div className="flex flex-col gap-1">
+                <span className="text-[13px] font-semibold text-gray-700">Cache Duration (Minutes)</span>
+                <span className="text-[11px] text-gray-500">How long to wait before automatically fetching again</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  value={cacheMinutes}
+                  onChange={(e) => setCacheMinutes(Number(e.target.value) || 1)}
+                  className="w-20 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+                />
+                <button
+                  onClick={() => saveConfig(autoFetch, cacheMinutes, globalNotice)}
+                  disabled={savingConfig}
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[12px] font-bold rounded-lg disabled:opacity-50"
+                >
+                  {savingConfig ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-gray-100">
+            <div className="flex flex-col gap-1 mb-2">
+              <span className="text-[13px] font-semibold text-gray-700">Global Notice Text (Alt Page)</span>
+              <span className="text-[11px] text-gray-500">Custom message displayed at the top of the public Alternative Matches page</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <textarea
+                rows={2}
+                value={globalNotice}
+                onChange={(e) => setGlobalNotice(e.target.value)}
+                placeholder="e.g., We are currently experiencing issues with server 1, please use server 2..."
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-y"
+              />
+              <button
+                onClick={() => saveConfig(autoFetch, cacheMinutes, globalNotice)}
+                disabled={savingConfig}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[12px] font-bold rounded-lg disabled:opacity-50 shrink-0 mt-1"
+              >
+                {savingConfig ? "Saving..." : "Save Notice"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       )}
 
       {activeNoticeMatch && (
