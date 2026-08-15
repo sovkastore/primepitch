@@ -27,6 +27,17 @@ function normalizeTitle(title: string): string {
     .trim();
 }
 
+// Order-independent key so "Mainz vs Bournemouth" and "Bournemouth vs Mainz"
+// (the BSD feed lists some matches both ways) count as the same fixture.
+function fixtureKey(home: string, away: string): string {
+  return [normalizeTitle(home), normalizeTitle(away)].sort().join("|");
+}
+
+function fixtureKeyFromTitle(title: string): string {
+  const parts = (title || "").split(/\s+vs\s+/i);
+  return fixtureKey(parts[0] || "", parts[1] || "");
+}
+
 interface BsdFixture {
   id: string | number;
   home_team: string;
@@ -47,6 +58,7 @@ export interface AutoPickSummary {
   considered?: number;
   picked?: number;
   newlyActivated?: number;
+  deactivated?: number;
   detail?: string;
   error?: string;
 }
@@ -160,7 +172,7 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
       .prepare("SELECT title FROM d1_auto_pick WHERE pick_date = ?")
       .bind(today)
       .all<{ title: string }>();
-    for (const r of priorPicks ?? []) activatedTitles.add(normalizeTitle(r.title));
+    for (const r of priorPicks ?? []) activatedTitles.add(fixtureKeyFromTitle(r.title));
   } catch {
     /* table empty */
   }
@@ -169,7 +181,7 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
     const f = byId.get(String(pick.id));
     if (!f) continue;
     const matchId = `bsd-${f.id}`;
-    const titleKey = normalizeTitle(`${f.home_team} vs ${f.away_team}`);
+    const titleKey = fixtureKey(f.home_team, f.away_team);
 
     if (activatedTitles.has(titleKey)) continue;
 
@@ -208,6 +220,35 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
     newlyActivated++;
   }
 
+  // Re-sync: pull previously auto-picked fixtures that no longer qualify
+  // under the current rules. Only when the AI ran (the keyword fallback is
+  // coarser and would wrongly pull valid picks), only fixtures that haven't
+  // kicked off, and never fixtures the admin activated manually (those have
+  // no d1_auto_pick row).
+  let deactivated = 0;
+  if (method === "ai") {
+    try {
+      const pickIds = new Set(picks.map((p) => `bsd-${p.id}`));
+      const { results: todaysRows } = await d1
+        .prepare("SELECT match_id FROM d1_auto_pick WHERE pick_date = ?")
+        .bind(today)
+        .all<{ match_id: string }>();
+      const nowSec = Math.floor(Date.now() / 1000);
+      for (const r of todaysRows ?? []) {
+        if (pickIds.has(r.match_id)) continue;
+        const f = byId.get(r.match_id.replace(/^bsd-/, ""));
+        if (!f) continue;
+        const kickoff = Math.floor(new Date(f.event_date).getTime() / 1000);
+        if (!kickoff || kickoff <= nowSec) continue; // started or live — leave alone
+        await setMatchFlag(d1, r.match_id, false);
+        await d1.prepare("DELETE FROM d1_auto_pick WHERE match_id = ?").bind(r.match_id).run();
+        deactivated++;
+      }
+    } catch {
+      /* re-sync is best-effort */
+    }
+  }
+
   return {
     ok: true,
     ran: true,
@@ -215,6 +256,7 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
     considered: fixtures.length,
     picked: picks.length,
     newlyActivated,
-    detail,
+    deactivated,
+    detail: deactivated > 0 ? `${detail} — removed ${deactivated} no-longer-qualifying pick${deactivated === 1 ? "" : "s"}` : detail,
   };
 }

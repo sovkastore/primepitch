@@ -38,6 +38,7 @@ interface PickRunResult {
   considered?: number;
   picked?: number;
   newlyActivated?: number;
+  deactivated?: number;
   detail?: string;
   error?: string;
 }
@@ -348,8 +349,13 @@ export default function AutoLivePanel() {
             disabled={runningPick}
             className="text-[12px] font-bold text-white bg-violet-600 hover:bg-violet-700 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
           >
-            {runningPick ? "Picking…" : "▶ Run Picker Now"}
+            {runningPick ? "Picking…" : "▶ Run Picker (sync to rules)"}
           </button>
+          <span className="text-[11px] text-gray-400 w-full">
+            Re-running after a rules change adds newly-qualifying matches AND removes picks that no
+            longer qualify (matches already started, live, or added by you manually are never
+            touched).
+          </span>
         </div>
 
         {pickRun && (
@@ -364,7 +370,8 @@ export default function AutoLivePanel() {
               <>
                 <span className="font-bold">
                   {pickRun.method === "ai" ? "🤖" : "🔧"} Picked {pickRun.picked ?? 0} of{" "}
-                  {pickRun.considered ?? 0} fixtures ({pickRun.newlyActivated ?? 0} newly activated).
+                  {pickRun.considered ?? 0} fixtures ({pickRun.newlyActivated ?? 0} newly activated
+                  {(pickRun.deactivated ?? 0) > 0 ? `, ${pickRun.deactivated} removed` : ""}).
                 </span>{" "}
                 {pickRun.detail}
               </>
