@@ -375,7 +375,12 @@ export default function AdminAltMatchesPage() {
       fixture.league?.name?.toLowerCase().includes(q)
     );
   });
-  const bsdChips = timeChips(bsdFixtures.map((f) => ({ ms: new Date(f.event_date).getTime() })));
+  // Chip counts follow the All/Selected switch: in Selected mode each time
+  // shows how many alt-selected matches kick off then, and empty times drop off.
+  const bsdChipSource = bsdSelectedOnly
+    ? bsdFixtures.filter((f) => flags[`bsd-${f.id}`]?.alt_visible)
+    : bsdFixtures;
+  const bsdChips = timeChips(bsdChipSource.map((f) => ({ ms: new Date(f.event_date).getTime() })));
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -432,7 +437,7 @@ export default function AdminAltMatchesPage() {
           
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
-              onClick={() => setBsdSelectedOnly(false)}
+              onClick={() => { setBsdSelectedOnly(false); setBsdTimeFilter(null); }}
               className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
                 !bsdSelectedOnly ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
@@ -440,7 +445,7 @@ export default function AdminAltMatchesPage() {
               All fixtures ({bsdFixtures.length})
             </button>
             <button
-              onClick={() => setBsdSelectedOnly(true)}
+              onClick={() => { setBsdSelectedOnly(true); setBsdTimeFilter(null); }}
               className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
                 bsdSelectedOnly ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
               }`}
