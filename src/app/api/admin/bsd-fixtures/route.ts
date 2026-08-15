@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const date = searchParams.get("date"); // e.g., '2026-08-09'
     
-    let url = `${BSD_API}?limit=50`;
+    let url = `${BSD_API}?limit=200`;
     if (date) {
       url += `&date=${date}`;
     }

@@ -131,6 +131,51 @@ async function refreshLiveStreams(
 
   const matches = await fetchRapidPage("live refresh", 1);
   if (!matches) return { live: live.length, refreshed: false, error: "RapidAPI unavailable" };
+
+  // If a tracked live match's published entry has no servers in what we've
+  // fetched, dig deeper pages (same natural stops as the kickoff scan) —
+  // smaller matches often carry their streams on page 2+.
+  const entryId = (m: RapidMatch) =>
+    `alt-${(m.home_team_name || "").replace(/\s+/g, "")}-${(m.away_team_name || "").replace(/\s+/g, "")}-${m.match_time}`;
+  const tracked = live.filter((r) => r.live_id);
+  const serverless = () =>
+    tracked.filter((r) => {
+      const entry = matches.find((m) => entryId(m) === r.live_id);
+      return !entry || (entry.servers?.length ?? 0) === 0;
+    });
+
+  let page = 1;
+  let missing = serverless();
+  while (missing.length > 0 && page < MAX_SCAN_PAGES) {
+    const batch = await fetchRapidPage("live refresh", ++page);
+    if (!batch) break;
+    matches.push(...batch);
+    missing = serverless();
+    if (batch.length < 20 || !batch.some((m) => m.match_status === "live")) break;
+  }
+
+  // Auto-switch any still-serverless match to a same-teams sibling copy that
+  // carries streams (the duplicate-copy situation, healed without an admin).
+  let switched = 0;
+  for (const r of serverless()) {
+    const curIdx = matches.findIndex((m) => entryId(m) === r.live_id);
+    if (curIdx < 0) continue;
+    const bestIdx = bestVariantIndex(matches, curIdx);
+    if (bestIdx === curIdx) continue;
+    const m = matches[bestIdx];
+    const newId = entryId(m);
+    await setMatchFlag(d1, newId, true, {
+      title: `${m.home_team_name} vs ${m.away_team_name}`,
+      category: m.league_name,
+    });
+    await setMatchFlag(d1, r.live_id!, false);
+    await d1
+      .prepare("UPDATE d1_auto_live SET live_id = ?, detail = detail || ' → refresher switched to the stream-carrying copy', updated_at = ? WHERE match_id = ?")
+      .bind(newId, new Date().toISOString(), r.match_id)
+      .run();
+    switched++;
+  }
+
   await saveMatchesCache(d1, matches);
 
   const refreshCount = (state.get("live-refresh")?.attempts ?? 0) + 1;
@@ -138,9 +183,9 @@ async function refreshLiveStreams(
     title: "Live stream refresh",
     status: "refresh",
     attempts: refreshCount,
-    detail: `Refreshed servers for ${live.length} live ${live.length === 1 ? "match" : "matches"} (one shared request, every ${refreshMinutes} min)`,
+    detail: `Refreshed servers for ${live.length} live ${live.length === 1 ? "match" : "matches"} (${page} page${page === 1 ? "" : "s"}${switched ? `, switched ${switched} to stream-carrying copies` : ""}, every ${refreshMinutes} min)`,
   });
-  return { live: live.length, refreshed: true };
+  return { live: live.length, refreshed: true, pages: page, switched };
 }
 
 async function logState(
