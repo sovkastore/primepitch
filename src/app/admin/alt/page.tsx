@@ -99,6 +99,7 @@ export default function AdminAltMatchesPage() {
   const [pageToFetch, setPageToFetch] = useState(2);
   const [bsdTimeFilter, setBsdTimeFilter] = useState<string | null>(null);
   const [rapidTimeFilter, setRapidTimeFilter] = useState<string | null>(null);
+  const [bsdSelectedOnly, setBsdSelectedOnly] = useState(false);
 
   const TABS = [
     { id: "robot", label: "🤖 Robot" },
@@ -362,7 +363,9 @@ export default function AdminAltMatchesPage() {
   const sortedDates = Object.keys(matchesByDay).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
   // Filter BSD fixtures
+  const bsdSelectedCount = bsdFixtures.filter((f) => flags[`bsd-${f.id}`]?.alt_visible).length;
   const filteredBsdFixtures = bsdFixtures.filter(fixture => {
+    if (bsdSelectedOnly && !flags[`bsd-${fixture.id}`]?.alt_visible) return false;
     if (bsdTimeFilter && timeLabel(new Date(fixture.event_date).getTime()) !== bsdTimeFilter) return false;
     if (!bsdSearchQuery) return true;
     const q = bsdSearchQuery.toLowerCase();
@@ -427,6 +430,25 @@ export default function AdminAltMatchesPage() {
             </div>
           </div>
           
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setBsdSelectedOnly(false)}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
+                !bsdSelectedOnly ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              All fixtures ({bsdFixtures.length})
+            </button>
+            <button
+              onClick={() => setBsdSelectedOnly(true)}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
+                bsdSelectedOnly ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              }`}
+            >
+              ✓ Selected for alt ({bsdSelectedCount})
+            </button>
+          </div>
+
           <TimeChipRow chips={bsdChips} active={bsdTimeFilter} onPick={setBsdTimeFilter} />
 
           <div className="pt-3 border-t border-gray-100">

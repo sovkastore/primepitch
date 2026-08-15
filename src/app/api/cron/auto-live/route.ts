@@ -16,7 +16,11 @@ import { saveMatchesCache } from "@/lib/match-cache";
 export const dynamic = "force-dynamic";
 
 const KICKOFF_OFFSET_MS = 30_000; // ask 30s after kickoff
-const MAX_SCAN_PAGES = 5; // deepest we'll scan the paged feed (1 request per page)
+// EMERGENCY BRAKE ONLY — the real stops are: match found, short page (list
+// ended), and the no-live-matches page (past the live section). This ceiling
+// exists purely so a malfunctioning feed (e.g. endlessly repeating full pages)
+// can't burn the request budget; no real football day has 300 live matches.
+const MAX_SCAN_PAGES = 15;
 const PAGE_SIZE = 20; // a page shorter than this means the list ended
 const LIVE_WINDOW_MINUTES = 130; // kickoff → ~full match incl. stoppage
 const DEFAULT_REFRESH_MINUTES = 5; // shared stream refresh while anything is live
