@@ -215,10 +215,17 @@ export default function AltPage() {
                                 {score?.period === "HT" ? " · HT" : score?.minute ? ` · ${score.minute}'` : ""}
                               </span>
                             ) : now > 0 && Number(match.match_time) * 1000 < now ? (
-                              <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full uppercase tracking-wider">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                Finding stream…
-                              </span>
+                              now - Number(match.match_time) * 1000 < 5 * 60_000 ? (
+                                <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full uppercase tracking-wider">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  Starting · stream on the way
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full uppercase tracking-wider">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                  Finding stream…
+                                </span>
+                              )
                             ) : (
                               <span className="text-[11px] text-gray-600 bg-gray-100 px-3 py-1 rounded-full font-medium border border-gray-200">Upcoming</span>
                             )}
