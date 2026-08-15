@@ -44,6 +44,8 @@ interface BsdFixture {
   away_team: string;
   event_date: string;
   league?: { name?: string };
+  home_team_obj?: { short_name?: string };
+  away_team_obj?: { short_name?: string };
 }
 
 export interface AutoPickConfig {
@@ -198,6 +200,8 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
       category: f.league?.name || "Football",
       home_team_name: f.home_team,
       away_team_name: f.away_team,
+      home_team_short: f.home_team_obj?.short_name || null,
+      away_team_short: f.away_team_obj?.short_name || null,
       match_time: Math.floor(new Date(f.event_date).getTime() / 1000).toString(),
       home_team_logo: null,
       away_team_logo: null,

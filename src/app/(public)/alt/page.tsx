@@ -9,6 +9,8 @@ export interface ProMatch {
   match_id?: string;
   match_time: string | number;
   match_status: string;
+  home_team_short?: string | null;
+  away_team_short?: string | null;
   home_team_name: string;
   home_team_logo: string;
   homeTeamScore: string | number;
@@ -232,7 +234,7 @@ export default function AltPage() {
                                   <span className="text-lg">⚽</span>
                                 )}
                               </div>
-                              <p className="text-sm font-bold text-gray-900 text-center line-clamp-1">{match.home_team_name}</p>
+                              <p className="text-[13px] font-bold text-gray-900 text-center leading-tight line-clamp-2 min-h-[32px]">{match.home_team_short || match.home_team_name}</p>
                             </div>
                             
                             <div className="flex flex-col items-center justify-center px-2">
@@ -254,7 +256,7 @@ export default function AltPage() {
                                   <span className="text-lg">⚽</span>
                                 )}
                               </div>
-                              <p className="text-sm font-bold text-gray-900 text-center line-clamp-1">{match.away_team_name}</p>
+                              <p className="text-[13px] font-bold text-gray-900 text-center leading-tight line-clamp-2 min-h-[32px]">{match.away_team_short || match.away_team_name}</p>
                             </div>
                           </div>
 
