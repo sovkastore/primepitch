@@ -89,7 +89,7 @@ async function refreshLiveStreams(
   const nowSec = Math.floor(Date.now() / 1000);
   const { results: liveRows } = await d1
     .prepare(
-      "SELECT match_id, live_id, title FROM d1_auto_live WHERE status = 'converted' AND kickoff >= ? AND kickoff <= ?"
+      "SELECT a.match_id, a.live_id, a.title FROM d1_auto_live a INNER JOIN d1_match_flags f ON f.match_id = a.live_id AND f.alt_visible = 1 WHERE a.status = 'converted' AND a.kickoff >= ? AND a.kickoff <= ?"
     )
     .bind(nowSec - LIVE_WINDOW_MINUTES * 60, nowSec)
     .all<{ match_id: string; live_id: string | null; title: string | null }>();
