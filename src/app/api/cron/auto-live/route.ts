@@ -89,10 +89,10 @@ async function refreshLiveStreams(
   const nowSec = Math.floor(Date.now() / 1000);
   const { results: liveRows } = await d1
     .prepare(
-      "SELECT match_id, live_id FROM d1_auto_live WHERE status = 'converted' AND kickoff >= ? AND kickoff <= ?"
+      "SELECT match_id, live_id, title FROM d1_auto_live WHERE status = 'converted' AND kickoff >= ? AND kickoff <= ?"
     )
     .bind(nowSec - LIVE_WINDOW_MINUTES * 60, nowSec)
-    .all<{ match_id: string; live_id: string | null }>();
+    .all<{ match_id: string; live_id: string | null; title: string | null }>();
   if (!liveRows?.length) return null;
 
   // Skip matches the admin force-ended
@@ -186,7 +186,45 @@ async function refreshLiveStreams(
   let switched = 0;
   for (const r of serverless()) {
     const curIdx = matches.findIndex((m) => entryId(m) === r.live_id);
-    if (curIdx < 0) continue;
+    if (curIdx < 0) {
+      // Published entry vanished from the feed — scan for a same-teams
+      // sibling that IS live / carries servers (duplicate-copy self-heal).
+      const parts = (r.title || "").split(" vs ");
+      if (parts.length === 2) {
+        const [tHome, tAway] = parts.map(normalizeTeamName);
+        const siblingScore = (m: RapidMatch) =>
+          ((m.servers?.length ?? 0) > 0 ? 1000 : 0) +
+          (m.servers?.length ?? 0) +
+          (m.match_status === "live" ? 500 : 0);
+        let bestIdx = -1;
+        let bestScore = 0;
+        for (let i = 0; i < matches.length; i++) {
+          const h = normalizeTeamName(matches[i].home_team_name || "");
+          const a = normalizeTeamName(matches[i].away_team_name || "");
+          const sameTeams =
+            (namesMatch(tHome, h) && namesMatch(tAway, a)) ||
+            (namesMatch(tHome, a) && namesMatch(tAway, h));
+          if (!sameTeams) continue;
+          const s = siblingScore(matches[i]);
+          if (s > bestScore) { bestIdx = i; bestScore = s; }
+        }
+        if (bestIdx >= 0 && bestScore > 0) {
+          const m = matches[bestIdx];
+          const newId = entryId(m);
+          await setMatchFlag(d1, newId, true, {
+            title: `${m.home_team_name} vs ${m.away_team_name}`,
+            category: m.league_name,
+          });
+          await setMatchFlag(d1, r.live_id!, false);
+          await d1
+            .prepare("UPDATE d1_auto_live SET live_id = ?, detail = detail || ' → refresher healed: original entry gone, switched to live sibling', updated_at = ? WHERE match_id = ?")
+            .bind(newId, new Date().toISOString(), r.match_id)
+            .run();
+          switched++;
+        }
+      }
+      continue;
+    }
     const bestIdx = bestVariantIndex(matches, curIdx);
     if (bestIdx === curIdx) continue;
     const m = matches[bestIdx];
