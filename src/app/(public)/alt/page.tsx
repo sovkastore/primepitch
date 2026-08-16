@@ -22,12 +22,29 @@ export interface ProMatch {
   servers: any[];
 }
 
+// Show a live countdown once kickoff is within this window.
+const COUNTDOWN_WINDOW_MS = 60 * 60_000;
+
+function countdownLabel(msLeft: number): string {
+  const total = Math.max(0, Math.floor(msLeft / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 export default function AltPage() {
   const [matches, setMatches] = useState<ProMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalNotice, setGlobalNotice] = useState("");
   const [scores, setScores] = useState<ScoreInfo[]>([]);
   const [now, setNow] = useState(0);
+
+  // Ticks every second so the pre-kickoff countdown stays live.
+  useEffect(() => {
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     let stopped = false;
@@ -226,6 +243,11 @@ export default function AltPage() {
                                   Finding stream…
                                 </span>
                               )
+                            ) : now > 0 && Number(match.match_time) * 1000 - now <= COUNTDOWN_WINDOW_MS ? (
+                              <span className="flex items-center gap-1.5 text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-1 rounded-full uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+                                Starts in {countdownLabel(Number(match.match_time) * 1000 - now)}
+                              </span>
                             ) : (
                               <span className="text-[11px] text-gray-600 bg-gray-100 px-3 py-1 rounded-full font-medium border border-gray-200">Upcoming</span>
                             )}
