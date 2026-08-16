@@ -140,7 +140,14 @@ function AltWatchContent() {
             now > 0 &&
             Number(match.match_time) > 0 &&
             now > Number(match.match_time) * 1000 + 130 * 60_000;
-          const isEnded = match.match_status === "ended" || !!score?.ended || endedByClock;
+          // Ignore a "finished" flag that arrives before the match could be
+          // over — feeds sometimes mark a fixture ended before kickoff.
+          const couldBeOver =
+            now > 0 &&
+            Number(match.match_time) > 0 &&
+            now > Number(match.match_time) * 1000 + 70 * 60_000;
+          const isEnded =
+            match.match_status === "ended" || (!!score?.ended && couldBeOver) || endedByClock;
           const scoreText =
             score && score.homeScore != null && score.awayScore != null
               ? ` • ${score.homeScore} - ${score.awayScore}${

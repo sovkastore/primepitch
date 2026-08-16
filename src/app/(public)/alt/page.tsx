@@ -24,6 +24,9 @@ export interface ProMatch {
 
 // Show a live countdown once kickoff is within this window.
 const COUNTDOWN_WINDOW_MS = 60 * 60_000;
+// No football match can be over sooner than this after kickoff, so a
+// "finished" score signal before it is bad data, not a real full time.
+const FULL_TIME_EARLIEST_MS = 70 * 60_000;
 
 function countdownLabel(msLeft: number): string {
   const total = Math.max(0, Math.floor(msLeft / 1000));
@@ -206,7 +209,15 @@ export default function AltPage() {
                     now > 0 &&
                     Number(match.match_time) > 0 &&
                     now > Number(match.match_time) * 1000 + 130 * 60_000;
-                  const isEnded = match.match_status === "ended" || !!score?.ended || endedByClock;
+                  // A score feed can wrongly report a fixture finished before it
+                  // has even kicked off — only trust that flag once the match
+                  // could plausibly be over.
+                  const couldBeOver =
+                    now > 0 &&
+                    Number(match.match_time) > 0 &&
+                    now > Number(match.match_time) * 1000 + FULL_TIME_EARLIEST_MS;
+                  const isEnded =
+                    match.match_status === "ended" || (!!score?.ended && couldBeOver) || endedByClock;
                   // Mock matches (from BSD) don't have servers yet, so they are not clickable
                   const isMock = match.servers && match.servers.length === 0;
                   const isPlayable = !isEnded && !isMock;
