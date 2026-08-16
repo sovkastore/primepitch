@@ -247,7 +247,7 @@ export async function GET(req: Request) {
 
   // 1) Active BSD fixtures (admin toggled "Make Active" on the upcoming list)
   const { results: flagRows } = await d1
-    .prepare("SELECT match_id, match_data FROM d1_match_flags WHERE match_id LIKE 'bsd-%' AND alt_visible = 1")
+    .prepare("SELECT match_id, match_data FROM d1_match_flags WHERE (match_id LIKE 'bsd-%' OR match_id LIKE 'manual-%') AND alt_visible = 1")
     .all<{ match_id: string; match_data: string | null }>();
 
   const { results: stateRows } = await d1

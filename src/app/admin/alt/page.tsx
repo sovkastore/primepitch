@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ProMatch } from "@/app/(public)/alt/page";
 import MatchNoticeModal from "@/components/admin/MatchNoticeModal";
 import AutoLivePanel from "@/components/admin/AutoLivePanel";
+import ManualFixturePanel from "@/components/admin/ManualFixturePanel";
 
 interface FlagRow {
   match_id: string;
@@ -107,6 +108,7 @@ export default function AdminAltMatchesPage() {
     { id: "robot", label: "🤖 Robot" },
     { id: "picker", label: "📅 Picker" },
     { id: "upcoming", label: "📋 Upcoming" },
+    { id: "manual", label: "✍️ Manual" },
     { id: "streams", label: "📡 Streams" },
     { id: "settings", label: "⚙️ Settings" },
   ] as const;
@@ -522,6 +524,8 @@ export default function AdminAltMatchesPage() {
       </div>
 
       )}
+
+      {tab === "manual" && <ManualFixturePanel />}
 
       {/* RapidAPI Live Streams Section */}
       {tab === "streams" && (

@@ -4,10 +4,19 @@ import { getD1 } from "@/lib/d1";
 // Daily RapidAPI request usage, shown in the admin robot panel.
 export const dynamic = "force-dynamic";
 
+function dailyLimit(): number {
+  const keys = (process.env.RAPID_API_KEYS || process.env.RAPID_API_KEY || "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+  return Math.max(1, keys.length) * 50; // 50 requests/day per key
+}
+
 export async function GET() {
+  const limit = dailyLimit();
   try {
     const d1 = await getD1();
-    if (!d1) return NextResponse.json({ today: { total: 0, bySource: {} }, week: [] });
+    if (!d1) return NextResponse.json({ today: { total: 0, bySource: {} }, week: [], limit });
 
     const today = new Date().toISOString().split("T")[0];
     const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString().split("T")[0];
@@ -27,9 +36,10 @@ export async function GET() {
     return NextResponse.json({
       today: { total: byDay[today] || 0, bySource },
       week: Object.entries(byDay).map(([day, total]) => ({ day, total })),
+      limit,
     });
   } catch {
     // Table doesn't exist until the first counted request
-    return NextResponse.json({ today: { total: 0, bySource: {} }, week: [] });
+    return NextResponse.json({ today: { total: 0, bySource: {} }, week: [], limit });
   }
 }
