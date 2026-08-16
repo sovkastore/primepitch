@@ -100,6 +100,8 @@ export default function AdminAltMatchesPage() {
   const [bsdTimeFilter, setBsdTimeFilter] = useState<string | null>(null);
   const [rapidTimeFilter, setRapidTimeFilter] = useState<string | null>(null);
   const [bsdSelectedOnly, setBsdSelectedOnly] = useState(false);
+  const [refreshingFixtures, setRefreshingFixtures] = useState(false);
+  const [refreshNote, setRefreshNote] = useState("");
 
   const TABS = [
     { id: "robot", label: "🤖 Robot" },
@@ -160,6 +162,30 @@ export default function AdminAltMatchesPage() {
       console.error("Failed to load:", e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Re-fetch today's fixtures from BSD and let the picker activate any newly
+  // added qualifying matches (BSD sometimes adds fixtures after the 1 AM run,
+  // e.g. cup games announced late). Costs one BSD call + one AI pick, no RapidAPI.
+  async function refreshFixturesAndPick() {
+    setRefreshingFixtures(true);
+    setRefreshNote("");
+    try {
+      const res = await fetch("/api/admin/run-auto-pick", { method: "POST" });
+      const data = await res.json();
+      await loadBsdFixtures(bsdDate);
+      await loadData();
+      if (data?.ok) {
+        const n = data.newlyActivated ?? 0;
+        setRefreshNote(`List refreshed — ${n} new ${n === 1 ? "match" : "matches"} picked`);
+      } else {
+        setRefreshNote("Refresh failed — try again");
+      }
+    } catch {
+      setRefreshNote("Refresh failed — try again");
+    } finally {
+      setRefreshingFixtures(false);
     }
   }
 
@@ -452,6 +478,14 @@ export default function AdminAltMatchesPage() {
             >
               ✓ Selected for alt ({bsdSelectedCount})
             </button>
+            <button
+              onClick={refreshFixturesAndPick}
+              disabled={refreshingFixtures}
+              className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50"
+            >
+              {refreshingFixtures ? "Refreshing…" : "🔄 Refresh & Pick New"}
+            </button>
+            {refreshNote && <span className="text-[11px] text-gray-500 self-center">{refreshNote}</span>}
           </div>
 
           <TimeChipRow chips={bsdChips} active={bsdTimeFilter} onPick={setBsdTimeFilter} />
