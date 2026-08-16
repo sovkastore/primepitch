@@ -165,23 +165,15 @@ export default function AdminAltMatchesPage() {
     }
   }
 
-  // Re-fetch today's fixtures from BSD and let the picker activate any newly
-  // added qualifying matches (BSD sometimes adds fixtures after the 1 AM run,
-  // e.g. cup games announced late). Costs one BSD call + one AI pick, no RapidAPI.
-  async function refreshFixturesAndPick() {
+  // Re-fetch the fixture list fresh from BSD (they add fixtures during the
+  // day, e.g. late-announced cup games). List only — picking stays manual via
+  // the Picker tab's Run Picker button.
+  async function refreshFixtureList() {
     setRefreshingFixtures(true);
     setRefreshNote("");
     try {
-      const res = await fetch("/api/admin/run-auto-pick", { method: "POST" });
-      const data = await res.json();
       await loadBsdFixtures(bsdDate);
-      await loadData();
-      if (data?.ok) {
-        const n = data.newlyActivated ?? 0;
-        setRefreshNote(`List refreshed — ${n} new ${n === 1 ? "match" : "matches"} picked`);
-      } else {
-        setRefreshNote("Refresh failed — try again");
-      }
+      setRefreshNote("List refreshed");
     } catch {
       setRefreshNote("Refresh failed — try again");
     } finally {
@@ -479,11 +471,11 @@ export default function AdminAltMatchesPage() {
               ✓ Selected for alt ({bsdSelectedCount})
             </button>
             <button
-              onClick={refreshFixturesAndPick}
+              onClick={refreshFixtureList}
               disabled={refreshingFixtures}
               className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50"
             >
-              {refreshingFixtures ? "Refreshing…" : "🔄 Refresh & Pick New"}
+              {refreshingFixtures ? "Refreshing…" : "🔄 Refresh List"}
             </button>
             {refreshNote && <span className="text-[11px] text-gray-500 self-center">{refreshNote}</span>}
           </div>
