@@ -17,7 +17,13 @@ export async function GET(req: Request) {
   const attempt = async (label: string, headers: Record<string, string>) => {
     const started = Date.now();
     try {
-      const res = await fetch(url, { headers });
+      // Bypass the Worker cache: a cached 403 from a previous attempt would
+      // otherwise be replayed for the headered request and fake a failure.
+      const res = await fetch(url, {
+        headers,
+        cache: "no-store",
+        cf: { cacheTtl: 0, cacheEverything: false },
+      } as RequestInit);
       const body = res.ok ? (await res.text()).slice(0, 200) : "";
       return { label, status: res.status, ms: Date.now() - started, bodyStart: body };
     } catch (e: unknown) {
@@ -29,8 +35,9 @@ export async function GET(req: Request) {
     from: "cloudflare-worker (datacenter IP)",
     colo: req.headers.get("cf-ray") || null,
     results: [
-      await attempt("no headers", {}),
+      // headered FIRST so nothing can poison it
       await attempt("with referer + ua", { Referer: referer, "User-Agent": ua }),
+      await attempt("no headers", {}),
     ],
   });
 }
