@@ -216,25 +216,66 @@ function AltWatchContent() {
               </div>
             )}
           </div>
+
+          {activeServer?.url?.startsWith("http://") && (
+            <a
+              href={activeServer.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex items-center justify-between gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors"
+            >
+              <span className="text-[13px] text-amber-900 font-medium">
+                This server is HTTP-only, so the browser blocks it inside the page. Open it in a new
+                tab to watch.
+              </span>
+              <span className="text-[12px] font-bold text-white bg-amber-600 px-3 py-1.5 rounded-lg shrink-0 whitespace-nowrap">
+                Open in new tab &#8599;
+              </span>
+            </a>
+          )}
         </div>
 
         <div className="lg:col-span-1">
           <h3 className="text-lg font-bold text-gray-900 mb-4">Servers</h3>
           <div className="flex flex-col gap-2">
-            {match.servers?.map((server, i) => (
-              <button
-                key={i}
-                onClick={() => setActiveServer(server)}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  activeServer === server 
-                    ? "bg-emerald-50 border-emerald-500 text-emerald-600 font-bold shadow-sm" 
-                    : "bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                {server.name} {server.type && <span className="text-[10px] uppercase opacity-50 ml-2">({server.type})</span>}
-                {server.url.startsWith("http://") && <span className="block text-[9px] text-red-400 mt-1">HTTP Only (May require new tab)</span>}
-              </button>
-            ))}
+            {match.servers?.map((server, i) => {
+              const httpOnly = !!server.url?.startsWith("http://");
+              return (
+                <div
+                  key={i}
+                  className={`rounded-xl border transition-all ${
+                    activeServer === server
+                      ? "bg-emerald-50 border-emerald-500 shadow-sm"
+                      : "bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300"
+                  }`}
+                >
+                  <button
+                    onClick={() => setActiveServer(server)}
+                    className={`w-full p-3 text-left ${
+                      activeServer === server ? "text-emerald-600 font-bold" : "text-gray-700"
+                    }`}
+                  >
+                    {server.name}{" "}
+                    {server.type && (
+                      <span className="text-[10px] uppercase opacity-50 ml-2">({server.type})</span>
+                    )}
+                  </button>
+                  {httpOnly && (
+                    <a
+                      href={server.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-2 px-3 pb-2.5"
+                    >
+                      <span className="text-[9px] text-red-400">HTTP only — blocked in page</span>
+                      <span className="text-[11px] font-bold text-blue-600 hover:text-blue-800 whitespace-nowrap">
+                        Open in new tab &#8599;
+                      </span>
+                    </a>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
