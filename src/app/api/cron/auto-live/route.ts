@@ -8,11 +8,11 @@ import { findDeterministicMatch, namesMatch, normalizeTeamName, type CandidateMa
 import { saveMatchesCache } from "@/lib/match-cache";
 
 // Auto-live robot: runs every minute via the Cloudflare cron trigger.
-// For every admin-activated BSD fixture past kickoff, it deep-scans the paged
-// RapidAPI feed (page by page, only as deep as needed, max 5 pages), finds the
-// matching live stream (Claude first, name-rules fallback), makes it visible
-// on /alt and hides the upcoming fixture. A completed scan that finds nothing
-// is proof the match isn't in the feed — no retry loop.
+// For every admin-activated BSD fixture past kickoff, it scans the feed's whole
+// live section, matches the fixture against every entry at once (Claude first,
+// name-rules fallback), publishes the copy carrying the most streams, and hides
+// the upcoming fixture. A completed scan that finds nothing is proof the match
+// isn't in the feed — no retry loop.
 export const dynamic = "force-dynamic";
 
 const KICKOFF_OFFSET_MS = 30_000; // ask 30s after kickoff
@@ -263,7 +263,6 @@ export async function GET(req: Request) {
     kickoff: number;
     league?: string;
     targetMs: number;
-    held?: { index: number; detail: string };
   };
   const due: Due[] = [];
 
@@ -352,7 +351,11 @@ export async function GET(req: Request) {
     outcomes.push({ fixture: f.matchId, matched: true, live: altId, method });
   };
 
-  while (pending.length > 0 && pagesFetched < MAX_SCAN_PAGES && !feedEnded && !pastLiveSection && !apiFailed) {
+  // Scan the WHOLE live section before matching. The feed lists one match
+  // under several entries — different spellings, sometimes different kickoff
+  // times — and only some carry streams. Stopping at the first hit used to
+  // publish a dud while a 14-server copy sat on a later page.
+  while (pagesFetched < MAX_SCAN_PAGES && !feedEnded && !pastLiveSection && !apiFailed) {
     const batch = await fetchRapidPage("robot kickoff", pagesFetched + 1);
     if (batch === null) {
       apiFailed = true;
@@ -366,14 +369,19 @@ export async function GET(req: Request) {
     // that already kicked off can't appear on any later page. We still
     // process this page (it holds the earliest upcoming entries), then stop.
     if (!batch.some((m) => m.match_status === "live")) pastLiveSection = true;
+  }
 
-    const candidates: CandidateMatch[] = all.map((m, index) => ({
-      index,
-      home: m.home_team_name || "",
-      away: m.away_team_name || "",
-      matchTime: Number(m.match_time || 0),
-    }));
+  // Match once against the complete candidate set — so bestVariantIndex can
+  // compare every copy of the match and publish the one with most streams.
+  const candidates: CandidateMatch[] = all.map((m, index) => ({
+    index,
+    home: m.home_team_name || "",
+    away: m.away_team_name || "",
+    matchTime: Number(m.match_time || 0),
+  }));
+  const scanNote = `${pagesFetched} page${pagesFetched === 1 ? "" : "s"}, ${all.length} entries`;
 
+  if (candidates.length > 0) {
     const stillPending: Due[] = [];
     for (const f of pending) {
       try {
@@ -381,21 +389,15 @@ export async function GET(req: Request) {
           { home: f.home, away: f.away, kickoff: f.kickoff, league: f.league },
           candidates
         );
-        if (ai.index !== null && ai.confidence === "high") {
+        // The scan is already complete, so a medium match has nothing deeper
+        // to wait for — accept it rather than dropping the fixture.
+        if (ai.index !== null && (ai.confidence === "high" || ai.confidence === "medium")) {
           await convert(
             f,
             ai.index,
             "ai",
-            `AI matched with high confidence on page ${pagesFetched} (${ai.inputTokens}+${ai.outputTokens} tokens)`
+            `AI matched with ${ai.confidence} confidence across the full live section (${scanNote}; ${ai.inputTokens}+${ai.outputTokens} tokens)`
           );
-        } else if (ai.index !== null && ai.confidence === "medium") {
-          // Hold the medium match — a deeper page may yield a high-confidence
-          // one; accepted after the scan completes otherwise.
-          f.held = {
-            index: ai.index,
-            detail: `AI matched with medium confidence on page ${pagesFetched} (${ai.inputTokens}+${ai.outputTokens} tokens)`,
-          };
-          stillPending.push(f);
         } else {
           stillPending.push(f);
         }
@@ -406,7 +408,7 @@ export async function GET(req: Request) {
         );
         if (idx !== null) {
           const reason = (e instanceof Error ? e.message : String(e)).slice(0, 120);
-          await convert(f, idx, "rules", `AI unavailable (${reason}) — rules fallback matched on page ${pagesFetched}`);
+          await convert(f, idx, "rules", `AI unavailable (${reason}) — rules fallback matched (${scanNote})`);
         } else {
           stillPending.push(f);
         }
@@ -417,13 +419,9 @@ export async function GET(req: Request) {
 
   if (all.length > 0) await saveMatchesCache(d1, all);
 
-  // Scan finished: accept held medium-confidence matches; anything else has
-  // been proven absent from the (scanned) feed — no retry loop.
+  // Anything still pending has been proven absent from the scanned live
+  // section — no retry loop.
   for (const f of pending) {
-    if (f.held) {
-      await convert(f, f.held.index, "ai", `${f.held.detail} — accepted after full scan`);
-      continue;
-    }
     if (apiFailed) {
       await logState(d1, f.matchId, {
         title: `${f.home} vs ${f.away}`,

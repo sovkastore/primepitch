@@ -301,8 +301,13 @@ export default function AltPage() {
                           </div>
 
                           <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                            <span className="text-[11px] text-gray-600">
+                            <span className="text-[11px] text-gray-600 flex items-center gap-1.5">
                               {new Date(Number(match.match_time) * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              {(match.servers?.length ?? 0) > 0 && (
+                                <span className="text-[10px] text-gray-400">
+                                  · {match.servers.length} server{match.servers.length === 1 ? "" : "s"}
+                                </span>
+                              )}
                             </span>
                             {isPlayable && (
                               <span className="text-[11px] text-emerald-500 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">

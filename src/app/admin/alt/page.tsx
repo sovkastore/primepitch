@@ -622,10 +622,27 @@ export default function AdminAltMatchesPage() {
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase tracking-wider shrink-0">Upcoming</span>
                           )}
                         </div>
-                        <div className="text-[12px] text-gray-500 flex items-center gap-2">
+                        <div className="text-[12px] text-gray-500 flex items-center gap-2 flex-wrap">
                           <span>{match.league_name}</span>
                           <span>&bull;</span>
                           <span>{time}</span>
+                          <span>&bull;</span>
+                          {(() => {
+                            // The feed lists one match under several entries and only
+                            // some carry streams — this is how you spot the good copy.
+                            const n = match.servers?.length ?? 0;
+                            const cls =
+                              n === 0
+                                ? "bg-red-100 text-red-600"
+                                : n < 3
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-emerald-100 text-emerald-700";
+                            return (
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>
+                                {n === 0 ? "no servers" : `${n} server${n === 1 ? "" : "s"}`}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
                       <div className="flex items-center gap-6">
