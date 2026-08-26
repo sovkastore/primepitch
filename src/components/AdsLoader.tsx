@@ -19,6 +19,13 @@ type AdsConfig = {
     enabled: boolean;
     formats: string[];
   };
+  popTimed?: {
+    enabled: boolean;
+    formats: string[];
+    intervalSeconds: number;
+    stopMode: "loop" | "max";
+    maxTurns: number;
+  };
 };
 
 // Popunder rotation: every page view fires the NEXT network in the list, so
@@ -26,13 +33,16 @@ type AdsConfig = {
 // of a single network serving cheap repeats. Wraps back to the first after the
 // last one. The counter lives in localStorage so it survives new tabs.
 const ROTATION_KEY = "pp_pop_rot";
+// The timed rotation keeps its own counter so the two settings never shift
+// each other's place in the loop.
+const TIMED_KEY = "pp_pop_timed";
 
-function nextRotationIndex(length: number): number {
+function nextRotationIndex(key: string, length: number): number {
   if (length <= 1) return 0;
   try {
-    const raw = Number(window.localStorage.getItem(ROTATION_KEY));
+    const raw = Number(window.localStorage.getItem(key));
     const idx = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) % length : 0;
-    window.localStorage.setItem(ROTATION_KEY, String((idx + 1) % length));
+    window.localStorage.setItem(key, String((idx + 1) % length));
     return idx;
   } catch {
     // Storage blocked (private mode / cookie walls) — fall back to the first.
@@ -125,9 +135,17 @@ function placementAllows(placement: FmtPlacement | undefined, path: string): boo
 
 // Inject an ad script. Monetag tags need a data-zone; Adsterra tags (popunder,
 // social bar) are a plain script with no zone; ExoClick tags use ad-provider.js + ins.
-function injectScript(id: string, src: string, zone: string, rawScript?: string) {
+function injectScript(id: string, src: string, zone: string, rawScript?: string, force = false) {
   if (!src && !rawScript) return;
-  if (document.querySelector(`[data-ad-format="${id}"]`)) return; // once per load
+  if (force) {
+    // A repeat turn in the timed rotation: drop the spent tag so a fresh load
+    // re-arms the network instead of being swallowed by the once-per-load guard.
+    document
+      .querySelectorAll(`[data-ad-format="${id}"], [data-ad-format="${id}-run"]`)
+      .forEach((n) => n.remove());
+  } else if (document.querySelector(`[data-ad-format="${id}"]`)) {
+    return; // once per load
+  }
 
   // If a rawScript is configured (for ExoClick popunder, Monetag, or any custom tag)
   if (rawScript && rawScript.trim()) {
@@ -211,6 +229,7 @@ export default function AdsLoader() {
   useEffect(() => {
     let done = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
+    const intervals: ReturnType<typeof setInterval>[] = [];
     (async () => {
       try {
         // Fetch the config once, then reuse it on later navigations.
@@ -225,20 +244,66 @@ export default function AdsLoader() {
         const path = pathname || window.location.pathname;
         if (path.startsWith("/admin") || path.startsWith("/partner")) return; // never on admin or partner portal
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
-        // Formats taking part in the popunder rotation are driven by the block
-        // below instead of their own enabled flag, so they never double-fire.
+        // ── Timed popunder rotation ───────────────────────────────
+        // Hands the next network a turn every N seconds for as long as the
+        // visitor stays on the page, so a long watch session isn't a dead zone
+        // where no popunder ever gets loaded.
+        const timed = cfg.popTimed;
+        const timedIds =
+          timed?.enabled && Array.isArray(timed.formats)
+            ? timed.formats.filter((tid) => !!cfg.formats?.[tid])
+            : [];
+        const timedEligible = timedIds.filter((tid) =>
+          placementAllows(cfg.formats[tid].placement, path)
+        );
+
+        if (timedEligible.length > 0) {
+          const gapMs =
+            Math.max(5, Math.min(600, Number(timed!.intervalSeconds) || 30)) * 1000;
+          const maxTurns =
+            timed!.stopMode === "max"
+              ? Math.max(1, Math.min(50, Number(timed!.maxTurns) || 1))
+              : Infinity;
+
+          let turn = 0;
+          let spin: ReturnType<typeof setInterval> | null = null;
+
+          const fireTurn = () => {
+            if (done) return;
+            if (turn >= maxTurns) {
+              if (spin) clearInterval(spin);
+              return;
+            }
+            turn++;
+            const tid = timedEligible[nextRotationIndex(TIMED_KEY, timedEligible.length)];
+            const f = cfg!.formats[tid];
+            const t = setTimeout(() => {
+              if (done) return;
+              injectScript(tid, f.src, f.zone, f.rawScript, true);
+            }, delaySeconds(f.delay) * 1000);
+            timers.push(t);
+          };
+
+          fireTurn(); // first turn on arrival, then one every gap
+          spin = setInterval(fireTurn, gapMs);
+          intervals.push(spin);
+        }
+
+        // Formats taking part in a rotation are driven by that rotation instead
+        // of their own enabled flag, so they never double-fire. Timed rotation
+        // wins over the per-page-view one when a format is in both lists.
         const rotation = cfg.popRotation;
         const rotationIds =
           rotation?.enabled && Array.isArray(rotation.formats)
-            ? rotation.formats.filter((rid) => !!cfg.formats?.[rid])
+            ? rotation.formats.filter((rid) => !!cfg.formats?.[rid] && !timedIds.includes(rid))
             : [];
-        const rotating = new Set(rotationIds);
+        const rotating = new Set([...rotationIds, ...timedIds]);
 
         const eligibleRotation = rotationIds.filter((rid) =>
           placementAllows(cfg.formats[rid].placement, path)
         );
         if (eligibleRotation.length > 0) {
-          const pickedId = eligibleRotation[nextRotationIndex(eligibleRotation.length)];
+          const pickedId = eligibleRotation[nextRotationIndex(ROTATION_KEY, eligibleRotation.length)];
           const picked = cfg.formats[pickedId];
           const rt = setTimeout(() => {
             if (done) return;
@@ -331,6 +396,7 @@ export default function AdsLoader() {
     return () => {
       done = true;
       timers.forEach(clearTimeout);
+      intervals.forEach(clearInterval);
     };
   }, [pathname]);
   return null;

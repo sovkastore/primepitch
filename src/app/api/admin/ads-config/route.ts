@@ -68,6 +68,17 @@ type PopRotation = {
   formats: string[]; // format ids taking part, in rotation order
 };
 
+// Same idea on a clock instead of per page view: while the visitor stays put,
+// hand the next network a turn every N seconds. Either loop forever or stop
+// after a set number of turns on that page.
+type PopTimed = {
+  enabled: boolean;
+  formats: string[];
+  intervalSeconds: number;
+  stopMode: "loop" | "max";
+  maxTurns: number;
+};
+
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -78,6 +89,7 @@ type AdsConfig = {
   notifications?: PageNotifications;
   promoBanner?: PromoBannerConfig;
   popRotation?: PopRotation;
+  popTimed?: PopTimed;
 };
 
 const DEFAULTS: AdsConfig = {
@@ -96,6 +108,7 @@ const DEFAULTS: AdsConfig = {
   interstitial: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", pages: "all", cooldown: 0, noFillTimeout: 5 },
   smartLinks: { enabled: false, url: "", targets: {} },
   popRotation: { enabled: false, formats: [] },
+  popTimed: { enabled: false, formats: [], intervalSeconds: 30, stopMode: "loop", maxTurns: 5 },
   notifications: {
     wait_banner: {
       enabled: true,
@@ -251,6 +264,22 @@ function cleanPopRotation(v: unknown): PopRotation {
   return { enabled: !!r.enabled, formats: [...new Set(ids)] };
 }
 
+function cleanPopTimed(v: unknown): PopTimed {
+  const r = (v ?? {}) as Partial<PopTimed>;
+  const ids = Array.isArray(r.formats)
+    ? r.formats.filter((id): id is string => typeof id === "string" && cleanKey(id)).slice(0, 12)
+    : [];
+  const secs = Number(r.intervalSeconds);
+  const turns = Number(r.maxTurns);
+  return {
+    enabled: !!r.enabled,
+    formats: [...new Set(ids)],
+    intervalSeconds: Number.isFinite(secs) ? Math.max(5, Math.min(600, Math.round(secs))) : 30,
+    stopMode: r.stopMode === "max" ? "max" : "loop",
+    maxTurns: Number.isFinite(turns) ? Math.max(1, Math.min(50, Math.round(turns))) : 5,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Partial<AdsConfig>;
@@ -308,6 +337,7 @@ export async function POST(request: NextRequest) {
       notifications: cleanNotifications(body.notifications),
       promoBanner: cleanPromoBanner(body.promoBanner),
       popRotation: cleanPopRotation(body.popRotation),
+      popTimed: cleanPopTimed(body.popTimed),
     };
 
     const d1 = await getD1();

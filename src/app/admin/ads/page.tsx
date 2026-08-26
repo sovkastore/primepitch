@@ -61,6 +61,7 @@ type AdsConfig = {
   interstitial: Interstitial;
   smartLinks: SmartLinks;
   popRotation: PopRotation;
+  popTimed: PopTimed;
   notifications?: PageNotifications;
   promoBanner?: PromoBannerConfig;
 };
@@ -70,6 +71,15 @@ type AdsConfig = {
 type PopRotation = {
   enabled: boolean;
   formats: string[];
+};
+// The clock-based sibling of PopRotation: hand the next network a turn every
+// N seconds while the visitor stays on the page.
+type PopTimed = {
+  enabled: boolean;
+  formats: string[];
+  intervalSeconds: number;
+  stopMode: "loop" | "max";
+  maxTurns: number;
 };
 type PageNotification = {
   enabled: boolean;
@@ -110,6 +120,7 @@ const DEFAULTS: AdsConfig = {
   interstitial: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", pages: "all", cooldown: 0, noFillTimeout: 5 },
   smartLinks: { enabled: false, url: "", targets: {} },
   popRotation: { enabled: false, formats: [] },
+  popTimed: { enabled: false, formats: [], intervalSeconds: 30, stopMode: "loop", maxTurns: 5 },
   notifications: {
     wait_banner: {
       enabled: true,
@@ -284,6 +295,7 @@ export default function AdminAdsPage() {
             interstitial: { ...DEFAULTS.interstitial, ...(d.interstitial ?? {}) },
             smartLinks: { ...DEFAULTS.smartLinks, ...(d.smartLinks ?? {}) },
             popRotation: { ...DEFAULTS.popRotation, ...(d.popRotation ?? {}) },
+            popTimed: { ...DEFAULTS.popTimed, ...(d.popTimed ?? {}) },
             notifications: {
               wait_banner: { ...DEFAULTS.notifications!.wait_banner, ...(d.notifications?.wait_banner ?? {}) },
               tap_warning: { ...DEFAULTS.notifications!.tap_warning, ...(d.notifications?.tap_warning ?? {}) },
@@ -503,6 +515,19 @@ export default function AdminAdsPage() {
         ? current.filter((x) => x !== id)
         : [...current, id];
       return { ...prev, popRotation: { ...prev.popRotation, formats } };
+    });
+  }
+
+  function updatePopTimed(patch: Partial<PopTimed>) {
+    setCfg((prev) => ({ ...prev, popTimed: { ...prev.popTimed, ...patch } }));
+  }
+  function togglePopTimedFormat(id: string) {
+    setCfg((prev) => {
+      const current = prev.popTimed.formats ?? [];
+      const formats = current.includes(id)
+        ? current.filter((x) => x !== id)
+        : [...current, id];
+      return { ...prev, popTimed: { ...prev.popTimed, formats } };
     });
   }
 
@@ -758,6 +783,7 @@ export default function AdminAdsPage() {
     (id) => cfg.formats[id].group === "popunder" || id.toLowerCase().includes("popunder")
   );
   const rotationPicked = cfg.popRotation.formats ?? [];
+  const timedPicked = cfg.popTimed.formats ?? [];
 
   const NETWORK_ORDER = ["Monetag", "Adsterra"];
   const orderedGroups = [
@@ -876,7 +902,125 @@ export default function AdminAdsPage() {
                 : "Rotation is on but nothing is ticked — no popunder will fire."
               : "Rotation is off. Popunders run from their own on/off switches as usual."}
           </p>
+          {rotationPicked.some((id) => timedPicked.includes(id)) && cfg.popTimed.enabled && (
+            <p className="text-[12px] font-semibold text-amber-700">
+              Some of these are also in the timed rotation below — the timer wins for
+              those, so they won't fire from here.
+            </p>
+          )}
         </div>
+      </div>
+
+      {/* Timed popunder rotation */}
+      <div className={`rounded-2xl border p-5 space-y-3 ${cfg.popTimed.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <span className="text-sm font-bold text-gray-900">Timed popunder rotation</span>
+            <p className="text-[13px] text-gray-600 mt-0.5">
+              Hand the next network a turn every few seconds while the visitor stays on
+              the page. Fixes the dead spot where someone watches a match for 40 minutes
+              and no popunder ever loads.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => updatePopTimed({ enabled: !cfg.popTimed.enabled })}
+            className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${cfg.popTimed.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
+            aria-label="Toggle timed popunder rotation"
+          >
+            <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${cfg.popTimed.enabled ? "left-[22px]" : "left-0.5"}`} />
+          </button>
+        </div>
+
+        <div className="space-y-2 pt-1">
+          <span className="text-[12px] font-bold uppercase tracking-wide text-gray-400">
+            Networks in the rotation
+          </span>
+          {popunderIds.length === 0 ? (
+            <p className="text-[13px] text-gray-500">No popunder ads configured yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {popunderIds.map((id) => {
+                const f = cfg.formats[id];
+                const picked = timedPicked.includes(id);
+                const order = timedPicked.indexOf(id) + 1;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => togglePopTimedFormat(id)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${picked ? "border-emerald-400 bg-white" : "border-gray-200 bg-gray-50 hover:bg-gray-100"}`}
+                  >
+                    <span className={`w-5 h-5 rounded-md border flex items-center justify-center text-[11px] font-bold shrink-0 ${picked ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300 text-transparent"}`}>
+                      {picked ? order : "0"}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-semibold text-gray-900 truncate">
+                        {f.label || id}
+                      </span>
+                      <span className="block text-[11px] text-gray-500 truncate">
+                        {f.network || "Other"} · {f.placement === "all" ? "all pages" : f.placement}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-gray-800">
+              Seconds between turns
+            </label>
+            <input
+              type="number"
+              min={5}
+              max={600}
+              value={cfg.popTimed.intervalSeconds}
+              onChange={(e) => updatePopTimed({ intervalSeconds: Number(e.target.value) })}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            />
+            <p className="text-[12px] text-gray-500">Between 5 and 600 seconds.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-gray-800">When to stop</label>
+            <select
+              value={cfg.popTimed.stopMode}
+              onChange={(e) => updatePopTimed({ stopMode: e.target.value as PopTimed["stopMode"] })}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            >
+              <option value="loop">Never stop — keep looping</option>
+              <option value="max">Stop after a set number of turns</option>
+            </select>
+            {cfg.popTimed.stopMode === "max" && (
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={cfg.popTimed.maxTurns}
+                onChange={(e) => updatePopTimed({ maxTurns: Number(e.target.value) })}
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                placeholder="Turns per page"
+              />
+            )}
+            <p className="text-[12px] text-gray-500">
+              {cfg.popTimed.stopMode === "max"
+                ? `${cfg.popTimed.maxTurns} turn${cfg.popTimed.maxTurns === 1 ? "" : "s"} per page, then nothing until they navigate.`
+                : "Keeps cycling for as long as they stay on the page."}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-[12px] text-gray-500">
+          {cfg.popTimed.enabled
+            ? timedPicked.length > 0
+              ? `Turn every ${cfg.popTimed.intervalSeconds}s across ${timedPicked.length} popunder${timedPicked.length === 1 ? "" : "s"}, looping back to the first. A popunder ticked here is driven by this timer — it's skipped by the per-page-view rotation and by its own on/off switch.`
+              : "Timed rotation is on but nothing is ticked — no popunder will fire from it."
+            : "Timed rotation is off. Nothing here affects the site."}
+        </p>
       </div>
 
       {/* Ads grouped by network, each with a master switch for the whole group */}
