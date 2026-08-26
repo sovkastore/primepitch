@@ -60,8 +60,16 @@ type AdsConfig = {
   preroll: Preroll;
   interstitial: Interstitial;
   smartLinks: SmartLinks;
+  popRotation: PopRotation;
   notifications?: PageNotifications;
   promoBanner?: PromoBannerConfig;
+};
+// Rotate popunders: each page view fires the NEXT ticked network, looping back
+// to the first after the last one, so every network gets its high-value first
+// pop instead of one network serving cheap repeats.
+type PopRotation = {
+  enabled: boolean;
+  formats: string[];
 };
 type PageNotification = {
   enabled: boolean;
@@ -101,6 +109,7 @@ const DEFAULTS: AdsConfig = {
   preroll: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", trigger: "interval", placement: "watch", cap: 0, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
   interstitial: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", pages: "all", cooldown: 0, noFillTimeout: 5 },
   smartLinks: { enabled: false, url: "", targets: {} },
+  popRotation: { enabled: false, formats: [] },
   notifications: {
     wait_banner: {
       enabled: true,
@@ -274,6 +283,7 @@ export default function AdminAdsPage() {
             preroll: { ...DEFAULTS.preroll, ...(d.preroll ?? {}) },
             interstitial: { ...DEFAULTS.interstitial, ...(d.interstitial ?? {}) },
             smartLinks: { ...DEFAULTS.smartLinks, ...(d.smartLinks ?? {}) },
+            popRotation: { ...DEFAULTS.popRotation, ...(d.popRotation ?? {}) },
             notifications: {
               wait_banner: { ...DEFAULTS.notifications!.wait_banner, ...(d.notifications?.wait_banner ?? {}) },
               tap_warning: { ...DEFAULTS.notifications!.tap_warning, ...(d.notifications?.tap_warning ?? {}) },
@@ -478,6 +488,22 @@ export default function AdminAdsPage() {
       [id]: m === 0 ? "off" : m % 60 === 0 ? "hours" : "minutes",
     }));
     updateFormat(id, { cap: m });
+  }
+
+  function togglePopRotation() {
+    setCfg((prev) => ({
+      ...prev,
+      popRotation: { ...prev.popRotation, enabled: !prev.popRotation.enabled },
+    }));
+  }
+  function togglePopRotationFormat(id: string) {
+    setCfg((prev) => {
+      const current = prev.popRotation.formats ?? [];
+      const formats = current.includes(id)
+        ? current.filter((x) => x !== id)
+        : [...current, id];
+      return { ...prev, popRotation: { ...prev.popRotation, formats } };
+    });
   }
 
   function updateSmartLinks(patch: Partial<SmartLinks>) {
@@ -726,6 +752,13 @@ export default function AdminAdsPage() {
     if (!grouped[net]) grouped[net] = [];
     grouped[net].push(id);
   }
+  // Every popunder on the page, whichever network it belongs to — these are
+  // the candidates for the rotation below.
+  const popunderIds = formatIds.filter(
+    (id) => cfg.formats[id].group === "popunder" || id.toLowerCase().includes("popunder")
+  );
+  const rotationPicked = cfg.popRotation.formats ?? [];
+
   const NETWORK_ORDER = ["Monetag", "Adsterra"];
   const orderedGroups = [
     ...NETWORK_ORDER.filter((n) => grouped[n]?.length),
@@ -778,6 +811,72 @@ export default function AdminAdsPage() {
           <option value="workers_dev">Only the .workers.dev address</option>
           <option value="xellnetwork">Only xellnetwork.xyz</option>
         </select>
+      </div>
+
+      {/* Popunder rotation across networks */}
+      <div className={`rounded-2xl border p-5 space-y-3 ${cfg.popRotation.enabled ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <span className="text-sm font-bold text-gray-900">Popunder rotation</span>
+            <p className="text-[13px] text-gray-600 mt-0.5">
+              Fire a different popunder network on each page view, then loop back to the
+              first. Every network gets its high-value first pop instead of one network
+              serving cheap repeats.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={togglePopRotation}
+            className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${cfg.popRotation.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
+            aria-label="Toggle popunder rotation"
+          >
+            <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${cfg.popRotation.enabled ? "left-[22px]" : "left-0.5"}`} />
+          </button>
+        </div>
+
+        <div className="space-y-2 pt-1">
+          <span className="text-[12px] font-bold uppercase tracking-wide text-gray-400">
+            Networks in the rotation
+          </span>
+          {popunderIds.length === 0 ? (
+            <p className="text-[13px] text-gray-500">No popunder ads configured yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {popunderIds.map((id) => {
+                const f = cfg.formats[id];
+                const picked = rotationPicked.includes(id);
+                const order = rotationPicked.indexOf(id) + 1;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => togglePopRotationFormat(id)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${picked ? "border-emerald-400 bg-white" : "border-gray-200 bg-gray-50 hover:bg-gray-100"}`}
+                  >
+                    <span className={`w-5 h-5 rounded-md border flex items-center justify-center text-[11px] font-bold shrink-0 ${picked ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300 text-transparent"}`}>
+                      {picked ? order : "0"}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-semibold text-gray-900 truncate">
+                        {f.label || id}
+                      </span>
+                      <span className="block text-[11px] text-gray-500 truncate">
+                        {f.network || "Other"} · {f.placement === "all" ? "all pages" : f.placement}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-[12px] text-gray-500">
+            {cfg.popRotation.enabled
+              ? rotationPicked.length > 0
+                ? `Rotating ${rotationPicked.length} popunder${rotationPicked.length === 1 ? "" : "s"} in the numbered order. Ticked popunders are driven by this rotation, so their own on/off switch is ignored.`
+                : "Rotation is on but nothing is ticked — no popunder will fire."
+              : "Rotation is off. Popunders run from their own on/off switches as usual."}
+          </p>
+        </div>
       </div>
 
       {/* Ads grouped by network, each with a master switch for the whole group */}

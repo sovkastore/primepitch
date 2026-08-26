@@ -60,6 +60,14 @@ type Interstitial = {
   cooldown: number;
   noFillTimeout: number;
 };
+// Rotate popunders across networks: each page view in a session fires the
+// NEXT participating network, so every network serves its high-value "first
+// impression" for that visitor instead of one network serving cheap repeats.
+type PopRotation = {
+  enabled: boolean;
+  formats: string[]; // format ids taking part, in rotation order
+};
+
 type AdsConfig = {
   master: boolean;
   domains: "all" | "workers_dev" | "xellnetwork";
@@ -69,6 +77,7 @@ type AdsConfig = {
   smartLinks?: SmartLinks;
   notifications?: PageNotifications;
   promoBanner?: PromoBannerConfig;
+  popRotation?: PopRotation;
 };
 
 const DEFAULTS: AdsConfig = {
@@ -86,6 +95,7 @@ const DEFAULTS: AdsConfig = {
   preroll: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", trigger: "interval", placement: "watch", cap: 5, skipAfter: 5, noFillTimeout: 3, mode: "silent" },
   interstitial: { enabled: false, vastTag: "https://s.magsrv.com/v1/vast.php?idz=5997530", pages: "all", cooldown: 0, noFillTimeout: 5 },
   smartLinks: { enabled: false, url: "", targets: {} },
+  popRotation: { enabled: false, formats: [] },
   notifications: {
     wait_banner: {
       enabled: true,
@@ -233,6 +243,14 @@ export async function GET() {
   }
 }
 
+function cleanPopRotation(v: unknown): PopRotation {
+  const r = (v ?? {}) as Partial<PopRotation>;
+  const ids = Array.isArray(r.formats)
+    ? r.formats.filter((id): id is string => typeof id === "string" && cleanKey(id)).slice(0, 12)
+    : [];
+  return { enabled: !!r.enabled, formats: [...new Set(ids)] };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Partial<AdsConfig>;
@@ -289,6 +307,7 @@ export async function POST(request: NextRequest) {
       smartLinks: cleanSmartLinks(body.smartLinks),
       notifications: cleanNotifications(body.notifications),
       promoBanner: cleanPromoBanner(body.promoBanner),
+      popRotation: cleanPopRotation(body.popRotation),
     };
 
     const d1 = await getD1();

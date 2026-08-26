@@ -15,7 +15,30 @@ type AdsConfig = {
     url: string;
     targets: Record<string, boolean>;
   };
+  popRotation?: {
+    enabled: boolean;
+    formats: string[];
+  };
 };
+
+// Popunder rotation: every page view fires the NEXT network in the list, so
+// each one gets to serve its high-value "first pop" for this visitor instead
+// of a single network serving cheap repeats. Wraps back to the first after the
+// last one. The counter lives in localStorage so it survives new tabs.
+const ROTATION_KEY = "pp_pop_rot";
+
+function nextRotationIndex(length: number): number {
+  if (length <= 1) return 0;
+  try {
+    const raw = Number(window.localStorage.getItem(ROTATION_KEY));
+    const idx = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) % length : 0;
+    window.localStorage.setItem(ROTATION_KEY, String((idx + 1) % length));
+    return idx;
+  } catch {
+    // Storage blocked (private mode / cookie walls) — fall back to the first.
+    return 0;
+  }
+}
 
 function domainAllowed(setting: AdsConfig["domains"], host: string): boolean {
   if (setting === "all") return true;
@@ -202,7 +225,30 @@ export default function AdsLoader() {
         const path = pathname || window.location.pathname;
         if (path.startsWith("/admin") || path.startsWith("/partner")) return; // never on admin or partner portal
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
+        // Formats taking part in the popunder rotation are driven by the block
+        // below instead of their own enabled flag, so they never double-fire.
+        const rotation = cfg.popRotation;
+        const rotationIds =
+          rotation?.enabled && Array.isArray(rotation.formats)
+            ? rotation.formats.filter((rid) => !!cfg.formats?.[rid])
+            : [];
+        const rotating = new Set(rotationIds);
+
+        const eligibleRotation = rotationIds.filter((rid) =>
+          placementAllows(cfg.formats[rid].placement, path)
+        );
+        if (eligibleRotation.length > 0) {
+          const pickedId = eligibleRotation[nextRotationIndex(eligibleRotation.length)];
+          const picked = cfg.formats[pickedId];
+          const rt = setTimeout(() => {
+            if (done) return;
+            injectScript(pickedId, picked.src, picked.zone, picked.rawScript);
+          }, delaySeconds(picked.delay) * 1000);
+          timers.push(rt);
+        }
+
         for (const [id, f] of Object.entries(cfg.formats || {})) {
+          if (rotating.has(id)) continue;
           if (!f?.enabled) continue;
           if (!placementAllows(f.placement, path)) continue;
 
