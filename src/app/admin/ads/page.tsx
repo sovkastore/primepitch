@@ -502,11 +502,18 @@ export default function AdminAdsPage() {
     updateFormat(id, { cap: m });
   }
 
+  // The two rotations are mutually exclusive — running both would put two
+  // popunder networks on the same page, which is what rotation exists to stop.
+  // Turning one on switches the other off.
   function togglePopRotation() {
-    setCfg((prev) => ({
-      ...prev,
-      popRotation: { ...prev.popRotation, enabled: !prev.popRotation.enabled },
-    }));
+    setCfg((prev) => {
+      const enabled = !prev.popRotation.enabled;
+      return {
+        ...prev,
+        popRotation: { ...prev.popRotation, enabled },
+        popTimed: enabled ? { ...prev.popTimed, enabled: false } : prev.popTimed,
+      };
+    });
   }
   function togglePopRotationFormat(id: string) {
     setCfg((prev) => {
@@ -519,7 +526,11 @@ export default function AdminAdsPage() {
   }
 
   function updatePopTimed(patch: Partial<PopTimed>) {
-    setCfg((prev) => ({ ...prev, popTimed: { ...prev.popTimed, ...patch } }));
+    setCfg((prev) => ({
+      ...prev,
+      popTimed: { ...prev.popTimed, ...patch },
+      popRotation: patch.enabled ? { ...prev.popRotation, enabled: false } : prev.popRotation,
+    }));
   }
   function togglePopTimedFormat(id: string) {
     setCfg((prev) => {
@@ -902,12 +913,7 @@ export default function AdminAdsPage() {
                 : "Rotation is on but nothing is ticked — no popunder will fire."
               : "Rotation is off. Popunders run from their own on/off switches as usual."}
           </p>
-          {rotationPicked.some((id) => timedPicked.includes(id)) && cfg.popTimed.enabled && (
-            <p className="text-[12px] font-semibold text-amber-700">
-              Some of these are also in the timed rotation below — the timer wins for
-              those, so they won't fire from here.
-            </p>
-          )}
+
         </div>
       </div>
 

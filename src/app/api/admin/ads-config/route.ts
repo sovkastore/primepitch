@@ -340,6 +340,12 @@ export async function POST(request: NextRequest) {
       popTimed: cleanPopTimed(body.popTimed),
     };
 
+    // Belt and braces: the two popunder rotations are mutually exclusive. The
+    // admin UI already enforces it, this stops a stray POST saving both on.
+    if (clean.popTimed?.enabled && clean.popRotation?.enabled) {
+      clean.popRotation = { ...clean.popRotation, enabled: false };
+    }
+
     const d1 = await getD1();
     if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
 
