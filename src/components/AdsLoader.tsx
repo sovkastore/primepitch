@@ -135,17 +135,9 @@ function placementAllows(placement: FmtPlacement | undefined, path: string): boo
 
 // Inject an ad script. Monetag tags need a data-zone; Adsterra tags (popunder,
 // social bar) are a plain script with no zone; ExoClick tags use ad-provider.js + ins.
-function injectScript(id: string, src: string, zone: string, rawScript?: string, force = false) {
+function injectScript(id: string, src: string, zone: string, rawScript?: string) {
   if (!src && !rawScript) return;
-  if (force) {
-    // A repeat turn in the timed rotation: drop the spent tag so a fresh load
-    // re-arms the network instead of being swallowed by the once-per-load guard.
-    document
-      .querySelectorAll(`[data-ad-format="${id}"], [data-ad-format="${id}-run"]`)
-      .forEach((n) => n.remove());
-  } else if (document.querySelector(`[data-ad-format="${id}"]`)) {
-    return; // once per load
-  }
+  if (document.querySelector(`[data-ad-format="${id}"]`)) return; // once per load
 
   // If a rawScript is configured (for ExoClick popunder, Monetag, or any custom tag)
   if (rawScript && rawScript.trim()) {
@@ -257,6 +249,11 @@ export default function AdsLoader() {
           placementAllows(cfg.formats[tid].placement, path)
         );
 
+        // A popunder script cannot be un-armed: once loaded it owns its own
+        // document click listeners, and re-injecting it only stacks a second
+        // set on top, so every click fires several pops at once. So each
+        // network is loaded AT MOST ONCE per page — the timer only decides
+        // when each one joins, staggering them instead of piling them up.
         if (timedEligible.length > 0) {
           const gapMs =
             Math.max(5, Math.min(600, Number(timed!.intervalSeconds) || 30)) * 1000;
@@ -265,28 +262,36 @@ export default function AdsLoader() {
               ? Math.max(1, Math.min(50, Number(timed!.maxTurns) || 1))
               : Infinity;
 
+          // Start at this visitor's place in the loop so the network that goes
+          // first differs from page to page.
+          const start = nextRotationIndex(TIMED_KEY, timedEligible.length);
+          const queue = timedEligible
+            .map((_, i) => timedEligible[(start + i) % timedEligible.length])
+            .slice(0, Math.min(timedEligible.length, maxTurns));
+
           let turn = 0;
           let spin: ReturnType<typeof setInterval> | null = null;
 
           const fireTurn = () => {
-            if (done) return;
-            if (turn >= maxTurns) {
+            if (done || turn >= queue.length) {
               if (spin) clearInterval(spin);
               return;
             }
+            const tid = queue[turn];
             turn++;
-            const tid = timedEligible[nextRotationIndex(TIMED_KEY, timedEligible.length)];
             const f = cfg!.formats[tid];
             const t = setTimeout(() => {
               if (done) return;
-              injectScript(tid, f.src, f.zone, f.rawScript, true);
+              injectScript(tid, f.src, f.zone, f.rawScript);
             }, delaySeconds(f.delay) * 1000);
             timers.push(t);
           };
 
-          fireTurn(); // first turn on arrival, then one every gap
-          spin = setInterval(fireTurn, gapMs);
-          intervals.push(spin);
+          fireTurn(); // first network on arrival, the rest one per gap
+          if (queue.length > 1) {
+            spin = setInterval(fireTurn, gapMs);
+            intervals.push(spin);
+          }
         }
 
         // Formats taking part in a rotation are driven by that rotation instead

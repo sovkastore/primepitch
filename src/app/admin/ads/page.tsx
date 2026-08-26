@@ -923,9 +923,9 @@ export default function AdminAdsPage() {
           <div>
             <span className="text-sm font-bold text-gray-900">Timed popunder rotation</span>
             <p className="text-[13px] text-gray-600 mt-0.5">
-              Hand the next network a turn every few seconds while the visitor stays on
-              the page. Fixes the dead spot where someone watches a match for 40 minutes
-              and no popunder ever loads.
+              Stagger when each network joins the page instead of loading them all at
+              once. First one arms on arrival, the next joins a few seconds later, and so
+              on — starting from a different network each page view.
             </p>
           </div>
           <button
@@ -998,8 +998,8 @@ export default function AdminAdsPage() {
               onChange={(e) => updatePopTimed({ stopMode: e.target.value as PopTimed["stopMode"] })}
               className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
             >
-              <option value="loop">Never stop — keep looping</option>
-              <option value="max">Stop after a set number of turns</option>
+              <option value="loop">Let every ticked network join</option>
+              <option value="max">Only the first few each page</option>
             </select>
             {cfg.popTimed.stopMode === "max" && (
               <input
@@ -1009,13 +1009,13 @@ export default function AdminAdsPage() {
                 value={cfg.popTimed.maxTurns}
                 onChange={(e) => updatePopTimed({ maxTurns: Number(e.target.value) })}
                 className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                placeholder="Turns per page"
+                placeholder="Networks per page"
               />
             )}
             <p className="text-[12px] text-gray-500">
               {cfg.popTimed.stopMode === "max"
-                ? `${cfg.popTimed.maxTurns} turn${cfg.popTimed.maxTurns === 1 ? "" : "s"} per page, then nothing until they navigate.`
-                : "Keeps cycling for as long as they stay on the page."}
+                ? `Only ${cfg.popTimed.maxTurns} network${cfg.popTimed.maxTurns === 1 ? "" : "s"} join each page.`
+                : "Every ticked network joins, one per interval."}
             </p>
           </div>
         </div>
@@ -1023,7 +1023,7 @@ export default function AdminAdsPage() {
         <p className="text-[12px] text-gray-500">
           {cfg.popTimed.enabled
             ? timedPicked.length > 0
-              ? `Turn every ${cfg.popTimed.intervalSeconds}s across ${timedPicked.length} popunder${timedPicked.length === 1 ? "" : "s"}, looping back to the first. A popunder ticked here is driven by this timer — it's skipped by the per-page-view rotation and by its own on/off switch.`
+              ? `One network joins every ${cfg.popTimed.intervalSeconds}s until all ${timedPicked.length} are on the page. Each network loads at most once per page — re-loading a popunder stacks its click handlers and fires several pops at once. A popunder ticked here is driven by this timer, so its own on/off switch is ignored.`
               : "Timed rotation is on but nothing is ticked — no popunder will fire from it."
             : "Timed rotation is off. Nothing here affects the site."}
         </p>

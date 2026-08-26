@@ -152,7 +152,9 @@ export default function WatchPage() {
     [source, matchId] = rawId.split("--");
   }
   const [streams, setStreams] = useState<Stream[]>([]);
-  const [activeStream, setActiveStream] = useState(0);
+  // No server is picked on arrival — the viewer chooses one, so a dead first
+  // stream never becomes the first impression of the site.
+  const [activeStream, setActiveStream] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentMatch, setCurrentMatch] = useState<Match | null>(null);
   const [relatedMatches, setRelatedMatches] = useState<Match[]>([]);
@@ -302,7 +304,7 @@ export default function WatchPage() {
             const data = await res.json();
             setStreams(Array.isArray(data.streams) ? data.streams : []);
             if (data?.notice) setMatchNotice(data.notice);
-            setActiveStream(0);
+            setActiveStream(null);
           } catch {
             setStreams([]);
           }
@@ -455,7 +457,7 @@ export default function WatchPage() {
     // includes match_id on watch pages) — no per-page heartbeat anymore.
   }, [currentMatch, rawId, source, matchStatus, forceLive, liveResolved, isLive]);
 
-  const currentStream = streams[activeStream];
+  const currentStream = activeStream === null ? undefined : streams[activeStream];
 
   // Reset the player loading state on every stream/server switch; never let a
   // missing iframe `load` event trap the user on a spinner (8s fallback).
@@ -562,8 +564,15 @@ export default function WatchPage() {
               <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clipRule="evenodd" />
             </svg>
             <div className="min-w-0">
-              <p className="text-[12.5px] font-bold text-gray-900 leading-snug">{adsCfg.notifications.wait_banner.title}</p>
-              <p className="text-[11.5px] text-gray-600 leading-snug mt-0.5">{adsCfg.notifications.wait_banner.text}{" "}
+              <p className="text-[12.5px] font-bold text-gray-900 leading-snug">
+                {activeStream === null
+                  ? "Select a server to watch the stream."
+                  : adsCfg.notifications.wait_banner.title}
+              </p>
+              <p className="text-[11.5px] text-gray-600 leading-snug mt-0.5">
+                {activeStream === null
+                  ? "Pick any server from the list to start the match. If one doesn't play well, tap a different server."
+                  : adsCfg.notifications.wait_banner.text}{" "}
                 <Link href="/help" className="font-semibold text-emerald-700 underline underline-offset-2 whitespace-nowrap">Can&apos;t watch? →</Link>
               </p>
             </div>
@@ -702,6 +711,21 @@ export default function WatchPage() {
 
                 <PreRollGate streamKey={currentStream.embedUrl} />
               </>
+            ) : streams.length > 0 ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+                <div className="w-14 h-14 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                  <svg className="w-7 h-7 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Select a server to watch the stream</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {streams.length} server{streams.length === 1 ? "" : "s"} available
+                  </p>
+                </div>
+                <span className="lg:hidden text-[11px] text-gray-500">Server list is below ↓</span>
+              </div>
             ) : liveScore?.period === "HT" ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
                 <div className="w-14 h-14 rounded-full bg-gray-800 flex items-center justify-center">
