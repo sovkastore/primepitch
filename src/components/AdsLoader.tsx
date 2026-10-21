@@ -225,6 +225,7 @@ export default function AdsLoader() {
     let done = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const intervals: ReturnType<typeof setInterval>[] = [];
+    const cleanups: (() => void)[] = [];
     (async () => {
       try {
         // Fetch the config once, then reuse it on later navigations.
@@ -239,10 +240,13 @@ export default function AdsLoader() {
         const path = pathname || window.location.pathname;
         if (path.startsWith("/admin") || path.startsWith("/partner")) return; // never on admin or partner portal
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
-        // ── Timed popunder rotation ───────────────────────────────
-        // Hands the next network a turn every N seconds for as long as the
-        // visitor stays on the page, so a long watch session isn't a dead zone
-        // where no popunder ever gets loaded.
+        // ── Timed popunder rotation (fire-spaced) ─────────────────
+        // One network at a time: the first is armed on arrival, and a
+        // popunder fires on the visitor's next click. That click starts the
+        // gap, and only after it has passed is the next network armed — so
+        // pops are spaced by at least the configured number of seconds
+        // instead of several networks being armed together and all firing
+        // on the same tap.
         const timed = cfg.popTimed;
         const timedIds =
           timed?.enabled && Array.isArray(timed.formats)
@@ -273,28 +277,36 @@ export default function AdsLoader() {
             .slice(0, Math.min(timedEligible.length, maxTurns));
 
           let turn = 0;
-          let spin: ReturnType<typeof setInterval> | null = null;
+          // When the currently armed network went live; 0 = nothing armed.
+          // A pop needs the visitor's click, so a click while a network is
+          // armed is taken as that network's pop.
+          let armedAt = 0;
+          const SETTLE_MS = 1500; // the script needs a moment to attach its own click listener
 
-          const fireTurn = () => {
-            if (done || turn >= queue.length) {
-              if (spin) clearInterval(spin);
-              return;
-            }
+          const armNext = () => {
+            if (done || turn >= queue.length) return;
             const tid = queue[turn];
             turn++;
             const f = cfg!.formats[tid];
             const t = setTimeout(() => {
               if (done) return;
               injectScript(tid, f.src, f.zone, f.rawScript);
+              armedAt = Date.now();
             }, delaySeconds(f.delay) * 1000);
             timers.push(t);
           };
 
-          fireTurn(); // first network on arrival, the rest one per gap
-          if (queue.length > 1) {
-            spin = setInterval(fireTurn, gapMs);
-            intervals.push(spin);
-          }
+          const onPopClick = (e: MouseEvent) => {
+            if (!armedAt || !e.isTrusted || Date.now() - armedAt < SETTLE_MS) return;
+            armedAt = 0;
+            if (turn >= queue.length) return; // every network has had its turn
+            const t = setTimeout(armNext, gapMs);
+            timers.push(t);
+          };
+          document.addEventListener("click", onPopClick, { capture: true });
+          cleanups.push(() => document.removeEventListener("click", onPopClick, { capture: true }));
+
+          armNext(); // first network on arrival; the rest follow each pop + gap
         }
 
         // Formats taking part in a rotation are driven by that rotation instead
@@ -405,6 +417,7 @@ export default function AdsLoader() {
       done = true;
       timers.forEach(clearTimeout);
       intervals.forEach(clearInterval);
+      cleanups.forEach((fn) => fn());
     };
   }, [pathname]);
   return null;

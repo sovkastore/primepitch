@@ -100,7 +100,7 @@ const DEFAULTS: AdsConfig = {
     inpage_push: { label: "In-Page Push", enabled: false, network: "Monetag", group: "notification", placement: "all", zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, network: "Monetag", group: "interstitial", placement: "all", zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
     social_bar: { label: "Social Bar", enabled: false, network: "Adsterra", group: "notification", placement: "all", zone: "", src: "", cap: 60, delay: "0" },
-    popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "all", zone: "", src: "https://pl29767070.effectivecpmnetwork.com/30/ab/f5/30abf5ef48f19536833cf036986d6551.js", cap: 0, delay: "0" },
+    popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "all", zone: "", src: "https://capitalhospitals.org/1/1d6e3115eeb889704838750aaa3ef064", cap: 0, delay: "0" },
     monetag_popunder: { label: "Popunder", enabled: false, network: "Monetag", group: "popunder", placement: "home", zone: "11157914", src: "https://al5sm.com/tag.min.js", cap: 0, delay: "0" },
     exoclick_mobile_interstitial: { label: "Mobile Fullpage Interstitial", enabled: false, network: "ExoClick", group: "interstitial", placement: "all", zone: "5997578", src: "https://a.pemsrv.com/ad-provider.js", cap: 0, delay: "0" },
     exoclick_mobile_popunder: { label: "Mobile Popunder", enabled: false, network: "ExoClick", group: "popunder", placement: "all", zone: "5997602", src: "https://a.pemsrv.com/popunder1000.js", cap: 0, delay: "0" },
@@ -923,9 +923,11 @@ export default function AdminAdsPage() {
           <div>
             <span className="text-sm font-bold text-gray-900">Timed popunder rotation</span>
             <p className="text-[13px] text-gray-600 mt-0.5">
-              Stagger when each network joins the page instead of loading them all at
-              once. First one arms on arrival, the next joins a few seconds later, and so
-              on — starting from a different network each page view.
+              One network at a time. The first arms on arrival and pops on the visitor&apos;s
+              next tap; that tap starts the countdown, and only when it has passed does the
+              next network arm — so pops are spaced by at least the seconds set below.
+              Each network gets one turn per page view, starting from a different network
+              each time.
             </p>
           </div>
           <button
@@ -978,7 +980,7 @@ export default function AdminAdsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <div className="space-y-1.5">
             <label className="text-[13px] font-semibold text-gray-800">
-              Seconds between turns
+              Seconds after a pop before the next network arms
             </label>
             <input
               type="number"
@@ -998,7 +1000,7 @@ export default function AdminAdsPage() {
               onChange={(e) => updatePopTimed({ stopMode: e.target.value as PopTimed["stopMode"] })}
               className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
             >
-              <option value="loop">Let every ticked network join</option>
+              <option value="loop">Let every ticked network take a turn</option>
               <option value="max">Only the first few each page</option>
             </select>
             {cfg.popTimed.stopMode === "max" && (
@@ -1015,7 +1017,7 @@ export default function AdminAdsPage() {
             <p className="text-[12px] text-gray-500">
               {cfg.popTimed.stopMode === "max"
                 ? `Only ${cfg.popTimed.maxTurns} network${cfg.popTimed.maxTurns === 1 ? "" : "s"} join each page.`
-                : "Every ticked network joins, one per interval."}
+                : "Every ticked network gets a turn, one pop at a time."}
             </p>
           </div>
         </div>
@@ -1023,7 +1025,7 @@ export default function AdminAdsPage() {
         <p className="text-[12px] text-gray-500">
           {cfg.popTimed.enabled
             ? timedPicked.length > 0
-              ? `One network joins every ${cfg.popTimed.intervalSeconds}s until all ${timedPicked.length} are on the page. Each network loads at most once per page — re-loading a popunder stacks its click handlers and fires several pops at once. A popunder ticked here is driven by this timer, so its own on/off switch is ignored.`
+              ? `${timedPicked.length} network${timedPicked.length === 1 ? "" : "s"} in the numbered order, one at a time: each arms, pops on the visitor's next tap, then the next one arms ${cfg.popTimed.intervalSeconds}s after that tap. Each network gets one turn per page — re-loading a popunder stacks its click handlers and fires several pops at once. A popunder ticked here is driven by this rotation, so its own on/off switch is ignored.`
               : "Timed rotation is on but nothing is ticked — no popunder will fire from it."
             : "Timed rotation is off. Nothing here affects the site."}
         </p>
