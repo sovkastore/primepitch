@@ -54,6 +54,10 @@ export async function GET() {
         const since = Math.floor(Date.now() / 1000) - 24 * 3600;
         const cv = await d1.prepare("SELECT match_id, live_id FROM d1_auto_live WHERE status = 'converted' AND live_id IS NOT NULL AND kickoff >= ?").bind(since).all();
         for (const r of (cv.results || []) as any[]) if (r.match_id && r.live_id) converted[String(r.match_id)] = String(r.live_id);
+        // Old alt ids the refresher moved to a better copy: old -> new, so a
+        // link opened before the switch keeps working.
+        const al = await d1.prepare("SELECT old_id, new_id FROM d1_alt_alias WHERE created_at > datetime('now', '-1 day')").all();
+        for (const r of (al.results || []) as any[]) if (r.old_id && r.new_id) converted[String(r.old_id)] = String(r.new_id);
       } catch { /* table may not exist yet */ }
 
       return { flags, globalNotice, converted };

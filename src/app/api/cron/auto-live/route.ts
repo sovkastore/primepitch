@@ -4,7 +4,7 @@ import { getD1 } from "@/lib/d1";
 import { fetchRapidPage, type RapidFeedMatch } from "@/lib/rapid-fetch";
 import { setMatchFlag } from "@/lib/match-flags";
 import { findAiMatch } from "@/lib/ai-match";
-import { findDeterministicMatch, namesMatch, normalizeTeamName, type CandidateMatch } from "@/lib/team-match";
+import { findDeterministicMatch, normalizeTeamName, sameFixture, type CandidateMatch } from "@/lib/team-match";
 import { saveMatchesCache } from "@/lib/match-cache";
 import { getBsdEvents } from "@/lib/bsd-events";
 
@@ -52,13 +52,28 @@ function bestVariantIndex(matches: RapidMatch[], idx: number): number {
   for (let i = 0; i < matches.length; i++) {
     if (i === best) continue;
     const c = norm(matches[i]);
-    const sameTeams =
-      (namesMatch(target.h, c.h) && namesMatch(target.a, c.a)) ||
-      (namesMatch(target.h, c.a) && namesMatch(target.a, c.h));
-    const sameWindow = !target.t || !c.t || Math.abs(target.t - c.t) <= 3 * 3600;
-    if (sameTeams && sameWindow && score(matches[i]) > score(matches[best])) best = i;
+    const same = sameFixture({ home: target.h, away: target.a, time: target.t }, { home: c.h, away: c.a, time: c.t });
+    if (same && score(matches[i]) > score(matches[best])) best = i;
   }
   return best;
+}
+
+// A published copy is "weak" when a sibling copy has clearly more servers:
+// at least 1.5x as many and at least 3 more. Then it is worth switching.
+function clearlyBetter(candidate: number, current: number): boolean {
+  return candidate >= current * 1.5 && candidate - current >= 3;
+}
+
+// When the refresher moves a match to a better copy, people who opened the
+// old link keep working: match-flags publishes old → new and the watch page
+// follows it.
+async function rememberAlias(d1: D1Database, oldId: string, newId: string) {
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS d1_alt_alias (old_id TEXT PRIMARY KEY, new_id TEXT NOT NULL, created_at TEXT NOT NULL)`).run();
+    await d1.prepare(`INSERT OR REPLACE INTO d1_alt_alias (old_id, new_id, created_at) VALUES (?, ?, ?)`).bind(oldId, newId, new Date().toISOString()).run();
+    // Chain: anything that pointed at the old id now points at the new one.
+    await d1.prepare(`UPDATE d1_alt_alias SET new_id = ? WHERE new_id = ?`).bind(newId, oldId).run();
+  } catch { /* best effort */ }
 }
 
 async function ensureTable(d1: D1Database) {
@@ -185,14 +200,18 @@ async function refreshLiveStreams(
     if (batch.length < 20 || !batch.some((m) => m.match_status === "live")) break;
   }
 
-  // Auto-switch any still-serverless match to a same-teams sibling copy that
-  // carries streams (the duplicate-copy situation, healed without an admin).
+  // Auto-switch any serverless match — or one whose sibling copy clearly has
+  // more servers — to the best copy (the duplicate-copy situation, healed
+  // without an admin). Old link keeps working: match-flags maps it forward.
   let switched = 0;
-  for (const r of serverless()) {
+  for (const r of tracked) {
     const curIdx = matches.findIndex((m) => entryId(m) === r.live_id);
     if (curIdx < 0) continue;
     const bestIdx = bestVariantIndex(matches, curIdx);
     if (bestIdx === curIdx) continue;
+    const curN = matches[curIdx].servers?.length ?? 0;
+    const bestN = matches[bestIdx].servers?.length ?? 0;
+    if (curN > 0 && !clearlyBetter(bestN, curN)) continue;
     const m = matches[bestIdx];
     const newId = entryId(m);
     await setMatchFlag(d1, newId, true, {
@@ -201,9 +220,10 @@ async function refreshLiveStreams(
     });
     await setMatchFlag(d1, r.live_id!, false);
     await d1
-      .prepare("UPDATE d1_auto_live SET live_id = ?, detail = detail || ' → refresher switched to the stream-carrying copy', updated_at = ? WHERE match_id = ?")
-      .bind(newId, new Date().toISOString(), r.match_id)
+      .prepare("UPDATE d1_auto_live SET live_id = ?, detail = detail || ?, updated_at = ? WHERE match_id = ?")
+      .bind(newId, ` → refresher switched to "${m.home_team_name} vs ${m.away_team_name}" (${bestN} servers, was ${curN})`, new Date().toISOString(), r.match_id)
       .run();
+    await rememberAlias(d1, r.live_id!, newId);
     switched++;
   }
 
@@ -338,7 +358,10 @@ export async function GET(req: Request) {
     // If the feed lists the same match under several entries, publish the
     // copy carrying streams.
     const finalIndex = bestVariantIndex(all, matchedIndex);
-    if (finalIndex !== matchedIndex) detail += " → switched to the copy carrying streams";
+    if (finalIndex !== matchedIndex) {
+      const was = all[matchedIndex];
+      detail += ` → chose "${all[finalIndex].home_team_name} vs ${all[finalIndex].away_team_name}" (${all[finalIndex].servers?.length ?? 0} servers) over "${was.home_team_name} vs ${was.away_team_name}" (${was.servers?.length ?? 0})`;
+    }
     const m = all[finalIndex];
     const hasServers = (m.servers?.length ?? 0) > 0;
     if (!hasServers && Date.now() < f.kickoff * 1000) {

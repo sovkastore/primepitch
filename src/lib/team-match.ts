@@ -34,6 +34,46 @@ export function namesMatch(a: string, b: string): boolean {
   return a.length >= 4 && b.length >= 4 && (a.includes(b) || b.includes(a));
 }
 
+// 0..1 similarity between two normalized names: the best of word overlap and
+// character-bigram overlap, so "bayern munchen" ≈ "bayern munich" (0.5 words,
+// ~0.7 bigrams) while "arsenal" vs "aston villa" stays low.
+export function nameSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (namesMatch(a, b)) return 0.9;
+  const wa = new Set(a.split(" ").filter((w) => w.length > 1));
+  const wb = new Set(b.split(" ").filter((w) => w.length > 1));
+  let shared = 0;
+  for (const w of wa) if (wb.has(w)) shared++;
+  const wordScore = wa.size && wb.size ? shared / Math.max(wa.size, wb.size) : 0;
+  const grams = (s: string) => { const g = new Map<string, number>(); const t = s.replace(/ /g, ""); for (let i = 0; i < t.length - 1; i++) { const k = t.slice(i, i + 2); g.set(k, (g.get(k) || 0) + 1); } return g; };
+  const ga = grams(a), gb = grams(b);
+  let inter = 0, total = 0;
+  for (const [k, n] of ga) { total += n; inter += Math.min(n, gb.get(k) || 0); }
+  for (const [, n] of gb) total += n;
+  const bigramScore = total ? (2 * inter) / total : 0;
+  return Math.max(wordScore, bigramScore);
+}
+
+// Are these two feed entries the same real match? Same kickoff window and the
+// team pairs are clearly the same, allowing one spelling to differ
+// ("FC Bayern München" vs "FC Bayern Munich") as long as the other team is a
+// solid match.
+export function sameFixture(
+  x: { home: string; away: string; time: number },
+  y: { home: string; away: string; time: number },
+  windowSec = 3 * 3600,
+): boolean {
+  if (x.time && y.time && Math.abs(x.time - y.time) > windowSec) return false;
+  const pair = (h1: string, a1: string, h2: string, a2: string) => {
+    const s1 = nameSimilarity(h1, h2), s2 = nameSimilarity(a1, a2);
+    // 0.72 keeps "bayern munchen"/"bayern munich" (≈0.78) together and
+    // "manchester united"/"manchester city" (≈0.64) apart.
+    return (s1 >= 0.85 && s2 >= 0.72) || (s2 >= 0.85 && s1 >= 0.72);
+  };
+  return pair(x.home, x.away, y.home, y.away) || pair(x.home, x.away, y.away, y.home);
+}
+
 const KICKOFF_TOLERANCE_SECONDS = 30 * 60;
 
 // Returns the matched candidate index, or null when no confident match exists.
