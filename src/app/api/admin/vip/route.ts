@@ -5,6 +5,7 @@ import { grantVip, hashPassword, normalizeEmail, isValidEmail, vipActive } from 
 import { VIP_COINS } from "@/lib/vip";
 import { npConfigured, npCurrencies, npStatus, npGetPayment } from "@/lib/nowpayments";
 import { activateOrderManually, applyPaymentStatus, type OrderRow } from "@/lib/vip-orders";
+import { isVipLive, setVipLive } from "@/lib/vip-live";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,7 @@ export async function GET(request: NextRequest) {
 
   const now = Date.now();
   return NextResponse.json({
+    live: await isVipLive(),
     stats,
     users: (users.results || []).map((u: any) => ({ ...u, vip: vipActive(u.vip_until), online: !!u.session_at && now - Date.parse(u.session_at) < 7 * 24 * HOUR_MS })),
     orders: orders.results || [],
@@ -67,6 +69,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST { action, ... }
+//   set_live     { live }                     launch switch
 //   grant        { userId, hours }            add time (any amount)
 //   set_until    { userId, until }            set the exact expiry (ISO) or null
 //   revoke       { userId }                   VIP off now
@@ -89,6 +92,10 @@ export async function POST(request: NextRequest) {
 
   try {
     switch (action) {
+      case "set_live": {
+        await setVipLive(b?.live === true);
+        return NextResponse.json({ ok: true, live: b?.live === true });
+      }
       case "grant": {
         const hours = Number(b?.hours);
         if (!userId || !Number.isFinite(hours) || hours <= 0) return NextResponse.json({ error: "Need userId and hours > 0" }, { status: 400 });
