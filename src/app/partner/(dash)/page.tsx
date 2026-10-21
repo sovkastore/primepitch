@@ -35,6 +35,16 @@ export default function PartnerOverview() {
               <p className="text-gray-400">Paid out <b className="text-gray-600">{money(e.paid)}</b></p>
             </div>
           </div>
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black text-amber-800 uppercase tracking-wider">VIP earnings</p>
+              <p className="text-[12px] text-amber-900/80 mt-0.5">20% of every VIP plan bought by someone you brought. Added to Approved the moment they pay.</p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-black text-gray-900 tabular-nums">{money(e.vipEarned)}</p>
+              <p className="text-[11px] text-amber-800 font-semibold">{Number(e.vipSales) || 0} VIP {Number(e.vipSales) === 1 ? "sale" : "sales"}</p>
+            </div>
+          </div>
           <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
             <b className="text-gray-500">Note:</b> Estimated earnings are pending verification from our ad partners. Funds are moved to your Approved Balance once the ad network clears them.
             <br className="my-1"/>

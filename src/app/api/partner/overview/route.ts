@@ -3,6 +3,7 @@ import { getPartnerOverviewD1 } from "@/lib/partner-engine";
 import { requirePartnerSession, PARTNER_COOKIE } from "@/lib/partner-auth";
 import { partnerBalances, scopeToOwn } from "@/lib/partner-scope";
 import { getD1 } from "@/lib/d1";
+import { vipCommissionSummary } from "@/lib/vip-commission";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "D1_BINDING_MISSING" }, { status: 500 });
     }
 
-    const { fullStats, earned, approved, hold, paid, balance } = await partnerBalances(sess.code);
+    const { partnerId, fullStats, earned, approved, hold, paid, balance } = await partnerBalances(sess.code);
+    const vip = partnerId ? await vipCommissionSummary(partnerId) : { sales: 0, earned: 0 };
     
     // Fetch metrics from D1
     const d1Overview = await getPartnerOverviewD1(d1, sess.code);
@@ -28,7 +30,7 @@ export async function GET(request: NextRequest) {
       partner: sess.code,
       name: sess.name,
       full_stats: fullStats,
-      earnings: { earned, approved, hold, paid, balance },
+      earnings: { earned, approved, hold, paid, balance, vipSales: vip.sales, vipEarned: vip.earned },
       ...scoped,
     });
   } catch (e) {

@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
 
   const orders = await d1.prepare(
     `SELECT o.id, o.user_id, u.email, o.plan, o.months, o.price_usd, o.pay_currency, o.pay_amount, o.pay_address, o.payment_id,
-            o.status, o.actually_paid, o.activated_at, o.created_at, o.updated_at
+            o.status, o.actually_paid, o.activated_at, o.created_at, o.updated_at,
+            o.commission_usd, u.ref_code, (SELECT code FROM d1_partners p WHERE p.id = o.commission_partner_id) AS commission_partner
        FROM d1_vip_orders o LEFT JOIN d1_users u ON u.id = o.user_id
       WHERE (? = '' OR u.email LIKE ? OR o.payment_id LIKE ? OR o.id LIKE ?)
       ORDER BY o.created_at DESC LIMIT 200`

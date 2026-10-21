@@ -50,10 +50,13 @@ export async function POST(request: NextRequest) {
     const { hash, salt } = await hashPassword(password);
     const id = crypto.randomUUID();
     const sid = crypto.randomUUID();
+    // Partner attribution: the referral cookie set when they first arrived
+    // through a partner link. Locked to the account for life.
+    const refCode = (request.cookies.get("pp_ref")?.value || "").trim().toLowerCase().slice(0, 40) || null;
     await d1.prepare(
-      `INSERT INTO d1_users (id, email, password_hash, salt, session_id, session_ua, session_at, created_at, last_login_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(id, email, hash, salt, sid, ua, now, now, now).run();
+      `INSERT INTO d1_users (id, email, password_hash, salt, session_id, session_ua, session_at, created_at, last_login_at, ref_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(id, email, hash, salt, sid, ua, now, now, now, refCode).run();
     const token = await signUserSession({ uid: id, sid });
     const res = NextResponse.json({ ok: true, me: { id, email, vip: false, vipUntil: null } });
     res.cookies.set(USER_COOKIE, token, USER_COOKIE_OPTS);

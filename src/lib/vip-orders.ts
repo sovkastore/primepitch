@@ -2,6 +2,7 @@ import { getD1 } from "@/lib/d1";
 import { grantVip } from "@/lib/user-auth";
 import { planById } from "@/lib/vip";
 import { npIsPaid } from "@/lib/nowpayments";
+import { creditVipCommission } from "@/lib/vip-commission";
 
 export type OrderRow = {
   id: string;
@@ -37,6 +38,8 @@ export async function applyPaymentStatus(order: OrderRow, status: string, actual
     const days = plan?.days ?? order.months * 30;
     await grantVip(order.user_id, days * DAY_MS);
     activatedAt = now;
+    // Partner who brought this customer earns their cut on every real payment.
+    await creditVipCommission(order);
   }
 
   // Never let a later, weaker status (e.g. a stray "confirming" after
