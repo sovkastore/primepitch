@@ -241,9 +241,9 @@ export async function GET() {
     }
 
     const data = { groups: stData.groups || {}, fixtures };
-    // Only freeze a snapshot that actually has content, so a BSD hiccup on
-    // the very first request can't lock in an empty page.
-    if (fixtures.length > 0 && Object.keys(data.groups).length > 0) await writeFrozen(data);
+    // The tournament is over: once BSD answers properly (standings OK and
+    // fixtures present) freeze for good so BSD is never called again.
+    if (fixtures.length > 0 && stRes.ok) await writeFrozen(data);
     cache = { data, ts: now };
     await writeShared(data, now);
     return NextResponse.json(data);
