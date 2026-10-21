@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 import { signSession, PARTNER_COOKIE } from "@/lib/partner-auth";
+import { throttle, clientIp } from "@/lib/throttle";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +12,9 @@ export async function POST(request: NextRequest) {
 
     const d1 = await getD1();
     if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+
+    const t = await throttle(`plogin:ip:${clientIp(request)}`, 15, 15 * 60_000);
+    if (!t.ok) return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
 
     const row = await d1.prepare(
       "SELECT id, code, name FROM d1_partners WHERE email = ? AND password_hash = ? AND active = 1 AND suspended = 0 AND banned = 0"

@@ -4,6 +4,7 @@ import {
   USER_COOKIE, USER_COOKIE_OPTS, hashPassword, verifyPassword, signUserSession,
   normalizeEmail, isValidEmail, resolveUser, toMe, type UserRow,
 } from "@/lib/user-auth";
+import { throttle, clientIp } from "@/lib/throttle";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,15 @@ export async function POST(request: NextRequest) {
 
   const d1 = await getD1();
   if (!d1) return NextResponse.json({ error: "Service unavailable. Try again in a moment." }, { status: 503 });
+
+  // Brute-force / spam guard: per IP and per email, shared across all Workers.
+  const ip = clientIp(request);
+  const limits = action === "signup"
+    ? [throttle(`signup:ip:${ip}`, 5, 60 * 60_000)]
+    : [throttle(`login:ip:${ip}`, 20, 15 * 60_000), throttle(`login:email:${email}`, 8, 15 * 60_000)];
+  for (const t of await Promise.all(limits)) {
+    if (!t.ok) return NextResponse.json({ error: `Too many attempts. Try again in ${Math.ceil(t.retryAfterSec / 60)} min.` }, { status: 429 });
+  }
 
   const ua = (request.headers.get("user-agent") || "").slice(0, 200);
   const now = new Date().toISOString();
