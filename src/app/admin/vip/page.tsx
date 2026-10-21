@@ -21,8 +21,9 @@ const DURATIONS: { label: string; hours: number }[] = [
   { label: "1 day", hours: 24 },
   { label: "3 days", hours: 72 },
   { label: "7 days", hours: 168 },
-  { label: "1 month", hours: 24 * VIP_PLANS["1m"].days },
-  { label: "3 months", hours: 24 * VIP_PLANS["3m"].days },
+  { label: "1 month", hours: 24 * 30 },
+  { label: "2 months", hours: 24 * VIP_PLANS["2m"].days },
+  { label: "4 months", hours: 24 * VIP_PLANS["4m"].days },
 ];
 
 function fmt(iso: string | null | undefined): string {
@@ -140,7 +141,7 @@ export default function AdminVipPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-[14px] font-bold text-gray-900">NOWPayments</h2>
-            <p className="text-[12px] text-gray-500">Checks the API key works, which coins NOWPayments offers, and each coin&rsquo;s smallest accepted payment. Amber = too small for the $5 plan (3-month still works).</p>
+            <p className="text-[12px] text-gray-500">Checks the API key works, which coins NOWPayments offers, and each coin&rsquo;s smallest accepted payment. Amber = too small for the $10 plan (the $15 plan still works).</p>
           </div>
           <button onClick={checkNp} className="rounded-xl bg-gray-900 text-white text-[12px] font-bold px-3 py-2">Check</button>
         </div>
@@ -149,7 +150,7 @@ export default function AdminVipPage() {
           np.ok ? (
             <div className="flex flex-wrap gap-1.5">
               {np.coins.map((c: any) => (
-                <span key={c.id} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${!c.available ? "bg-red-100 text-red-700" : c.minUsd != null && c.minUsd > VIP_PLANS["1m"].priceUsd ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+                <span key={c.id} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${!c.available ? "bg-red-100 text-red-700" : c.minUsd != null && c.minUsd > VIP_PLANS["2m"].priceUsd ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
                   {c.symbol} · {c.network.split(" · ")[0]}{c.minUsd != null ? ` · min $${c.minUsd.toFixed(2)}` : ""}
                 </span>
               ))}
