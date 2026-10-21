@@ -140,7 +140,7 @@ export default function AdminVipPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-[14px] font-bold text-gray-900">NOWPayments</h2>
-            <p className="text-[12px] text-gray-500">Checks the API key works and which of our coins NOWPayments offers right now.</p>
+            <p className="text-[12px] text-gray-500">Checks the API key works, which coins NOWPayments offers, and each coin&rsquo;s smallest accepted payment. Amber = too small for the $5 plan (3-month still works).</p>
           </div>
           <button onClick={checkNp} className="rounded-xl bg-gray-900 text-white text-[12px] font-bold px-3 py-2">Check</button>
         </div>
@@ -149,7 +149,9 @@ export default function AdminVipPage() {
           np.ok ? (
             <div className="flex flex-wrap gap-1.5">
               {np.coins.map((c: any) => (
-                <span key={c.id} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${c.available ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{c.symbol} · {c.network.split(" · ")[0]}</span>
+                <span key={c.id} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${!c.available ? "bg-red-100 text-red-700" : c.minUsd != null && c.minUsd > VIP_PLANS["1m"].priceUsd ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+                  {c.symbol} · {c.network.split(" · ")[0]}{c.minUsd != null ? ` · min $${c.minUsd.toFixed(2)}` : ""}
+                </span>
               ))}
             </div>
           ) : <p className="text-[12px] font-semibold text-red-600">{np.error}</p>
