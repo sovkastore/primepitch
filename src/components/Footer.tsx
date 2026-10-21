@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import { isVipLive } from "@/lib/vip-live";
 
 const LINKS = [
   { href: "/", label: "Home" },
@@ -14,7 +15,9 @@ const LINKS = [
   { href: "/dmca", label: "DMCA" },
 ];
 
-export default function Footer() {
+export default async function Footer() {
+  const vip = await isVipLive();
+  const links = LINKS.filter((l) => l.href !== "/vip" || vip);
   return (
     <footer className="border-t border-gray-200 bg-gray-50 mt-16 hidden md:block">
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-10">
@@ -24,7 +27,7 @@ export default function Footer() {
 
           {/* Links — every one leads to a real page */}
           <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-500">
-            {LINKS.map((l) => (
+            {links.map((l) => (
               <Link key={l.href} href={l.href} className="hover:text-gray-900 transition-colors">
                 {l.label}
               </Link>

@@ -3,6 +3,8 @@ import { getD1 } from "@/lib/d1";
 import { USER_COOKIE, resolveUser } from "@/lib/user-auth";
 import { planById, coinById } from "@/lib/vip";
 import { NpError, npCreatePayment, npEstimate, npMinAmount } from "@/lib/nowpayments";
+import { isVipLive } from "@/lib/vip-live";
+import { isAdminRequest } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +13,10 @@ const IPN_URL = "https://primepitchsports.cc/api/vip/nowpayments/ipn";
 // POST { plan: "1m" | "3m", coin: "usdttrc20" | ... }
 // Creates an order and asks NOWPayments for a fresh address for it.
 export async function POST(request: NextRequest) {
+  // Not launched yet: only an admin can run a checkout (for testing).
+  if (!(await isVipLive()) && !(await isAdminRequest(request))) {
+    return NextResponse.json({ error: "VIP isn't open yet." }, { status: 403 });
+  }
   const r = await resolveUser(request.cookies.get(USER_COOKIE)?.value);
   if (!r.ok) return NextResponse.json({ error: "Log in first." }, { status: 401 });
 

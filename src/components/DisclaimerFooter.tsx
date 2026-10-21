@@ -1,8 +1,15 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function DisclaimerFooter() {
   const currentYear = new Date().getFullYear();
+  // The VIP link only appears once VIP has launched (or for a signed-in VIP).
+  const [vipLive, setVipLive] = useState(false);
+  useEffect(() => {
+    fetch("/api/vip/me", { cache: "no-store" }).then(r => r.json()).then(d => setVipLive(d?.live === true || !!d?.me)).catch(() => {});
+  }, []);
   
   return (
     <footer className="w-full bg-[#0a0a0a] border-t border-gray-800/50 mt-12 overflow-hidden">
@@ -30,8 +37,10 @@ export default function DisclaimerFooter() {
 
           {/* Nav Links */}
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 mt-10">
-            <Link href="/vip" className="text-[12px] font-bold text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">VIP</Link>
-            <span className="w-1 h-1 rounded-full bg-gray-700" />
+            {vipLive && (<>
+              <Link href="/vip" className="text-[12px] font-bold text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">VIP</Link>
+              <span className="w-1 h-1 rounded-full bg-gray-700" />
+            </>)}
             <Link href="/about" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">About</Link>
             <span className="w-1 h-1 rounded-full bg-gray-700" />
             <Link href="/privacy" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">Privacy Policy</Link>
