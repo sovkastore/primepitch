@@ -55,6 +55,7 @@ export default function VipClient() {
   // have no account, then "pay" (coins + address).
   const [step, setStep] = useState<"plans" | "pay">("plans");
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   // NOWPayments' smallest accepted payment per coin, in USD (null = unknown).
   const [minUsd, setMinUsd] = useState<Record<string, number | null>>({});
 
@@ -207,11 +208,49 @@ export default function VipClient() {
                   {"href" in l && l.href ? <Link href={l.href} className="underline underline-offset-4 decoration-emerald-300 hover:decoration-emerald-500">{l.title}</Link> : l.title}
                 </span>{" "}
                 {l.body}
+                {"more" in l && l.more ? (
+                  <>
+                    {" "}
+                    <button type="button" onClick={() => setMoreOpen(true)} className="font-bold text-emerald-700 underline underline-offset-4 decoration-emerald-300 hover:decoration-emerald-600">
+                      More
+                    </button>
+                  </>
+                ) : null}
               </div>
             </li>
           ))}
         </ul>
       </header>
+
+      {moreOpen && (() => {
+        const more = VIP_COPY.lines.find((l) => "more" in l && l.more)?.more;
+        if (!more) return null;
+        return (
+          <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" onClick={() => setMoreOpen(false)}>
+            <div className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl p-6 space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-lg font-black text-gray-900 leading-tight">{more.title}</h3>
+                <button type="button" onClick={() => setMoreOpen(false)} aria-label="Close" className="shrink-0 w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <p className="text-[14px] text-gray-600 leading-relaxed">{more.intro}</p>
+              <ul className="space-y-2.5">
+                {more.items.map((it) => (
+                  <li key={it} className="flex gap-2.5 text-[14px] text-gray-800 leading-snug">
+                    <span className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    </span>
+                    {it}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[13px] text-gray-500">{more.outro}</p>
+              <button type="button" onClick={() => setMoreOpen(false)} className="w-full h-11 rounded-2xl bg-gray-900 text-white font-black text-[14px]">Got it</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ---- Plans ---- */}
       <section className="space-y-3">

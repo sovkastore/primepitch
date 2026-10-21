@@ -49,13 +49,25 @@ export const VIP_COPY = {
     },
     {
       title: "VIP Streams: 100% ad-free.",
-      body: "Our own hand-picked servers for the big matches. Nothing opens, ever.",
+      body: "Every European competition and every match in the top 5 leagues, on our own servers. Nothing opens, ever.",
       href: "/alt",
+      more: {
+        title: "What you get on VIP Streams",
+        intro: "Our own hand-picked servers. No pop-ups, no redirects, no new tabs — 100% guaranteed for:",
+        items: [
+          "UEFA Champions League, Europa League and Conference League — every match",
+          "Premier League, La Liga, Serie A, Bundesliga and Ligue 1 — every match",
+          "Domestic cups in the top 5 leagues — FA Cup, Copa del Rey, Coppa Italia, DFB-Pokal, Coupe de France",
+          "National teams — World Cup, Euros, Nations League and qualifiers",
+          "Big matches in other leagues — Saudi Pro League, MLS, Turkish Süper Lig, Portuguese Liga, Eredivisie and more",
+        ],
+        outro: "Open VIP Streams and the match is there before kickoff.",
+      },
     },
     {
-      title: "All other sports: almost ad-free.",
+      title: "Other sports: ad-free too.",
       body:
-        "The main site covers every sport using free third-party servers. Those servers are not ours, and a tap inside the video player may open one tab — tap play once, go back, and watch; nothing else interrupts you.",
+        "Basketball, tennis, cricket, UFC, F1 and every other sport on the main site — 95% ad-free. PrimePitch shows you nothing. Those streams run on third-party players, so your first tap on play may open one tab: close it, go back, and the whole match plays with nothing else interrupting you.",
     },
   ],
 };
