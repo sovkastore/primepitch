@@ -30,6 +30,12 @@ export default function Navbar() {
   const [socials, setSocials] = useState<PublicSocial[]>([]);
   const [socialsLoaded, setSocialsLoaded] = useState(false);
   const [affiliate, setAffiliate] = useState(false);
+  const [vipMe, setVipMe] = useState<{ email: string; vip: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    fetch("/api/vip/me", { cache: "no-store" }).then(r => r.json()).then(d => setVipMe(d?.me || null)).catch(() => {});
+  }, [mobileOpen]);
 
   useEffect(() => {
     if (!mobileOpen || socialsLoaded) return;
@@ -58,6 +64,16 @@ export default function Navbar() {
                </svg>
              </span>
              <div className="text-[14px]">Subscribe <span className="block text-[10px] opacity-80 font-medium">Live match alerts</span></div>
+          </Link>
+
+          <Link href="/vip" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-3 rounded-2xl bg-gray-900 text-white shadow-lg">
+             <span className="w-10 h-10 rounded-xl bg-amber-400 text-gray-900 flex items-center justify-center shrink-0">
+               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8Z" /></svg>
+             </span>
+             <div className="text-[14px] text-amber-300">
+               {vipMe?.vip ? "VIP active" : "VIP"}
+               <span className="block text-[10px] text-white/70 font-medium normal-case">{vipMe ? vipMe.email : "Watch without the ads"}</span>
+             </div>
           </Link>
 
           <Link href="/world-cup" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-3 rounded-2xl border border-emerald-50 bg-emerald-50/50">

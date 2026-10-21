@@ -20,6 +20,7 @@ const RESERVED = new Set([
   "world-cup", "partner", "_next", "offline", "icons", "alerts",
   "cricket", "tv-channels", "ppv",
   "about", "privacy", "terms", "dmca", "help", "vpn", "sports-live", "cricket-live",
+  "vip", "alt", "football", "basketball", "tennis", "cricket", "boxing", "ufc", "wwe",
 ]);
 
 // Active partner codes, cached per worker isolate to avoid a DB call per request.

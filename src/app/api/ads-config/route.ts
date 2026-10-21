@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export const dynamic = "force-dynamic";
 import { getD1 } from "@/lib/d1";
 import { getMatches, type Match } from "@/lib/api";
+import { USER_COOKIE, isActiveVip } from "@/lib/user-auth";
 
 // Public: ad configuration the client uses to decide whether to inject any ad
 // tags. When master is false, the site injects nothing at all.
@@ -29,7 +30,7 @@ function foldTeam(s: string): string {
   const n = (s || "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]/g, "");
   return TEAM_ALIASES[n] || n;
 }
@@ -111,8 +112,20 @@ type Fmt = {
 const CFG_TTL = 30_000;
 let cfgCache: { data: any; ts: number } | null = null;
 
+// What an active VIP gets: nothing. Every ad component keys off `master`, so
+// one answer switches all of PrimePitch's own ads off for that person.
+const VIP_EMPTY = { master: false, domains: "all", formats: {}, vip: true };
+
 export async function GET(request: NextRequest) {
   const now = Date.now();
+
+  // Active VIP (logged in, paid-up, and still the live session on the
+  // account) — never cached, so a kicked-off or expired VIP sees ads again
+  // on the next load.
+  const userToken = request.cookies.get(USER_COOKIE)?.value;
+  if (userToken && (await isActiveVip(userToken))) {
+    return NextResponse.json(VIP_EMPTY, { headers: { "Cache-Control": "no-store" } });
+  }
   // We include the referral code in the cache key because partner swaps change the output
   const ref = request.cookies.get("pp_ref")?.value?.trim().toLowerCase() || "none";
   const cacheKey = `ads_${ref}`;
