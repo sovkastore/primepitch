@@ -204,6 +204,9 @@ function injectScript(id: string, src: string, zone: string, rawScript?: string)
   s.async = true;
   if (zone) s.dataset.zone = zone;
   s.dataset.adFormat = id;
+  // Adsterra's tags ship with data-cfasync="false" so Cloudflare Rocket Loader
+  // never defers or rewrites them. Harmless for every other network.
+  s.setAttribute("data-cfasync", "false");
   s.src = src;
 
   // Adsterra scripts (no zone) often perform better when loaded in the head
