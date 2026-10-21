@@ -99,7 +99,7 @@ const DEFAULTS: AdsConfig = {
     inpage_push: { label: "In-Page Push", enabled: false, network: "Monetag", group: "notification", placement: "all", zone: "11143361", src: "https://nap5k.com/tag.min.js", cap: 60, delay: "0" },
     vignette: { label: "Vignette Banner", enabled: false, network: "Monetag", group: "interstitial", placement: "all", zone: "11143456", src: "https://n6wxm.com/vignette.min.js", cap: 60, delay: "0" },
     social_bar: { label: "Social Bar", enabled: false, network: "Adsterra", group: "notification", placement: "all", zone: "", src: "", cap: 60, delay: "0" },
-    popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "all", zone: "", src: "https://pl29767070.effectivecpmnetwork.com/30/ab/f5/30abf5ef48f19536833cf036986d6551.js", cap: 0, delay: "0" },
+    popunder: { label: "Popunder", enabled: false, network: "Adsterra", group: "popunder", placement: "all", zone: "", src: "https://capitalhospitals.org/1/30abf5ef48f19536833cf036986d6551", cap: 0, delay: "0" },
     monetag_popunder: { label: "Popunder", enabled: false, network: "Monetag", group: "popunder", placement: "home", zone: "11157914", src: "https://al5sm.com/tag.min.js", cap: 0, delay: "0" },
     exoclick_mobile_interstitial: { label: "Mobile Fullpage Interstitial", enabled: false, network: "ExoClick", group: "interstitial", placement: "all", zone: "5997578", src: "https://a.pemsrv.com/ad-provider.js", cap: 0, delay: "0" },
     exoclick_mobile_popunder: { label: "Mobile Popunder", enabled: false, network: "ExoClick", group: "popunder", placement: "all", zone: "5997602", src: "https://a.pemsrv.com/popunder1000.js", cap: 0, delay: "0" },
