@@ -126,15 +126,6 @@ export default function WatchPage() {
   const [liveMatches, setLiveMatches] = useState<Match[]>([]);
   const [liveScore, setLiveScore] = useState<{ home: number; away: number; minute: number | null; period: string; league?: string | null } | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
-  // TEST ONLY: with ?np=1 on the URL the player iframe gets a sandbox that
-  // forbids it from opening new windows/tabs (its own popups). Normal visitors
-  // never get this; it exists to find out whether the embeds still play.
-  const [noPop, setNoPop] = useState(false);
-  useEffect(() => {
-    try {
-      setNoPop(new URLSearchParams(window.location.search).get("np") === "1");
-    } catch {}
-  }, []);
   const [forceLive, setForceLive] = useState(false);
   // Ticks once a second while kickoff is still ahead (drives the "Starts in"
   // line); null until mount so SSR and the first client render match.
@@ -565,7 +556,6 @@ export default function WatchPage() {
                   className="absolute inset-0 w-full h-full"
                   allowFullScreen
                   allow="encrypted-media"
-                  sandbox={noPop ? "allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock allow-orientation-lock" : undefined}
                   onLoad={() => setIframeLoaded(true)}
                 />
 
