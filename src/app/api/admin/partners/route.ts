@@ -217,6 +217,14 @@ export async function POST(request: NextRequest) {
       if (!partnerId) return NextResponse.json({ error: "partner required" }, { status: 400 });
       if (amount <= 0) return NextResponse.json({ error: "amount must be greater than 0" }, { status: 400 });
       const status = PAYOUT_STATUSES.includes(String(body.status)) ? String(body.status) : "in_progress";
+      // Money goes out of Approved only. Approve first, then pay.
+      if (status !== "failed") {
+        const cur = await d1.prepare("SELECT approved FROM d1_partner_balances WHERE partner_id = ?").bind(partnerId).first<{ approved: number }>();
+        const approved = num(cur?.approved);
+        if (amount > approved + 0.000001) {
+          return NextResponse.json({ error: `Only $${approved.toFixed(2)} is approved for this partner. Approve the funds first, then record the payout.` }, { status: 400 });
+        }
+      }
       let proofImage: string | null = null;
       
       // We skip actual storage upload in D1 migration, unless using a custom blob/R2 integration.
@@ -329,7 +337,24 @@ export async function POST(request: NextRequest) {
       if (!partnerId) return NextResponse.json({ error: "partner required" }, { status: 400 });
       if (amount <= 0) return NextResponse.json({ error: "amount must be greater than 0" }, { status: 400 });
       
-      await d1.prepare("UPDATE d1_partner_balances SET approved = approved + ? WHERE partner_id = ?").bind(amount, partnerId).run();
+      // Approved is the part of the partner's balance that has been released
+      // for payout — it can never exceed what they actually have.
+      const cur = await d1.prepare("SELECT approved, balance FROM d1_partner_balances WHERE partner_id = ?").bind(partnerId).first<{ approved: number; balance: number }>();
+      if (!cur) return NextResponse.json({ error: "partner has no balance row" }, { status: 404 });
+      const room = Math.max(0, num(cur.balance) - num(cur.approved));
+      if (amount > room + 0.000001) {
+        return NextResponse.json({ error: `Only $${room.toFixed(2)} is left to approve (balance $${num(cur.balance).toFixed(2)}, already approved $${num(cur.approved).toFixed(2)}).` }, { status: 400 });
+      }
+      await d1.prepare("UPDATE d1_partner_balances SET approved = MIN(balance, MAX(0, approved + ?)) WHERE partner_id = ?").bind(amount, partnerId).run();
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === "unapprove_funds") {
+      const partnerId = String(body.partner_id || "");
+      const amount = num(body.amount);
+      if (!partnerId) return NextResponse.json({ error: "partner required" }, { status: 400 });
+      if (amount <= 0) return NextResponse.json({ error: "amount must be greater than 0" }, { status: 400 });
+      await d1.prepare("UPDATE d1_partner_balances SET approved = MAX(0, approved - ?) WHERE partner_id = ?").bind(amount, partnerId).run();
       return NextResponse.json({ ok: true });
     }
 
@@ -339,11 +364,14 @@ export async function POST(request: NextRequest) {
       const balanceDelta = num(body.balance_delta !== undefined ? body.balance_delta : body.earned_delta);
       if (!partnerId) return NextResponse.json({ error: "partner required" }, { status: 400 });
       
+      // An adjustment changes what the partner has earned and can still
+      // receive. It never approves anything — that is a separate, deliberate
+      // step — but a deduction can shrink approved so it stays within balance.
       await d1.prepare(`
-        UPDATE d1_partner_balances 
-        SET earned = MAX(0, earned + ?), 
-            approved = MAX(0, approved + ?),
-            balance = MAX(0, balance + ?)
+        UPDATE d1_partner_balances
+        SET earned = MAX(0, earned + ?),
+            balance = MAX(0, balance + ?),
+            approved = MIN(MAX(0, balance + ?), approved)
         WHERE partner_id = ?
       `).bind(earnedDelta, balanceDelta, balanceDelta, partnerId).run();
       return NextResponse.json({ ok: true });
