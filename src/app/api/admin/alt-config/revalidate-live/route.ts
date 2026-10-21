@@ -8,10 +8,11 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    // Optional ?page=N (1-5): fetch a specific feed page. Page 1 replaces the
-    // cache; deeper pages MERGE into it so the admin can accumulate the list.
+    // Optional ?page=N: fetch a specific feed page. Page 1 replaces the cache;
+    // deeper pages MERGE into it (a match fetched again is refreshed) so the
+    // admin can accumulate the list page by page, as deep as the feed goes.
     const pageParam = Number(new URL(req.url).searchParams.get("page") || 1);
-    const page = Math.min(5, Math.max(1, Number.isFinite(pageParam) ? pageParam : 1));
+    const page = Math.min(50, Math.max(1, Number.isFinite(pageParam) ? Math.floor(pageParam) : 1));
     // Clear Next.js cache
     // @ts-expect-error: Next.js canary has experimental typings requiring 2 args
     revalidateTag("alt-matches-page-1");

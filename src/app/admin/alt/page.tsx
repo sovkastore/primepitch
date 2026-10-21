@@ -92,6 +92,8 @@ export default function AdminAltMatchesPage() {
   const [savingConfig, setSavingConfig] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
   const [revalidatingLive, setRevalidatingLive] = useState(false);
+  // "Fetching page 3 of 7…" / "Page 4 failed — kept pages 1–3" for the multi-page run.
+  const [fetchProgress, setFetchProgress] = useState("");
   
   const [activeNoticeMatch, setActiveNoticeMatch] = useState<ProMatch | null>(null);
 
@@ -225,14 +227,38 @@ export default function AdminAltMatchesPage() {
     }
   }
 
-  async function triggerManualRevalidate() {
+  // Fetch feed pages 1..N one after another (N requests). Page 1 replaces the
+  // list, every later page merges into it, so the list is never emptied and a
+  // match that shows up again is refreshed with its latest data. Stops at the
+  // first page that fails and keeps what was fetched before it.
+  async function triggerFetchPages(upTo: number) {
+    const n = Math.max(1, Math.min(50, Math.floor(upTo) || 1));
     setRevalidating(true);
+    setFetchProgress("");
+    let failedAt: number | null = null;
     try {
-      await fetch("/api/admin/alt-config/revalidate", { method: "POST" });
+      for (let page = 1; page <= n; page++) {
+        setFetchProgress(`Fetching page ${page} of ${n}…`);
+        try {
+          const res = await fetch(`/api/admin/alt-config/revalidate-live?page=${page}`, { method: "POST" });
+          const j = await res.json().catch(() => ({}));
+          if (!res.ok || j?.error) { failedAt = page; break; }
+        } catch {
+          failedAt = page;
+          break;
+        }
+      }
+      setFetchProgress(
+        failedAt === null
+          ? `Fetched pages 1–${n}.`
+          : failedAt === 1
+            ? "Page 1 failed — nothing changed."
+            : `Page ${failedAt} failed — kept pages 1–${failedAt - 1}.`
+      );
       setLoading(true);
       await loadData();
     } catch (e) {
-      console.error("Failed to revalidate:", e);
+      console.error("Failed to fetch pages:", e);
     } finally {
       setRevalidating(false);
     }
@@ -565,32 +591,43 @@ export default function AdminAltMatchesPage() {
               {revalidatingLive ? "Fetching..." : "Update Live (1 Request)"}
             </button>
             <div className="flex items-center gap-1.5">
-              <select
+              <label className="text-[11px] font-bold text-gray-500">Page</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={50}
                 value={pageToFetch}
-                onChange={(e) => setPageToFetch(Number(e.target.value))}
-                className="px-2 py-2 border border-gray-200 rounded-lg text-[12px] font-bold text-gray-700 bg-white"
-              >
-                {[2, 3, 4, 5].map((p) => (
-                  <option key={p} value={p}>Page {p}</option>
-                ))}
-              </select>
+                onChange={(e) => setPageToFetch(Math.max(1, Math.min(50, Math.floor(Number(e.target.value)) || 1)))}
+                className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-[12px] font-bold text-gray-700 bg-white text-center"
+              />
               <button
                 onClick={() => triggerManualRevalidateLive(pageToFetch)}
                 disabled={revalidating || revalidatingLive}
                 className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-bold rounded-lg disabled:opacity-50 transition-colors"
               >
-                {revalidatingLive ? "Fetching..." : `Fetch Page ${pageToFetch} (1 Request)`}
+                {revalidatingLive ? "Fetching..." : `Fetch page ${pageToFetch} (1 request)`}
               </button>
             </div>
             <button 
-              onClick={triggerManualRevalidate}
+              onClick={() => triggerFetchPages(pageToFetch)}
               disabled={revalidating || revalidatingLive}
               className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-[12px] font-bold rounded-lg disabled:opacity-50 transition-colors"
             >
-              {revalidating ? "Fetching..." : "Fetch All (5 Requests)"}
+              {revalidating
+                ? (fetchProgress || "Fetching...")
+                : pageToFetch === 1
+                  ? "Fetch page 1 (1 request)"
+                  : `Fetch pages 1–${pageToFetch} (${pageToFetch} requests)`}
             </button>
           </div>
         </div>
+        {fetchProgress && !revalidating && (
+          <p className="text-[11px] font-semibold text-gray-500">{fetchProgress}</p>
+        )}
+        <p className="text-[11px] text-gray-400">
+          Page 1 replaces the list; every other page is added to it, and any match fetched again is refreshed with its latest data. The list is never emptied.
+        </p>
       </div>
       </div>
 
