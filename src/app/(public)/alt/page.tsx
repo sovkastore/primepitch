@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { visibleInterval } from "@/lib/poll";
+import { useEffect, useRef, useState } from "react";
 import { findScore, type ScoreInfo } from "@/lib/score-match";
 import Link from "next/link";
 import Logo from "@/components/Logo";
@@ -38,6 +37,8 @@ function countdownLabel(msLeft: number): string {
 
 export default function AltPage() {
   const [matches, setMatches] = useState<ProMatch[]>([]);
+  // Latest list for the poll scheduler (no re-render needed to read it).
+  const matchesRef = useRef<ProMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalNotice, setGlobalNotice] = useState("");
   const [scores, setScores] = useState<ScoreInfo[]>([]);
@@ -131,15 +132,39 @@ export default function AltPage() {
           return acc;
         }, {} as Record<string, ProMatch[]>);
 
-        if (!stopped) setMatches(matchList);
+        if (!stopped) { matchesRef.current = matchList; setMatches(matchList); }
       } catch (e) {
         console.error("Failed to load pro matches:", e);
       } finally {
         if (!stopped) setLoading(false);
       }
     }
-    const stop = visibleInterval(load, 45_000);
-    return () => { stopped = true; stop(); };
+    // Normally every 45 s; every 15 s while any match is within 8 minutes of
+    // kickoff and not yet playable, so the moment the cron publishes its
+    // stream the card flips without a refresh.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const nearKickoff = () => {
+      const now = Date.now();
+      return matchesRef.current.some((m) => {
+        const ko = Number(m.match_time) * 1000;
+        const playable = (m.servers?.length ?? 0) > 0 && m.match_status !== "ended";
+        return !playable && Math.abs(ko - now) < 8 * 60_000;
+      });
+    };
+    const run = async () => {
+      if (stopped) return;
+      if (!document.hidden) await load();
+      if (stopped) return;
+      timer = setTimeout(run, nearKickoff() ? 15_000 : 45_000);
+    };
+    const onVisible = () => { if (!document.hidden) { if (timer) clearTimeout(timer); run(); } };
+    document.addEventListener("visibilitychange", onVisible);
+    run();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   if (loading) {
