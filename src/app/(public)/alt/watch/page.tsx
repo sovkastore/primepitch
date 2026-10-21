@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { visibleInterval } from "@/lib/poll";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ProMatch } from "../page";
@@ -43,13 +44,18 @@ function AltWatchContent() {
     };
   }, []);
 
+  // Re-fetched every 60 s while the tab is visible so servers that get added
+  // after kickoff appear without a refresh. The server the viewer picked is
+  // untouched by a refresh.
   useEffect(() => {
+    let stopped = false;
     async function load() {
       try {
         const [res, flagsRes] = await Promise.all([
-          fetch("/api/pro-matches"),
-          fetch(`/api/match-flags?t=${Date.now()}`)
+          fetch(`/api/pro-matches?t=${Date.now()}`, { cache: "no-store" }),
+          fetch(`/api/match-flags?t=${Date.now()}`, { cache: "no-store" })
         ]);
+        if (stopped) return;
         
         const data = await res.json();
         const flagsData = await flagsRes.json();
@@ -79,10 +85,11 @@ function AltWatchContent() {
       } catch (e) {
         console.error("Failed to load match:", e);
       } finally {
-        setLoading(false);
+        if (!stopped) setLoading(false);
       }
     }
-    load();
+    const stop = visibleInterval(load, 60_000);
+    return () => { stopped = true; stop(); };
   }, [id]);
 
   useEffect(() => {
@@ -226,7 +233,7 @@ function AltWatchContent() {
                 key={i}
                 onClick={() => setActiveServer(server)}
                 className={`p-3 rounded-xl border text-left transition-all ${
-                  activeServer === server 
+                  activeServer?.url === server.url 
                     ? "bg-emerald-50 border-emerald-500 text-emerald-600 font-bold shadow-sm" 
                     : "bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700 hover:border-gray-300"
                 }`}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { visibleInterval } from "@/lib/poll";
 import { findScore, type ScoreInfo } from "@/lib/score-match";
 import Link from "next/link";
 import Logo from "@/components/Logo";
@@ -69,13 +70,18 @@ export default function AltPage() {
     };
   }, []);
 
+  // Matches + admin flags. Loaded on arrival, then re-fetched every 45 s while
+  // the tab is visible, so a match that goes live (or gets its servers) shows
+  // up without a page refresh — the same way the main site works.
   useEffect(() => {
+    let stopped = false;
     async function load() {
       try {
         const [res, flagsRes] = await Promise.all([
-          fetch("/api/pro-matches"),
-          fetch(`/api/match-flags?t=${Date.now()}`)
+          fetch(`/api/pro-matches?t=${Date.now()}`, { cache: "no-store" }),
+          fetch(`/api/match-flags?t=${Date.now()}`, { cache: "no-store" })
         ]);
+        if (stopped) return;
         
         const data = await res.json();
         const flagsData = await flagsRes.json();
@@ -125,14 +131,15 @@ export default function AltPage() {
           return acc;
         }, {} as Record<string, ProMatch[]>);
 
-        setMatches(matchList);
+        if (!stopped) setMatches(matchList);
       } catch (e) {
         console.error("Failed to load pro matches:", e);
       } finally {
-        setLoading(false);
+        if (!stopped) setLoading(false);
       }
     }
-    load();
+    const stop = visibleInterval(load, 45_000);
+    return () => { stopped = true; stop(); };
   }, []);
 
   if (loading) {
