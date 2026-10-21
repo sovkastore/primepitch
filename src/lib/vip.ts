@@ -2,8 +2,8 @@
 // checkout API and the admin panel so they never disagree.
 
 export const VIP_PLANS = {
-  "1m": { id: "1m", label: "1 month", months: 1, priceUsd: 5, days: 30 },
-  "3m": { id: "3m", label: "3 months", months: 3, priceUsd: 10, days: 90 },
+  "2m": { id: "2m", label: "2 months", months: 2, priceUsd: 10, days: 60 },
+  "4m": { id: "4m", label: "4 months", months: 4, priceUsd: 15, days: 120 },
 } as const;
 
 export type PlanId = keyof typeof VIP_PLANS;

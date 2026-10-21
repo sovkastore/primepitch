@@ -45,7 +45,7 @@ export default function VipClient() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Checkout
-  const [plan, setPlan] = useState<PlanId>("3m");
+  const [plan, setPlan] = useState<PlanId>("4m");
   const [coin, setCoin] = useState<CoinId | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -227,12 +227,12 @@ export default function VipClient() {
                 onClick={() => { setPlan(id); setOrder(null); setCheckoutError(null); if (coin && (minUsd[coin] ?? 0) > VIP_PLANS[id].priceUsd) setCoin(null); }}
                 className={`relative text-left rounded-2xl border-2 p-4 transition-colors ${active ? "border-emerald-500 bg-emerald-50/60" : "border-gray-200 bg-white hover:border-gray-300"}`}
               >
-                {id === "3m" && (
+                {id === "4m" && (
                   <span className="absolute -top-2.5 right-3 rounded-full bg-gray-900 text-white text-[10px] font-black uppercase tracking-wide px-2 py-0.5">Best value</span>
                 )}
                 <div className="text-[13px] font-bold text-gray-500">{p.label}</div>
                 <div className="text-2xl font-black text-gray-900 mt-1">${p.priceUsd}</div>
-                <div className="text-[12px] text-gray-500 mt-0.5">{id === "1m" ? "30 days" : "90 days · $3.33 / month"}</div>
+                <div className="text-[12px] text-gray-500 mt-0.5">{id === "2m" ? "60 days · $5 / month" : "120 days · $3.75 / month"}</div>
               </button>
             );
           })}
@@ -291,13 +291,13 @@ export default function VipClient() {
                     >
                       <div className="text-[14px] font-black text-gray-900">{c.name} <span className="text-gray-400 font-bold">{c.symbol}</span></div>
                       <div className="text-[11px] text-gray-500">{c.network}</div>
-                      {tooSmall && <div className="text-[10px] font-bold text-amber-700 mt-0.5">Min ${min.toFixed(0)} · {plan === "1m" ? "3-month plan only" : "not available"}</div>}
+                      {tooSmall && <div className="text-[10px] font-bold text-amber-700 mt-0.5">Min ${min.toFixed(0)} · {plan === "2m" ? "4-month plan only" : "not available"}</div>}
                     </button>
                   );
                 })}
               </div>
               {VIP_COINS.some((c) => (minUsd[c.id] ?? 0) > selectedPlan.priceUsd) && (
-                <p className="text-[12px] text-gray-500 leading-relaxed">Greyed-out coins have a network minimum above ${selectedPlan.priceUsd} — that&rsquo;s set by the payment network, not by us. {plan === "1m" ? "The 3-month plan works with all of them." : ""}</p>
+                <p className="text-[12px] text-gray-500 leading-relaxed">Greyed-out coins have a network minimum above ${selectedPlan.priceUsd} — that&rsquo;s set by the payment network, not by us. {plan === "2m" ? "The 4-month plan works with all of them." : ""}</p>
               )}
               {checkoutError && <p className="text-[13px] font-semibold text-red-600 leading-relaxed">{checkoutError}</p>}
               <button type="button" onClick={startCheckout} disabled={!coin || checkoutBusy} className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 text-[14px] disabled:opacity-50 transition-colors">
