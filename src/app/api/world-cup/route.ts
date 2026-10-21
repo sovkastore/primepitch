@@ -15,8 +15,40 @@ const KEY = process.env.BSD_API_KEY || "";
 const LEAGUE = 27;
 const TTL = 60_000;
 const FROZEN_KEY = "wc_frozen";
+// Shared (D1) copy of the last good response, so BSD is asked at most once
+// per SHARED_TTL for the whole site — not once per Worker instance.
+const SHARED_KEY = "wc_cache";
+const SHARED_TTL = 5 * 60_000;
 
 let cache: { data: unknown; ts: number } | null = null;
+
+async function readShared(): Promise<{ data: unknown; ts: number } | null> {
+  try {
+    const d1 = await getD1();
+    if (!d1) return null;
+    const row = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind(SHARED_KEY).first<{ value: string }>();
+    return row?.value ? JSON.parse(row.value) : null;
+  } catch { return null; }
+}
+
+async function writeShared(data: unknown, ts: number) {
+  try {
+    const d1 = await getD1();
+    if (!d1) return;
+    await d1.prepare("INSERT INTO d1_site_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .bind(SHARED_KEY, JSON.stringify({ data, ts })).run();
+  } catch { /* best effort */ }
+}
+
+async function countUsage(n: number) {
+  try {
+    const d1 = await getD1();
+    if (!d1) return;
+    const day = new Date().toISOString().slice(0, 10);
+    await d1.prepare("INSERT INTO d1_bsd_usage (day, source, n) VALUES (?, ?, ?) ON CONFLICT(day, source) DO UPDATE SET n = n + excluded.n")
+      .bind(day, "world-cup", n).run();
+  } catch { /* best effort */ }
+}
 
 async function readFrozen(): Promise<unknown | null> {
   try {
@@ -76,8 +108,16 @@ export async function GET() {
     return NextResponse.json(frozen);
   }
 
+  // Shared copy fresh enough? Serve it without touching BSD.
+  const shared = await readShared();
+  if (shared && now - shared.ts < SHARED_TTL) {
+    cache = { data: shared.data, ts: now };
+    return NextResponse.json(shared.data);
+  }
+
   try {
     const headers = { Authorization: `Token ${KEY}` };
+    await countUsage(3);
     const [fxRes, stRes, evRes] = await Promise.all([
       fetch(`${BSD}/fixtures/?league=${LEAGUE}&limit=300`, { headers, signal: AbortSignal.timeout(9000) }),
       fetch(`${BSD}/leagues/${LEAGUE}/standings/`, { headers, signal: AbortSignal.timeout(9000) }),
@@ -205,8 +245,9 @@ export async function GET() {
     // the very first request can't lock in an empty page.
     if (fixtures.length > 0 && Object.keys(data.groups).length > 0) await writeFrozen(data);
     cache = { data, ts: now };
+    await writeShared(data, now);
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json(cache?.data ?? { groups: {}, fixtures: [] });
+    return NextResponse.json(cache?.data ?? shared?.data ?? { groups: {}, fixtures: [] });
   }
 }
