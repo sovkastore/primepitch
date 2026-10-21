@@ -14,7 +14,7 @@ type Order = {
   status: string; actually_paid: number | null; activated_at: string | null; created_at: string; updated_at: string;
 };
 type Stats = { users: number; active_vip: number; revenue_usd: number; open_orders: number };
-type Data = { stats: Stats; users: User[]; orders: Order[] };
+type Data = { live: boolean; stats: Stats; users: User[]; orders: Order[] };
 
 const DURATIONS: { label: string; hours: number }[] = [
   { label: "12 hours", hours: 12 },
@@ -107,6 +107,23 @@ export default function AdminVipPage() {
         <h1 className="text-[22px] font-extrabold tracking-tight text-gray-900">VIP</h1>
         <p className="text-[13px] text-gray-500">Accounts, payments, and who gets the ad-free site. Payments come in through NOWPayments and switch VIP on by themselves; everything here is for the exceptions.</p>
       </div>
+
+      {/* Launch switch */}
+      <section className={`rounded-2xl border p-4 shadow-sm flex items-center justify-between gap-3 ${data?.live ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}>
+        <div>
+          <h2 className="text-[14px] font-bold text-gray-900">{data?.live ? "VIP is LIVE" : "VIP is hidden"}</h2>
+          <p className="text-[12px] text-gray-600">
+            {data?.live
+              ? "Visitors can see /vip, the menu and footer links, and pay."
+              : "Visitors get a 404 on /vip and see no links. You (admin) can still open /vip and test the whole flow. Flip this on when the NOWPayments wallets are in."}
+          </p>
+        </div>
+        <button
+          disabled={!data || !!busy}
+          onClick={() => { const next = !data?.live; if (confirm(next ? "Make VIP visible to everyone now?" : "Hide VIP from visitors?")) act({ action: "set_live", live: next }, next ? "VIP is live" : "VIP hidden"); }}
+          className={`shrink-0 rounded-xl px-4 py-2 text-[13px] font-black text-white ${data?.live ? "bg-gray-900" : "bg-emerald-600"} disabled:opacity-50`}
+        >{data?.live ? "Hide" : "Go live"}</button>
+      </section>
 
       {err && <div className="rounded-2xl bg-red-50 border border-red-200 p-3 text-[13px] text-red-700">{err}</div>}
       {msg && <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-3 text-[13px] text-emerald-800">{msg}</div>}
