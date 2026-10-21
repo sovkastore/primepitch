@@ -58,8 +58,10 @@ export default function Navbar() {
         </button>
         <div className="flex-1 flex justify-center"><Link href="/"><Logo size="md" /></Link></div>
         {vipMe?.vip || staffVip ? (
-          <Link href="/vip" aria-label="VIP account" className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-400 text-gray-900 px-2 h-7 text-[10px] font-black tracking-wide">
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8Z" /></svg>
+          <Link href="/vip" aria-label="VIP account" className="shrink-0 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-300 via-yellow-300 to-amber-400 text-gray-900 pl-1.5 pr-2.5 h-7 text-[10px] font-black tracking-widest shadow-[0_1px_6px_rgba(245,158,11,0.4)] ring-1 ring-amber-500/30">
+            <span className="w-4 h-4 rounded-full bg-gray-900 text-amber-300 flex items-center justify-center">
+              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8Z" /></svg>
+            </span>
             VIP
           </Link>
         ) : (

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { findScore, type ScoreInfo } from "@/lib/score-match";
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import VipPromo from "@/components/VipPromo";
 
 export interface ProMatch {
   match_id?: string;
@@ -205,6 +206,7 @@ export default function AltPage() {
           </svg>
           <span className="font-semibold">Back</span>
         </Link>
+        <div className="ml-auto"><VipPromo compact /></div>
       </div>
 
       <div className="mb-8">

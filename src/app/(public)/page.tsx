@@ -12,6 +12,7 @@ import { visibleInterval } from "@/lib/poll";
 import { readPageCache, writePageCache } from "@/lib/page-cache";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import StaffAdsToggle from "@/components/StaffAdsToggle";
+import VipPromo from "@/components/VipPromo";
 
 const SPORTS = [
   "football", "basketball", "american-football", "hockey", "baseball",
@@ -218,6 +219,7 @@ export default function HomePage() {
     <div className="flex flex-col min-h-screen">
       <div className="flex-1 pb-10">
         <StaffAdsToggle />
+        <div className="flex justify-center mt-3 -mb-1 empty:hidden"><VipPromo /></div>
         <SportsNav activeSport={activeSport} onSelect={selectSport} />
         {activeSport === "football" && <LeagueNav active="all" />}
         {activeSport === "football" && (
