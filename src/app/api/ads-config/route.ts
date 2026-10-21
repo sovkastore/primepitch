@@ -126,6 +126,16 @@ export async function GET(request: NextRequest) {
   if (userToken && (await isActiveVip(userToken))) {
     return NextResponse.json(VIP_EMPTY, { headers: { "Cache-Control": "no-store" } });
   }
+
+  // The VIP sign-up / payment page itself is ad-free for everyone. Every ad
+  // component asks this endpoint from the page it is on, and a same-origin
+  // fetch carries that page as the referer.
+  try {
+    const refPath = new URL(request.headers.get("referer") || "", request.url).pathname;
+    if (refPath === "/vip" || refPath.startsWith("/vip/")) {
+      return NextResponse.json(VIP_EMPTY, { headers: { "Cache-Control": "no-store" } });
+    }
+  } catch { /* no referer — fall through */ }
   // We include the referral code in the cache key because partner swaps change the output
   const ref = request.cookies.get("pp_ref")?.value?.trim().toLowerCase() || "none";
   const cacheKey = `ads_${ref}`;

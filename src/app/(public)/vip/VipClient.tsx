@@ -51,6 +51,10 @@ export default function VipClient() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
   const [copied, setCopied] = useState<"address" | "amount" | null>(null);
+  // "plans" until the visitor taps Continue; then the sign-in sheet if they
+  // have no account, then "pay" (coins + address).
+  const [step, setStep] = useState<"plans" | "pay">("plans");
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const refreshMe = useCallback(async () => {
     try {
@@ -94,6 +98,8 @@ export default function VipClient() {
       setMe(d.me);
       setKicked(false);
       setPassword("");
+      setSheetOpen(false);
+      setStep("pay");
     } catch {
       setAuthError("Network error. Try again.");
     } finally {
@@ -105,6 +111,14 @@ export default function VipClient() {
     await fetch("/api/vip/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) }).catch(() => {});
     setMe(null);
     setOrder(null);
+    setStep("plans");
+  }
+
+  function continueWithPlan() {
+    setOrder(null);
+    setCheckoutError(null);
+    if (me) setStep("pay");
+    else { setMode(kicked ? "login" : "signup"); setAuthError(null); setSheetOpen(true); }
   }
 
   async function startCheckout() {
@@ -213,83 +227,44 @@ export default function VipClient() {
             );
           })}
         </div>
+        {step === "plans" && (
+          <button type="button" onClick={continueWithPlan} disabled={me === undefined} className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 text-[15px] transition-colors disabled:opacity-60">
+            Continue — {selectedPlan.label}, ${selectedPlan.priceUsd}
+          </button>
+        )}
+        {me?.vip && (
+          <p className="text-[12px] text-gray-500 text-center">Paying again adds time on top of your current VIP.</p>
+        )}
       </section>
 
-      {/* ---- Account ---- */}
-      <section className="space-y-3">
-        <h2 className="text-[15px] font-black text-gray-900">{me ? "Your account" : "Your account"}</h2>
-
-        {kicked && !me && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[13px] text-amber-900 leading-relaxed">
-            <strong>This account was signed in on another device.</strong> Only one person can use a VIP account at a time — logging in here will sign that device out.
-          </div>
-        )}
-
-        {me === undefined ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 text-[13px] text-gray-400">Loading…</div>
-        ) : me ? (
-          <div className={`rounded-2xl border p-5 space-y-3 ${me.vip ? "border-amber-300 bg-gradient-to-br from-amber-50 to-white" : "border-gray-200 bg-white"}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[13px] text-gray-500 truncate">{me.email}</div>
-                {me.vip ? (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-white px-2.5 py-1 text-[11px] font-black uppercase tracking-wide"><CrownIcon className="w-3.5 h-3.5" /> VIP active</span>
-                    <span className="text-[13px] font-semibold text-gray-700">{daysLeft(me.vipUntil)} days left</span>
-                  </div>
-                ) : (
-                  <div className="mt-1 text-[14px] font-black text-gray-900">Not VIP yet</div>
-                )}
+      {/* ---- Signed-in strip ---- */}
+      {me && (
+        <section className={`rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 ${me.vip ? "border-amber-300 bg-gradient-to-br from-amber-50 to-white" : "border-gray-200 bg-white"}`}>
+          <div className="min-w-0">
+            <div className="text-[12px] text-gray-500 truncate">{me.email}</div>
+            {me.vip ? (
+              <div className="mt-0.5 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-white px-2 py-0.5 text-[10px] font-black uppercase tracking-wide"><CrownIcon className="w-3 h-3" /> VIP active</span>
+                <span className="text-[12px] font-semibold text-gray-700">{daysLeft(me.vipUntil)} days left · until {fmtDate(me.vipUntil)}</span>
               </div>
-              <button type="button" onClick={logout} className="shrink-0 text-[12px] font-bold text-gray-500 hover:text-gray-900 underline underline-offset-4">Log out</button>
-            </div>
-            {me.vip && (
-              <p className="text-[12px] text-gray-500">Until {fmtDate(me.vipUntil)}. Paying again adds time on top. <Link href="/alt" className="font-bold text-emerald-700 underline underline-offset-4">Open VIP Streams →</Link></p>
+            ) : (
+              <div className="mt-0.5 text-[13px] font-bold text-gray-900">Not VIP yet</div>
             )}
           </div>
-        ) : (
-          <form onSubmit={submitAuth} className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
-            <div className="flex rounded-xl bg-gray-100 p-1 text-[13px] font-bold">
-              {(["signup", "login"] as const).map((m) => (
-                <button key={m} type="button" onClick={() => { setMode(m); setAuthError(null); }} className={`flex-1 rounded-lg py-2 transition-colors ${mode === m ? "bg-white shadow-sm text-gray-900" : "text-gray-500"}`}>
-                  {m === "signup" ? "Create account" : "Log in"}
-                </button>
-              ))}
-            </div>
-            <input
-              type="email" required autoComplete="email" inputMode="email" placeholder="Email"
-              value={email} onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-[15px] outline-none focus:border-emerald-500"
-            />
-            <input
-              type="password" required minLength={6} autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder={mode === "signup" ? "Choose a password (6+ characters)" : "Password"}
-              value={password} onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-[15px] outline-none focus:border-emerald-500"
-            />
-            {authError && <p className="text-[13px] font-semibold text-red-600">{authError}</p>}
-            <button type="submit" disabled={authBusy} className="w-full rounded-xl bg-gray-900 text-white font-black py-3 text-[14px] disabled:opacity-60">
-              {authBusy ? "One moment…" : mode === "signup" ? "Create account" : "Log in"}
-            </button>
-            {mode === "login" && (
-              <p className="text-[12px] text-gray-500 leading-relaxed">
-                Forgot your password? Message us on{" "}
-                <a href={VIP_CONTACT.telegram} target="_blank" rel="noopener noreferrer" className="font-bold text-gray-800 underline underline-offset-4">Telegram</a>{" "}
-                or{" "}
-                <a href={VIP_CONTACT.whatsapp} target="_blank" rel="noopener noreferrer" className="font-bold text-gray-800 underline underline-offset-4">WhatsApp</a>{" "}
-                with your account email and we&rsquo;ll reset it.
-              </p>
-            )}
-            <p className="text-[12px] text-gray-500 leading-relaxed">
-              An account is just where your VIP lives. One person at a time: if someone else logs in with it, the first device is signed out.
-            </p>
-          </form>
-        )}
-      </section>
+          <div className="shrink-0 flex items-center gap-3">
+            {me.vip && <Link href="/alt" className="text-[12px] font-bold text-emerald-700 underline underline-offset-4">VIP Streams</Link>}
+            <button type="button" onClick={logout} className="text-[12px] font-bold text-gray-500 hover:text-gray-900 underline underline-offset-4">Log out</button>
+          </div>
+        </section>
+      )}
 
       {/* ---- Pay ---- */}
-      {me && (
+      {me && step === "pay" && (
         <section className="space-y-3">
-          <h2 className="text-[15px] font-black text-gray-900">Pay with crypto — {selectedPlan.label}, ${selectedPlan.priceUsd}</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[15px] font-black text-gray-900">Pay with crypto — {selectedPlan.label}, ${selectedPlan.priceUsd}</h2>
+            {!order && <button type="button" onClick={() => setStep("plans")} className="text-[12px] font-bold text-gray-500 underline underline-offset-4">Change plan</button>}
+          </div>
 
           {!order ? (
             <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
@@ -333,7 +308,7 @@ export default function VipClient() {
                 <div>
                   <div className="text-[12px] font-bold uppercase tracking-wide text-gray-400">Send exactly</div>
                   <div className="text-xl font-black text-gray-900 break-all">{order.amount} {order.symbol}</div>
-                  <div className="text-[12px] text-gray-500">{order.network} · ≈ ${order.priceUsd}</div>
+                  <div className="text-[12px] text-gray-500">{order.network} · ${order.priceUsd} plan + network &amp; processing fee</div>
                 </div>
                 <button type="button" onClick={() => copy(String(order.amount), "amount")} className="shrink-0 rounded-xl border border-gray-200 px-3 py-2 text-[12px] font-bold text-gray-700">{copied === "amount" ? "Copied" : "Copy"}</button>
               </div>
@@ -360,6 +335,62 @@ export default function VipClient() {
             </div>
           )}
         </section>
+      )}
+
+      {/* ---- Sign-in sheet ---- */}
+      {sheetOpen && !me && (
+        <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" onClick={() => setSheetOpen(false)}>
+          <form onSubmit={submitAuth} onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl p-5 space-y-3 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-[16px] font-black text-gray-900">{mode === "signup" ? "Create your account" : "Log in"}</h2>
+                <p className="text-[12px] text-gray-500 mt-0.5">{selectedPlan.label} VIP · ${selectedPlan.priceUsd}. Your VIP lives on this account.</p>
+              </div>
+              <button type="button" onClick={() => setSheetOpen(false)} aria-label="Close" className="shrink-0 w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            {kicked && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-900 leading-relaxed">
+                <strong>This account was signed in on another device.</strong> Only one person can use a VIP account at a time — logging in here signs that device out.
+              </div>
+            )}
+            <div className="flex rounded-xl bg-gray-100 p-1 text-[13px] font-bold">
+              {(["signup", "login"] as const).map((m) => (
+                <button key={m} type="button" onClick={() => { setMode(m); setAuthError(null); }} className={`flex-1 rounded-lg py-2 transition-colors ${mode === m ? "bg-white shadow-sm text-gray-900" : "text-gray-500"}`}>
+                  {m === "signup" ? "Create account" : "Log in"}
+                </button>
+              ))}
+            </div>
+            <input
+              type="email" required autoComplete="email" inputMode="email" placeholder="Email" autoFocus
+              value={email} onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-[15px] outline-none focus:border-emerald-500"
+            />
+            <input
+              type="password" required minLength={6} autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder={mode === "signup" ? "Choose a password (6+ characters)" : "Password"}
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-[15px] outline-none focus:border-emerald-500"
+            />
+            {authError && <p className="text-[13px] font-semibold text-red-600">{authError}</p>}
+            <button type="submit" disabled={authBusy} className="w-full rounded-xl bg-gray-900 text-white font-black py-3 text-[14px] disabled:opacity-60">
+              {authBusy ? "One moment…" : mode === "signup" ? "Create account & continue" : "Log in & continue"}
+            </button>
+            {mode === "login" ? (
+              <p className="text-[12px] text-gray-500 leading-relaxed">
+                Forgot your password? Message us on{" "}
+                <a href={VIP_CONTACT.telegram} target="_blank" rel="noopener noreferrer" className="font-bold text-gray-800 underline underline-offset-4">Telegram</a>{" "}
+                or{" "}
+                <a href={VIP_CONTACT.whatsapp} target="_blank" rel="noopener noreferrer" className="font-bold text-gray-800 underline underline-offset-4">WhatsApp</a>{" "}
+                with your account email and we&rsquo;ll reset it.
+              </p>
+            ) : (
+              <p className="text-[12px] text-gray-500 leading-relaxed">
+                One person at a time: if someone else logs in with your account, the first device is signed out.
+              </p>
+            )}
+          </form>
+        </div>
       )}
 
       {/* ---- Contact ---- */}
