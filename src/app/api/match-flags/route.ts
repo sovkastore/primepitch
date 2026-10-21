@@ -6,7 +6,7 @@ import { normTeamKey } from "@/lib/api";
 // can honor them. `hiddenTitles` carries a team-name key for each hidden match
 // so the same fixture is hidden across every feed/league it appears under, not
 // just the one id it was flagged on.
-const TTL = 30_000;
+const TTL = 10_000;
 let cache: { data: any; ts: number } | null = null;
 
 export async function GET() {
@@ -46,7 +46,17 @@ export async function GET() {
         match_data: typeof r.match_data === "string" ? JSON.parse(r.match_data) : r.match_data
       }));
 
-      return { flags, globalNotice };
+      // Fixtures the auto-live cron has turned into a real alt match in the
+      // last day: mock id -> live alt id, so a viewer who opened the fixture
+      // early lands on the real match once it exists.
+      const converted: Record<string, string> = {};
+      try {
+        const since = Math.floor(Date.now() / 1000) - 24 * 3600;
+        const cv = await d1.prepare("SELECT match_id, live_id FROM d1_auto_live WHERE status = 'converted' AND live_id IS NOT NULL AND kickoff >= ?").bind(since).all();
+        for (const r of (cv.results || []) as any[]) if (r.match_id && r.live_id) converted[String(r.match_id)] = String(r.live_id);
+      } catch { /* table may not exist yet */ }
+
+      return { flags, globalNotice, converted };
     })();
       
     // Race against a 3s timeout to keep the site snappy during DB glitches
@@ -95,6 +105,7 @@ export async function GET() {
     
     const result = { 
       hidden, featured, hot, popular, hiddenTitles, altVisible, forceEnded, notices, mockFixtures,
+      converted: data?.converted || {},
       globalNotice: data?.globalNotice || ""
     };
     cache = { data: result, ts: now };

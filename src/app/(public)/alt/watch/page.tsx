@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { visibleInterval } from "@/lib/poll";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ProMatch } from "../page";
@@ -47,15 +46,20 @@ function AltWatchContent() {
   // Re-fetched every 60 s while the tab is visible so servers that get added
   // after kickoff appear without a refresh. The server the viewer picked is
   // untouched by a refresh.
+  // A fixture opened before the cron has found its stream shows "finding the
+  // stream" and re-checks every 15 s around kickoff (60 s otherwise), so the
+  // servers appear on their own. If the cron publishes the real match under a
+  // different id, the flags carry that mapping and we follow it.
   useEffect(() => {
     let stopped = false;
-    async function load() {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    async function load(): Promise<ProMatch | null> {
       try {
         const [res, flagsRes] = await Promise.all([
           fetch(`/api/pro-matches?t=${Date.now()}`, { cache: "no-store" }),
           fetch(`/api/match-flags?t=${Date.now()}`, { cache: "no-store" })
         ]);
-        if (stopped) return;
+        if (stopped) return null;
         
         const data = await res.json();
         const flagsData = await flagsRes.json();
@@ -71,15 +75,25 @@ function AltWatchContent() {
         else if (data && Array.isArray(data.results)) matchList = data.results;
         
         if (id) {
-          const targetMatch = matchList.find((m: ProMatch) => {
-            const mId = `alt-${m.home_team_name.replace(/\\s+/g, '')}-${m.away_team_name.replace(/\\s+/g, '')}-${m.match_time}`;
-            return mId === id;
+          const liveId: string = flagsData.converted?.[id] || id;
+          // Ids are compared with spaces removed: the list page, the admin
+          // flags and the cron don't all strip them the same way.
+          const norm = (v: string) => v.replace(/\s+/g, "");
+          const byId = (want: string) => matchList.find((m: ProMatch) => {
+            const mId = `alt-${m.home_team_name}-${m.away_team_name}-${m.match_time}`;
+            return norm(mId) === norm(want);
           });
-          
+          let targetMatch: ProMatch | undefined = byId(liveId) || byId(id);
+          if (!targetMatch && Array.isArray(flagsData.mockFixtures)) {
+            // Not published yet: show the fixture itself, with no servers.
+            const mock = flagsData.mockFixtures.find((m: any) => m.match_id === id);
+            if (mock) targetMatch = { ...mock, match_status: "upcoming", homeTeamScore: "", awayTeamScore: "", servers: [] };
+          }
           if (targetMatch) {
             // Deliberately no auto-play: the viewer picks a server themselves,
             // so a dead first server never becomes the first impression.
             setMatch(targetMatch);
+            return targetMatch;
           }
         }
       } catch (e) {
@@ -87,9 +101,25 @@ function AltWatchContent() {
       } finally {
         if (!stopped) setLoading(false);
       }
+      return null;
     }
-    const stop = visibleInterval(load, 60_000);
-    return () => { stopped = true; stop(); };
+    const run = async () => {
+      if (stopped) return;
+      let m: ProMatch | null = null;
+      if (!document.hidden) m = await load();
+      if (stopped) return;
+      const ko = Number(m?.match_time || 0) * 1000;
+      const waiting = !!m && (m.servers?.length ?? 0) === 0 && ko > 0 && Date.now() >= ko - 10 * 60_000 && Date.now() <= ko + 15 * 60_000;
+      timer = setTimeout(run, waiting ? 15_000 : 60_000);
+    };
+    const onVisible = () => { if (!document.hidden) { if (timer) clearTimeout(timer); run(); } };
+    document.addEventListener("visibilitychange", onVisible);
+    run();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [id]);
 
   useEffect(() => {
@@ -155,6 +185,7 @@ function AltWatchContent() {
             now > Number(match.match_time) * 1000 + 70 * 60_000;
           const isEnded =
             match.match_status === "ended" || (!!score?.ended && couldBeOver) || endedByClock;
+          const liveByClock = now > 0 && Number(match.match_time) > 0 && now >= Number(match.match_time) * 1000 - 10 * 60_000;
           const scoreText =
             score && score.homeScore != null && score.awayScore != null
               ? ` • ${score.homeScore} - ${score.awayScore}${
@@ -164,7 +195,7 @@ function AltWatchContent() {
           return (
             <p className="text-gray-500 text-sm">
               {match.league_name} •{" "}
-              {isEnded ? "⏹ Ended" : match.match_status === "live" ? "🔴 LIVE" : "Upcoming"}
+              {isEnded ? "⏹ Ended" : match.match_status === "live" || liveByClock ? "🔴 LIVE" : "Upcoming"}
               {scoreText}
             </p>
           );
@@ -218,8 +249,10 @@ function AltWatchContent() {
                 <span className="lg:hidden text-gray-500 text-xs">Server list is below ↓</span>
               </div>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-500">
-                No streams available yet.
+              <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-center px-6">
+                <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" /></span>
+                <p className="text-white font-bold text-lg">{match.home_team_name} vs {match.away_team_name}</p>
+                <p className="text-gray-400 text-sm">Finding the stream… it appears here by itself the moment it&rsquo;s ready. No need to refresh.</p>
               </div>
             )}
           </div>
