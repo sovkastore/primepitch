@@ -24,7 +24,7 @@ export async function GET() {
       return NextResponse.json({ error: "Download URL not configured" }, { status: 404 });
     }
 
-    return NextResponse.redirect(new URL(cfg.downloadUrl, "https://primepitch.cc"), 302);
+    return NextResponse.redirect(new URL(cfg.downloadUrl, "https://primepitchsports.cc"), 302);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

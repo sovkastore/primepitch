@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isAdminRequest, ADMIN_COOKIE, verifyAdminSession } from "@/lib/admin-auth";
 
+// The one address the public site lives on. Every other host is redirected here.
+const CANONICAL_HOST = "primepitchsports.cc";
+
 // ---------------------------------------------------------------------------
 // Partner referral capture
 // A visit to /<partnerCode> (e.g. /gims) sets a long-lived cookie and redirects
@@ -121,17 +124,21 @@ function singleSegment(pathname: string): string | null {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 0) Canonical domain. Send xellnetwork.xyz to the workers.dev address so the
-  // whole site — and each visitor's identity — lives on ONE origin
-  // (primepitch.daxonicstudios.workers.dev). Exact host match only, so versioned
-  // preview deploys still work for testing. Temporary (307) = easily reversible.
-  const host = request.headers.get("host") || "";
-  if (host === "xellnetwork.xyz" || host === "www.xellnetwork.xyz") {
+  // 0) Canonical domain. Every address the site answers on — the old domains,
+  // www, the .workers.dev address, preview deploys — lands on
+  // https://primepitchsports.cc so the whole site and each visitor's identity
+  // live on ONE origin. Cloudflare redirect rules already catch xellnetwork.xyz
+  // and primepitch.cc at the edge; this is the net for everything else. Only
+  // local development is exempt. (API routes are outside the matcher, so the
+  // tracker's internal calls and the cron ticks are never redirected.)
+  const host = (request.headers.get("host") || "").toLowerCase();
+  const isLocal = host.startsWith("localhost") || host.startsWith("127.0.0.1");
+  if (host && host !== CANONICAL_HOST && !isLocal) {
     const url = request.nextUrl.clone();
     url.protocol = "https:";
-    url.hostname = "primepitch.daxonicstudios.workers.dev";
+    url.hostname = CANONICAL_HOST;
     url.port = "";
-    return NextResponse.redirect(url, 307);
+    return NextResponse.redirect(url, 301);
   }
 
   // 0.5) Maintenance mode. When ON, only /admin and signed-in admins get through;

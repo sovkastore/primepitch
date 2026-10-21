@@ -196,7 +196,7 @@ function CountryChip({ active, onClick, children }: { active: boolean; onClick: 
 
 function IosSteps() {
   const steps: ReactNode[] = [
-    <>Open <b>primepitch.daxonicstudios.workers.dev</b> in <b>Safari</b>.</>,
+    <>Open <b>primepitchsports.cc</b> in <b>Safari</b>.</>,
     <>Tap the <b>Share</b> button (the square with an up-arrow).</>,
     <>Choose <b>Add to Home Screen</b>, then tap <b>Add</b>.</>,
     <>Open PrimePitch from the new <b>home-screen icon</b>, then turn on alerts here.</>,
