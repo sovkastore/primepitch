@@ -30,6 +30,8 @@ export default function DisclaimerFooter() {
 
           {/* Nav Links */}
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 mt-10">
+            <Link href="/vip" className="text-[12px] font-bold text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">VIP</Link>
+            <span className="w-1 h-1 rounded-full bg-gray-700" />
             <Link href="/about" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">About</Link>
             <span className="w-1 h-1 rounded-full bg-gray-700" />
             <Link href="/privacy" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">Privacy Policy</Link>
