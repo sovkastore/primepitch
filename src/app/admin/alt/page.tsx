@@ -99,7 +99,13 @@ export default function AdminAltMatchesPage() {
 
   const [bsdSearchQuery, setBsdSearchQuery] = useState("");
   const [rapidSearchQuery, setRapidSearchQuery] = useState("");
-  const [pageToFetch, setPageToFetch] = useState(2);
+  // The page box holds whatever is typed (even "") so digits can be deleted
+  // freely; the number actually used is clamped to 1–50 on blur / on use.
+  const [pageText, setPageText] = useState("2");
+  const MAX_PAGE = 50;
+  const clampPage = (v: unknown) => Math.max(1, Math.min(MAX_PAGE, Math.floor(Number(v)) || 1));
+  const pageToFetch = clampPage(pageText);
+  const stepPage = (d: number) => setPageText(String(clampPage(pageToFetch + d)));
   const [bsdTimeFilter, setBsdTimeFilter] = useState<string | null>(null);
   const [rapidTimeFilter, setRapidTimeFilter] = useState<string | null>(null);
   const [bsdSelectedOnly, setBsdSelectedOnly] = useState(false);
@@ -575,55 +581,81 @@ export default function AdminAltMatchesPage() {
 
         <TimeChipRow chips={rapidChips} active={rapidTimeFilter} onPick={setRapidTimeFilter} />
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-        <h2 className="text-[14px] font-bold text-gray-900">Feed Actions</h2>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex flex-col gap-1">
-            <span className="text-[13px] font-semibold text-gray-700">Manual Refresh</span>
-            <span className="text-[11px] text-gray-500">Instantly fetch fresh matches from the API exactly once</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => triggerManualRevalidateLive(1)}
-              disabled={revalidating || revalidatingLive}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-bold rounded-lg disabled:opacity-50 transition-colors"
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 space-y-4">
+        <div>
+          <h2 className="text-[14px] font-bold text-gray-900">Feed Actions</h2>
+          <p className="text-[11px] text-gray-500 mt-0.5">Fetch fresh matches from the API. Every page is one request.</p>
+        </div>
+
+        {/* Page stepper: ▲ / number / ▼. The box can be cleared and retyped;
+            the value snaps into 1–50 when you leave it or press a button. */}
+        <div className="flex items-center justify-center sm:justify-start gap-3">
+          <span className="text-[12px] font-bold text-gray-600">Page</span>
+          <div className="flex flex-col items-center rounded-xl border border-gray-200 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => stepPage(1)}
+              disabled={revalidating || revalidatingLive || pageToFetch >= MAX_PAGE}
+              aria-label="Next page number"
+              className="w-16 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-40"
             >
-              {revalidatingLive ? "Fetching..." : "Update Live (1 Request)"}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" /></svg>
             </button>
-            <div className="flex items-center gap-1.5">
-              <label className="text-[11px] font-bold text-gray-500">Page</label>
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={50}
-                value={pageToFetch}
-                onChange={(e) => setPageToFetch(Math.max(1, Math.min(50, Math.floor(Number(e.target.value)) || 1)))}
-                className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-[12px] font-bold text-gray-700 bg-white text-center"
-              />
-              <button
-                onClick={() => triggerManualRevalidateLive(pageToFetch)}
-                disabled={revalidating || revalidatingLive}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-bold rounded-lg disabled:opacity-50 transition-colors"
-              >
-                {revalidatingLive ? "Fetching..." : `Fetch page ${pageToFetch} (1 request)`}
-              </button>
-            </div>
-            <button 
-              onClick={() => triggerFetchPages(pageToFetch)}
-              disabled={revalidating || revalidatingLive}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-[12px] font-bold rounded-lg disabled:opacity-50 transition-colors"
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={pageText}
+              onChange={(e) => setPageText(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+              onBlur={() => setPageText(String(pageToFetch))}
+              onFocus={(e) => e.target.select()}
+              className="w-16 h-9 border-y border-gray-200 text-center text-[15px] font-black text-gray-900 bg-white focus:outline-none focus:bg-emerald-50"
+            />
+            <button
+              type="button"
+              onClick={() => stepPage(-1)}
+              disabled={revalidating || revalidatingLive || pageToFetch <= 1}
+              aria-label="Previous page number"
+              className="w-16 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-40"
             >
-              {revalidating
-                ? (fetchProgress || "Fetching...")
-                : pageToFetch === 1
-                  ? "Fetch page 1 (1 request)"
-                  : `Fetch pages 1–${pageToFetch} (${pageToFetch} requests)`}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
             </button>
           </div>
         </div>
-        {fetchProgress && !revalidating && (
-          <p className="text-[11px] font-semibold text-gray-500">{fetchProgress}</p>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => triggerManualRevalidateLive(pageToFetch)}
+            disabled={revalidating || revalidatingLive}
+            className="px-3 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl disabled:opacity-50 transition-colors text-center"
+          >
+            <span className="block text-[12px] font-bold leading-tight">{revalidatingLive ? "Fetching…" : `Fetch page ${pageToFetch}`}</span>
+            <span className="block text-[10px] font-semibold text-white/75 mt-0.5">1 request</span>
+          </button>
+          <button
+            onClick={() => triggerFetchPages(pageToFetch)}
+            disabled={revalidating || revalidatingLive}
+            className="px-3 py-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl disabled:opacity-50 transition-colors text-center"
+          >
+            <span className="block text-[12px] font-bold leading-tight">
+              {revalidating ? "Fetching…" : pageToFetch === 1 ? "Fetch page 1" : `Fetch pages 1–${pageToFetch}`}
+            </span>
+            <span className="block text-[10px] font-semibold text-white/75 mt-0.5">
+              {pageToFetch} request{pageToFetch === 1 ? "" : "s"}
+            </span>
+          </button>
+          <button
+            onClick={() => triggerManualRevalidateLive(1)}
+            disabled={revalidating || revalidatingLive}
+            className="col-span-2 px-3 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl disabled:opacity-50 transition-colors text-center"
+          >
+            <span className="block text-[12px] font-bold leading-tight">{revalidatingLive ? "Fetching…" : "Update Live"}</span>
+            <span className="block text-[10px] font-semibold text-white/75 mt-0.5">page 1 · 1 request</span>
+          </button>
+        </div>
+
+        {fetchProgress && (
+          <p className={`text-[11px] font-semibold ${revalidating ? "text-sky-700" : "text-gray-500"}`}>{fetchProgress}</p>
         )}
         <p className="text-[11px] text-gray-400">
           Page 1 replaces the list; every other page is added to it, and any match fetched again is refreshed with its latest data. The list is never emptied.
