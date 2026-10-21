@@ -159,7 +159,11 @@ export async function middleware(request: NextRequest) {
   // home. This logic is left completely untouched per requirements.
   const seg = singleSegment(pathname);
   if (seg && !pathname.startsWith("/admin")) {
-    const code = seg.toLowerCase();
+    // Partners' links get mistyped in bios and posts — "/ref=gims" instead of
+    // "/gims" or "?ref=gims", sometimes with stray characters on the end.
+    // Treat those exactly like /CODE so the visitor is still tagged and lands
+    // on the home page instead of a 404.
+    const code = seg.toLowerCase().replace(/^ref=/, "").replace(/[^a-z0-9_-]+$/, "");
     if (!RESERVED.has(code)) {
       try {
         const codes = await getActiveCodes();
