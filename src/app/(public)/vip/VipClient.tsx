@@ -55,6 +55,16 @@ export default function VipClient() {
   // have no account, then "pay" (coins + address).
   const [step, setStep] = useState<"plans" | "pay">("plans");
   const [sheetOpen, setSheetOpen] = useState(false);
+  // NOWPayments' smallest accepted payment per coin, in USD (null = unknown).
+  const [minUsd, setMinUsd] = useState<Record<string, number | null>>({});
+
+  useEffect(() => {
+    fetch("/api/vip/coins").then((r) => r.json()).then((d) => {
+      const m: Record<string, number | null> = {};
+      for (const c of d?.coins || []) m[c.id] = c.minUsd ?? null;
+      setMinUsd(m);
+    }).catch(() => {});
+  }, []);
 
   const refreshMe = useCallback(async () => {
     try {
@@ -214,7 +224,7 @@ export default function VipClient() {
               <button
                 key={id}
                 type="button"
-                onClick={() => { setPlan(id); setOrder(null); setCheckoutError(null); }}
+                onClick={() => { setPlan(id); setOrder(null); setCheckoutError(null); if (coin && (minUsd[coin] ?? 0) > VIP_PLANS[id].priceUsd) setCoin(null); }}
                 className={`relative text-left rounded-2xl border-2 p-4 transition-colors ${active ? "border-emerald-500 bg-emerald-50/60" : "border-gray-200 bg-white hover:border-gray-300"}`}
               >
                 {id === "3m" && (
@@ -271,17 +281,24 @@ export default function VipClient() {
               <div className="grid grid-cols-2 gap-2">
                 {VIP_COINS.map((c) => {
                   const active = coin === c.id;
+                  const min = minUsd[c.id];
+                  const tooSmall = min != null && min > selectedPlan.priceUsd;
                   return (
                     <button
-                      key={c.id} type="button" onClick={() => { setCoin(c.id); setCheckoutError(null); }}
-                      className={`text-left rounded-xl border-2 px-3 py-2.5 transition-colors ${active ? "border-emerald-500 bg-emerald-50/60" : "border-gray-200 hover:border-gray-300"}`}
+                      key={c.id} type="button" disabled={tooSmall}
+                      onClick={() => { setCoin(c.id); setCheckoutError(null); }}
+                      className={`text-left rounded-xl border-2 px-3 py-2.5 transition-colors ${tooSmall ? "border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed" : active ? "border-emerald-500 bg-emerald-50/60" : "border-gray-200 hover:border-gray-300"}`}
                     >
                       <div className="text-[14px] font-black text-gray-900">{c.name} <span className="text-gray-400 font-bold">{c.symbol}</span></div>
                       <div className="text-[11px] text-gray-500">{c.network}</div>
+                      {tooSmall && <div className="text-[10px] font-bold text-amber-700 mt-0.5">Min ${min.toFixed(0)} · {plan === "1m" ? "3-month plan only" : "not available"}</div>}
                     </button>
                   );
                 })}
               </div>
+              {VIP_COINS.some((c) => (minUsd[c.id] ?? 0) > selectedPlan.priceUsd) && (
+                <p className="text-[12px] text-gray-500 leading-relaxed">Greyed-out coins have a network minimum above ${selectedPlan.priceUsd} — that&rsquo;s set by the payment network, not by us. {plan === "1m" ? "The 3-month plan works with all of them." : ""}</p>
+              )}
               {checkoutError && <p className="text-[13px] font-semibold text-red-600 leading-relaxed">{checkoutError}</p>}
               <button type="button" onClick={startCheckout} disabled={!coin || checkoutBusy} className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 text-[14px] disabled:opacity-50 transition-colors">
                 {checkoutBusy ? "Getting your address…" : coin ? `Continue with ${VIP_COINS.find((c) => c.id === coin)?.symbol}` : "Pick a coin"}
