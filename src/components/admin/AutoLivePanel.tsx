@@ -60,6 +60,15 @@ export default function AutoLivePanel({ section = "all" }: { section?: "all" | "
   const [test, setTest] = useState<TestResult | null>(null);
 
   const [usage, setUsage] = useState<{ total: number; bySource: Record<string, number>; limit?: number } | null>(null);
+  const [bsd, setBsd] = useState<{
+    total: number;
+    bySource: Record<string, number>;
+    limit: number;
+    remaining: number | null;
+    pausedUntil: number | null;
+    paused: boolean;
+    lastError: string | null;
+  } | null>(null);
   const [refreshMinutes, setRefreshMinutes] = useState(5);
   const [savingRefresh, setSavingRefresh] = useState(false);
   const [refreshSaved, setRefreshSaved] = useState(false);
@@ -99,6 +108,24 @@ export default function AutoLivePanel({ section = "all" }: { section?: "all" | "
       const res = await fetch("/api/admin/rapid-usage");
       const data = await res.json();
       setUsage(data.today ? { ...data.today, limit: data.limit } : null);
+    } catch {
+      /* ignore */
+    }
+    try {
+      const res = await fetch("/api/admin/bsd-usage");
+      const data = await res.json();
+      setBsd(
+        data.today
+          ? {
+              ...data.today,
+              limit: data.limit ?? 7500,
+              remaining: data.status?.remaining ?? null,
+              pausedUntil: data.status?.pausedUntil ?? null,
+              paused: Number(data.status?.pausedUntil ?? 0) > Date.now(),
+              lastError: data.status?.lastError ?? null,
+            }
+          : null
+      );
     } catch {
       /* ignore */
     }
@@ -239,6 +266,37 @@ export default function AutoLivePanel({ section = "all" }: { section?: "all" | "
                 {source}: {n}
               </span>
             ))}
+          </div>
+        )}
+
+        {bsd && (
+          <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center gap-2">
+            <span className="text-[12px] font-semibold text-gray-600">⚽ BSD (scores) requests today:</span>
+            <span
+              className={`text-[13px] font-black ${bsd.total > bsd.limit * 0.8 ? "text-red-600" : bsd.total > bsd.limit * 0.5 ? "text-amber-600" : "text-emerald-600"}`}
+            >
+              {bsd.total} / {bsd.limit}
+            </span>
+            {bsd.remaining !== null && (
+              <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                BSD says {bsd.remaining} left
+              </span>
+            )}
+            {Object.entries(bsd.bySource).map(([source, n]) => (
+              <span key={source} className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                {source}: {n}
+              </span>
+            ))}
+            {bsd.paused && bsd.pausedUntil && (
+              <span className="text-[10px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
+                rate-limited — serving last copy until {new Date(bsd.pausedUntil).toLocaleTimeString()}
+                {bsd.lastError ? ` (${bsd.lastError})` : ""}
+              </span>
+            )}
+            <span className="text-[11px] text-gray-400 w-full">
+              One shared copy of the live-score feed for the whole site, refreshed at most once a
+              minute — the daily quota is 7,500, resetting at midnight UTC.
+            </span>
           </div>
         )}
 

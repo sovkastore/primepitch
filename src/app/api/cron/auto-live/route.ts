@@ -6,6 +6,7 @@ import { setMatchFlag } from "@/lib/match-flags";
 import { findAiMatch } from "@/lib/ai-match";
 import { findDeterministicMatch, namesMatch, normalizeTeamName, type CandidateMatch } from "@/lib/team-match";
 import { saveMatchesCache } from "@/lib/match-cache";
+import { getBsdEvents } from "@/lib/bsd-events";
 
 // Auto-live robot: runs every minute via the Cloudflare cron trigger.
 // From START_BEFORE_MS before an admin-activated BSD fixture's kickoff, it
@@ -117,28 +118,24 @@ async function refreshLiveStreams(
   }
   if (!live.length) return null;
 
-  // Skip matches BSD reports finished (free check, exact fixture-id match) —
-  // refreshes stop at the real final whistle instead of the 130-min clock.
+  // Skip matches BSD reports finished (exact fixture-id match, from the
+  // site-wide shared BSD cache) — refreshes stop at the real final whistle
+  // instead of the 130-min clock.
   let finished = 0;
   try {
-    const res = await fetch(`https://sports.bzzoiro.com/api/events/?limit=100`, {
-      headers: { Authorization: `Token ${process.env.BSD_API_KEY || ""}` },
-    });
-    if (res.ok) {
-      const data = (await res.json()) as { results?: { id?: number | string; status?: string }[] };
-      const FT = new Set([
-        "finished", "ft", "aet", "after_penalties", "ended", "awarded",
-        "fulltime", "full_time", "full-time", "match_finished", "complete", "completed",
-      ]);
-      const doneIds = new Set(
-        (data.results || [])
-          .filter((e) => FT.has((e.status || "").toLowerCase().replace(/\s+/g, "_")))
-          .map((e) => `bsd-${e.id}`)
-      );
-      const before = live.length;
-      live = live.filter((r) => !doneIds.has(r.match_id));
-      finished = before - live.length;
-    }
+    const { events } = await getBsdEvents("robot full-time");
+    const FT = new Set([
+      "finished", "ft", "aet", "after_penalties", "ended", "awarded",
+      "fulltime", "full_time", "full-time", "match_finished", "complete", "completed",
+    ]);
+    const doneIds = new Set(
+      events
+        .filter((e) => FT.has((e.status || "").toLowerCase().replace(/\s+/g, "_")))
+        .map((e) => `bsd-${e.id}`)
+    );
+    const before = live.length;
+    live = live.filter((r) => !doneIds.has(r.match_id));
+    finished = before - live.length;
   } catch {
     /* BSD unavailable — fall back to the clock window */
   }

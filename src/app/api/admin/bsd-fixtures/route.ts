@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { countBsdRequest } from "@/lib/bsd-events";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,6 +17,10 @@ export async function GET(req: Request) {
       url += `&date=${date}`;
     }
 
+    // Admin-only and rare, so this one goes straight to BSD (it needs the
+    // date filter and a bigger page than the shared cache keeps); counted so
+    // the usage figure in admin stays complete.
+    await countBsdRequest("admin fixtures");
     const res = await fetch(url, {
       headers: { Authorization: `Token ${BSD_KEY}` },
     });

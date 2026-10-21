@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getBsdEvents } from "@/lib/bsd-events";
+
 // Batched live scores: one request from the client covers every visible live
-// match card (instead of one request per card). Shares the same upstream and
-// matching logic as /api/live-score, with a 30s in-memory cache so concurrent
-// visitors mostly hit cache.
-
-const BSD_API = "https://sports.bzzoiro.com/api/events/";
-const BSD_KEY = process.env.BSD_API_KEY || "";
-
-let cache: { data: BsdEvent[]; ts: number } | null = null;
+// match card (instead of one request per card). Shares the same matching
+// logic as /api/live-score and reads the site-wide shared BSD cache (one BSD
+// call a minute for everyone — see lib/bsd-events).
 
 interface TeamObj {
   name?: string;
@@ -83,19 +80,8 @@ export async function POST(request: NextRequest) {
     const pairs: PairReq[] = Array.isArray(body?.pairs) ? body.pairs.slice(0, 40) : [];
     if (pairs.length === 0) return NextResponse.json({ scores: {} });
 
-    const now = Date.now();
-    if (!cache || now - cache.ts > 30_000) {
-      const res = await fetch(`${BSD_API}?limit=100`, {
-        headers: { Authorization: `Token ${BSD_KEY}` },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        cache = { data: data.results || [], ts: now };
-      }
-    }
-
-    const events = cache?.data || [];
+    const { events: feed } = await getBsdEvents("live-scores");
+    const events = feed as unknown as BsdEvent[];
     const scores: Record<string, ReturnType<typeof findScore>> = {};
     for (const p of pairs) {
       if (!p?.key || !p?.home || !p?.away) continue;

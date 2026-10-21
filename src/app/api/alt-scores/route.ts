@@ -1,26 +1,11 @@
 import { NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
+import { getBsdEvents } from "@/lib/bsd-events";
 
-// Live scores for the /alt page, from the BSD feed the main site already
-// polls. 30s in-memory cache keeps BSD load at ~2 requests/minute max,
-// shared across every visitor. Robot-converted matches are matched by their
-// exact BSD fixture id (recorded at conversion time); everything else can be
-// name-matched client-side.
-const BSD_API = "https://sports.bzzoiro.com/api/events/";
-const BSD_KEY = process.env.BSD_API_KEY || "";
-
-interface BsdEvent {
-  id?: number | string;
-  home_team: string;
-  away_team: string;
-  home_score: number | null;
-  away_score: number | null;
-  current_minute: number | null;
-  status: string;
-  period: string;
-}
-
-let cache: { data: BsdEvent[]; ts: number } | null = null;
+// Live scores for the /alt page, from the site-wide shared BSD events cache
+// (one BSD call a minute for everyone — see lib/bsd-events). Robot-converted
+// matches are matched by their exact BSD fixture id (recorded at conversion
+// time); everything else can be name-matched client-side.
 
 const FINISHED_STATUSES = new Set([
   "finished", "ft", "aet", "after_penalties", "ended", "awarded",
@@ -34,20 +19,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const now = Date.now();
-  if (!cache || now - cache.ts > 30_000) {
-    try {
-      const res = await fetch(`${BSD_API}?limit=100`, {
-        headers: { Authorization: `Token ${BSD_KEY}` },
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { results?: BsdEvent[] };
-        cache = { data: data.results || [], ts: now };
-      }
-    } catch {
-      /* serve stale cache */
-    }
-  }
-  const events = cache?.data || [];
+  const { events } = await getBsdEvents("alt-scores");
 
   // bsd fixture id -> live alt id, recorded by the robot at conversion
   const links: Record<string, string> = {};
@@ -78,9 +50,9 @@ export async function GET() {
         altId: links[String(e.id ?? "")] || null,
         home: e.home_team,
         away: e.away_team,
-        homeScore: e.home_score,
-        awayScore: e.away_score,
-        minute: e.current_minute,
+        homeScore: e.home_score ?? null,
+        awayScore: e.away_score ?? null,
+        minute: e.current_minute ?? null,
         period: HALFTIME_STATUSES.has(status) ? "HT" : e.period || "",
         ended: FINISHED_STATUSES.has(status),
       };

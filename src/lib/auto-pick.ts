@@ -1,11 +1,17 @@
-// Daily big-game picker: fetches today's BSD fixtures, lets Claude decide
+// Daily big-game picker: fetches today's BSD fixtures, lets the AI decide
 // which qualify as big games (keyword rules as fallback), and activates them
 // as upcoming fixtures on /alt. The auto-live robot converts them at kickoff.
 import { getD1 } from "@/lib/d1";
 import { setMatchFlag } from "@/lib/match-flags";
 import { pickBigGames, pickBigGamesFallback, type PickFixture } from "@/lib/ai-pick";
+import { countBsdRequest } from "@/lib/bsd-events";
 
 const BSD_API = "https://sports.bzzoiro.com/api/events/";
+// BSD serves at most 200 events per page. A busy day has more than that, and
+// the list is in kickoff order, so stopping at one page silently dropped the
+// evening kickoffs. Page through the whole day (a handful of calls, once a day).
+const PAGE_SIZE = 200;
+const MAX_PAGES = 5;
 
 export const DEFAULT_CRITERIA = `PICK (no maximum — every fixture that qualifies):
 - UEFA Champions League and UEFA Europa League matches
@@ -120,16 +126,29 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
     return { ok: true, ran: false, detail: "Auto-pick is disabled" };
   }
 
-  // Today's fixtures from BSD
+  // Today's fixtures from BSD — every page of them
   const today = new Date().toISOString().split("T")[0];
   let fixtures: BsdFixture[] = [];
   try {
-    const res = await fetch(`${BSD_API}?limit=200&date=${today}`, {
-      headers: { Authorization: `Token ${process.env.BSD_API_KEY || ""}` },
+    for (let page = 0; page < MAX_PAGES; page++) {
+      await countBsdRequest("daily picker");
+      const res = await fetch(`${BSD_API}?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}&date=${today}`, {
+        headers: { Authorization: `Token ${process.env.BSD_API_KEY || ""}` },
+      });
+      if (!res.ok) throw new Error(`BSD API returned ${res.status}`);
+      const data = (await res.json()) as { results?: BsdFixture[] };
+      const batch = data.results || [];
+      fixtures.push(...batch.filter((f) => f.event_date?.startsWith(today)));
+      if (batch.length < PAGE_SIZE) break; // short page = end of the list
+    }
+    // The feed can repeat an id across pages when it shifts underneath us.
+    const seen = new Set<string>();
+    fixtures = fixtures.filter((f) => {
+      const id = String(f.id);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
     });
-    if (!res.ok) throw new Error(`BSD API returned ${res.status}`);
-    const data = (await res.json()) as { results?: BsdFixture[] };
-    fixtures = (data.results || []).filter((f) => f.event_date?.startsWith(today));
   } catch (e: unknown) {
     return {
       ok: false,
@@ -149,7 +168,7 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
     eventDate: f.event_date,
   }));
 
-  // Claude first, keyword rules as fallback
+  // AI first, keyword rules as fallback
   let picks: { id: string; reason: string }[];
   let method = "ai";
   let detail = "";

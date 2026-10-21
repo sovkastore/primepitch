@@ -75,21 +75,42 @@ export async function pickBigGames(
   };
 }
 
-// Keyword fallback when the AI is unavailable. Coarser than the model (e.g. it
-// can't reliably tell apart same-named foreign leagues) but keeps the daily
-// pick running.
-const LEAGUE_KEYWORDS = [
-  "champions league", "europa league", "uefa super cup",
-  "premier league", "la liga", "laliga", "serie a", "bundesliga", "ligue 1",
-  "fa cup", "carabao", "efl cup", "community shield",
-  "copa del rey", "supercopa", "coppa italia", "supercoppa",
-  "dfb", "pokal", "coupe de france", "trophee des champions",
+// Keyword fallback when the AI is unavailable. It mirrors the admin's
+// allow-list as literally as keywords can: the competition name must match an
+// allowed competition AND must not look like one of the many same-named
+// competitions from elsewhere (CAF/AFC Champions League, Austrian or second
+// Bundesliga, women's and youth editions…). For the selective leagues the
+// allowed club must be playing. Coarser than the model, but it no longer
+// picks half of world football.
+const LEAGUE_EXCLUDE = [
+  // other confederations' "champions leagues" and cups
+  "caf", "afc", "concacaf", "conmebol", "libertadores", "sudamericana", "ofc", "asian",
+  "african", "arab", "gulf", "cosafa", "cecafa", "wafu",
+  // second divisions and below, reserves, youth, women
+  "2.", "2 ", "ii", "b ", "serie b", "segunda", "championship", "ligue 2", "league two",
+  "league one", "national league", "liga 2", "regionalliga", "3.", "reserve", "u19", "u20",
+  "u21", "u23", "youth", "primavera", "women", "femin", "feminine", "frauen", "femenina",
+  // countries whose leagues share a name with an allowed one
+  "austria", "österreich", "osterreich", "brazil", "brasil", "russia", "ukrain", "swiss", "schweiz",
+  "belgi", "scot", "ireland", "wales", "india", "china", "japan", "korea", "australia", "egypt",
+  "south africa", "nigeria", "ghana", "kenya", "moroc", "tunisia", "algeria", "qualif", "friendly",
 ];
-const LEAGUE_EXCLUDE = ["brazil", "brasil", "women", "femin", "u19", "u21", "u23", "youth"];
-const CLUB_KEYWORDS = [
-  "galatasaray", "fenerbahce", "besiktas", "trabzonspor",
-  "al nassr", "al-nassr", "al hilal", "al-hilal", "al ittihad", "al-ittihad",
-  "inter miami",
+// Allowed competitions: every match qualifies.
+const OPEN_COMPETITIONS = [
+  "uefa champions league", "champions league", "uefa europa league", "europa league",
+  "uefa conference league", "conference league", "uefa super cup",
+  "premier league", "la liga", "laliga", "serie a", "bundesliga", "ligue 1",
+];
+// Allowed cups: only if a top-5 first-division club is involved — the keyword
+// fallback can't verify that, so it leaves cups to the AI and picks none.
+// Selective leagues: allowed only with one of these clubs on the pitch.
+const SELECTIVE: { competition: string[]; clubs: string[] }[] = [
+  { competition: ["primeira liga", "liga portugal", "taca de portugal", "taça de portugal", "taca da liga", "supertaca"], clubs: ["benfica", "porto", "sporting cp", "sporting", "braga"] },
+  { competition: ["eredivisie", "knvb", "johan cruyff"], clubs: ["ajax", "psv", "feyenoord"] },
+  { competition: ["saudi pro", "saudi professional", "roshn", "king cup", "king's cup", "saudi super"], clubs: ["al nassr", "al-nassr", "al hilal", "al-hilal", "al ittihad", "al-ittihad"] },
+  { competition: ["super lig", "süper lig", "turkish cup", "turkiye kupasi", "türkiye kupası", "turkish super"], clubs: ["galatasaray", "fenerbahce", "fenerbahçe", "besiktas", "beşiktaş", "trabzonspor"] },
+  { competition: ["mls", "major league soccer", "us open cup", "u.s. open cup", "leagues cup"], clubs: ["inter miami"] },
+  { competition: ["brasileiro", "brasileirao", "brasileirão", "brazil", "brasil"], clubs: ["santos"] },
 ];
 
 function fold(s: string): string {
@@ -101,15 +122,21 @@ export function pickBigGamesFallback(fixtures: PickFixture[]): { id: string; rea
   for (const f of fixtures) {
     const league = fold(f.league || "");
     const teams = fold(`${f.home} ${f.away}`);
-    if (LEAGUE_EXCLUDE.some((k) => league.includes(k))) continue;
-    const leagueHit = LEAGUE_KEYWORDS.find((k) => league.includes(k));
-    const clubHit = CLUB_KEYWORDS.find((k) => teams.includes(k));
-    if (leagueHit || clubHit) {
-      picks.push({
-        id: String(f.id),
-        reason: `Keyword match: ${leagueHit || clubHit} (rules fallback)`,
-      });
+    if (!league) continue;
+
+    // Selective leagues first: their competition names are allowed only with
+    // a listed club, and some (Brazilian "Serie A") share a name with an open
+    // competition from another country.
+    const selective = SELECTIVE.find((s) => s.competition.some((c) => league.includes(fold(c))));
+    if (selective) {
+      const club = selective.clubs.find((c) => teams.includes(fold(c)));
+      if (club) picks.push({ id: String(f.id), reason: `Keyword match: ${club} in ${f.league} (rules fallback)` });
+      continue;
     }
+
+    if (LEAGUE_EXCLUDE.some((k) => league.includes(k))) continue;
+    const open = OPEN_COMPETITIONS.find((k) => league.includes(k));
+    if (open) picks.push({ id: String(f.id), reason: `Keyword match: ${open} (rules fallback)` });
   }
   return picks;
 }

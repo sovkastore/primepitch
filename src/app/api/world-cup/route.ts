@@ -2,14 +2,50 @@ import { NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
 // FIFA World Cup 2026 = BSD league id 27. We expose its fixtures + ready-made group
-// standings to the public /world-cup page. Cached server-side so the page can poll.
+// standings to the public /world-cup page.
+//
+// The tournament is over, so this route freezes itself: the first request
+// after deploy pulls BSD one last time, stores the complete response
+// (standings + every result, including the archived ones) in D1 under
+// FROZEN_KEY, and every later request serves that snapshot without touching
+// BSD at all. Delete the FROZEN_KEY row to take a fresh snapshot.
 
 const BSD = "https://sports.bzzoiro.com/api";
 const KEY = process.env.BSD_API_KEY || "";
 const LEAGUE = 27;
 const TTL = 60_000;
+const FROZEN_KEY = "wc_frozen";
 
 let cache: { data: unknown; ts: number } | null = null;
+
+async function readFrozen(): Promise<unknown | null> {
+  try {
+    const d1 = await getD1();
+    if (!d1) return null;
+    const row = await d1
+      .prepare("SELECT value FROM d1_site_settings WHERE key = ?")
+      .bind(FROZEN_KEY)
+      .first<{ value: string }>();
+    return row?.value ? JSON.parse(row.value) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeFrozen(data: unknown) {
+  try {
+    const d1 = await getD1();
+    if (!d1) return;
+    await d1
+      .prepare(
+        "INSERT INTO d1_site_settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at"
+      )
+      .bind(FROZEN_KEY, JSON.stringify(data), new Date().toISOString())
+      .run();
+  } catch {
+    /* snapshot is best-effort; the next request tries again */
+  }
+}
 
 interface BsdFixture {
   id: number;
@@ -31,6 +67,13 @@ export async function GET() {
   const now = Date.now();
   if (cache && now - cache.ts < TTL) {
     return NextResponse.json(cache.data);
+  }
+
+  // Tournament over: serve the frozen snapshot, never BSD.
+  const frozen = await readFrozen();
+  if (frozen) {
+    cache = { data: frozen, ts: now };
+    return NextResponse.json(frozen);
   }
 
   try {
@@ -158,6 +201,9 @@ export async function GET() {
     }
 
     const data = { groups: stData.groups || {}, fixtures };
+    // Only freeze a snapshot that actually has content, so a BSD hiccup on
+    // the very first request can't lock in an empty page.
+    if (fixtures.length > 0 && Object.keys(data.groups).length > 0) await writeFrozen(data);
     cache = { data, ts: now };
     return NextResponse.json(data);
   } catch {

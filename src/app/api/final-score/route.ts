@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
+import { getBsdEvents } from "@/lib/bsd-events";
 
 // Final score lookup for ended matches: checks our permanent wc_results archive
 // first, then the live events feed (which keeps recently-finished matches for a
 // while). Used by the watch page's "match ended" state.
-
-const BSD_API = "https://sports.bzzoiro.com/api/events/";
-const BSD_KEY = process.env.BSD_API_KEY || "";
 
 const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const ALIASES: Record<string, string> = {
@@ -59,14 +57,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 2) Recently-finished events still in the feed
-    const res = await fetch(`${BSD_API}?limit=100`, {
-      headers: { Authorization: `Token ${BSD_KEY}` },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const events: Ev[] = data.results || [];
+    // 2) Recently-finished events still in the feed (shared site-wide cache)
+    {
+      const { events: feed } = await getBsdEvents("final-score");
+      const events = feed as unknown as Ev[];
       const ev = events.find((e) => {
         const h = canon(e.home_team), a = canon(e.away_team);
         return e.home_score !== null && DONE.has((e.status || "").toLowerCase()) &&

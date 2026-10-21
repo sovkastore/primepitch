@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BSD_API = "https://sports.bzzoiro.com/api/events/";
-const BSD_KEY = process.env.BSD_API_KEY || "";
+import { getBsdEvents } from "@/lib/bsd-events";
 
-// Simple in-memory cache (30s TTL)
-let cache: { data: unknown; ts: number } | null = null;
+// Reads the site-wide shared BSD cache (one BSD call a minute for everyone —
+// see lib/bsd-events).
 
 interface TeamObj {
   name?: string;
@@ -60,20 +59,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ score: null });
     }
 
-    // Use cache if fresh
-    const now = Date.now();
-    if (!cache || now - cache.ts > 30_000) {
-      const res = await fetch(`${BSD_API}?limit=100`, {
-        headers: { Authorization: `Token ${BSD_KEY}` },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        cache = { data: data.results || [], ts: now };
-      }
-    }
-
-    const events = (cache?.data as BsdEvent[]) || [];
+    const { events: feed } = await getBsdEvents("live-score");
+    const events = feed as unknown as BsdEvent[];
 
     const homeN = normalize(home);
     const awayN = normalize(away);
