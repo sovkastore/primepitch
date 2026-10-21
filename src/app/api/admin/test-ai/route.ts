@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { findAiMatch } from "@/lib/ai-match";
 
 // "Prove the AI works" button: runs a small canned matching problem through
-// Claude and returns the verdict + token usage. Costs a fraction of a cent.
+// the Groq model and returns the verdict + token usage.
 export const dynamic = "force-dynamic";
 
 export async function POST() {

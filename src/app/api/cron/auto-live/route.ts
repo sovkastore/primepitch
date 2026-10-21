@@ -8,14 +8,19 @@ import { findDeterministicMatch, namesMatch, normalizeTeamName, type CandidateMa
 import { saveMatchesCache } from "@/lib/match-cache";
 
 // Auto-live robot: runs every minute via the Cloudflare cron trigger.
-// For every admin-activated BSD fixture past kickoff, it scans the feed's whole
-// live section, matches the fixture against every entry at once (Claude first,
+// From START_BEFORE_MS before an admin-activated BSD fixture's kickoff, it
+// scans the feed (the whole live section plus the upcoming entries around the
+// kickoff), matches the fixture against every entry at once (AI first,
 // name-rules fallback), publishes the copy carrying the most streams, and hides
-// the upcoming fixture. A completed scan that finds nothing is proof the match
-// isn't in the feed — no retry loop.
+// the upcoming fixture. Before kickoff a match is only published once its
+// entry actually carries stream servers — otherwise visitors would get an
+// empty "select a server" card — so the robot keeps looking every minute
+// until GIVE_UP_AFTER_MS past kickoff before giving up.
 export const dynamic = "force-dynamic";
 
-const KICKOFF_OFFSET_MS = 30_000; // ask 30s after kickoff
+const START_BEFORE_MS = 5 * 60_000; // start looking 5 min before kickoff
+const GIVE_UP_AFTER_MS = 3 * 60_000; // keep retrying until 3 min after kickoff
+const UPCOMING_SCAN_WINDOW_SEC = 45 * 60; // how far past our kickoffs to read the upcoming section
 // EMERGENCY BRAKE ONLY — the real stops are: match found, short page (list
 // ended), and the no-live-matches page (past the live section). This ceiling
 // exists purely so a malfunctioning feed (e.g. endlessly repeating full pages)
@@ -91,7 +96,9 @@ async function refreshLiveStreams(
     .prepare(
       "SELECT a.match_id, a.live_id FROM d1_auto_live a INNER JOIN d1_match_flags f ON f.match_id = a.live_id AND f.alt_visible = 1 WHERE a.status = 'converted' AND a.kickoff >= ? AND a.kickoff <= ?"
     )
-    .bind(nowSec - LIVE_WINDOW_MINUTES * 60, nowSec)
+    // Matches published ahead of kickoff count as live too, so their servers
+    // keep refreshing through the last minutes before the whistle.
+    .bind(nowSec - LIVE_WINDOW_MINUTES * 60, nowSec + START_BEFORE_MS / 1000)
     .all<{ match_id: string; live_id: string | null }>();
   if (!liveRows?.length) return null;
 
@@ -262,7 +269,9 @@ export async function GET(req: Request) {
     away: string;
     kickoff: number;
     league?: string;
-    targetMs: number;
+    // Until this instant a no-match or a stream-less match is "not yet",
+    // and the robot tries again next minute; after it, it's "not coming".
+    deadlineMs: number;
   };
   const due: Due[] = [];
 
@@ -291,16 +300,17 @@ export async function GET(req: Request) {
     if (st && (st.status === "converted" || st.status === "given_up")) continue;
     if (!meta.home_team_name || !meta.away_team_name || !kickoff) continue;
 
-    const targetMs = kickoff * 1000 + KICKOFF_OFFSET_MS;
-    // Due now, or due within this cron tick (we'll wait for the 30s offset)
-    if (now >= targetMs || targetMs - now < 55_000) {
+    // In the window: from START_BEFORE_MS before kickoff onwards. (Fixtures
+    // past the give-up deadline are still due — they get a final verdict
+    // below, and the expiry check above removes the card once it's over.)
+    if (now >= kickoff * 1000 - START_BEFORE_MS) {
       due.push({
         matchId: row.match_id,
         home: meta.home_team_name,
         away: meta.away_team_name,
         kickoff,
         league: meta.category,
-        targetMs,
+        deadlineMs: kickoff * 1000 + GIVE_UP_AFTER_MS,
       });
     }
   }
@@ -311,14 +321,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, checked: flagRows?.length ?? 0, due: 0, refresh });
   }
 
-  // 2) Wait inside the tick so the request fires ~30s after kickoff, not at :00
-  const latestTarget = Math.max(...due.map((d) => d.targetMs));
-  if (latestTarget > Date.now()) {
-    await new Promise((r) => setTimeout(r, Math.min(latestTarget - Date.now(), 55_000)));
-  }
-
-  // 3) Deep scan: fetch the paged feed only as deep as needed (max 5 pages).
-  // A completed scan with no match is proof the fixture isn't in the feed.
+  // 2) Deep scan: fetch the paged feed only as deep as needed.
+  // A completed scan with no match is proof the fixture isn't in the feed
+  // right now — final once the fixture is past its give-up deadline.
+  const latestKickoff = Math.max(...due.map((d) => d.kickoff));
   let pending: Due[] = [...due];
   const all: RapidMatch[] = [];
   let pagesFetched = 0;
@@ -327,12 +333,29 @@ export async function GET(req: Request) {
   let apiFailed = false;
   const outcomes: object[] = [];
 
-  const convert = async (f: Due, matchedIndex: number, method: string, detail: string) => {
+  // Returns false (and logs "waiting") when the match was found but none of
+  // its copies carries a stream yet and kickoff hasn't arrived — the next
+  // tick tries again. From kickoff on it publishes regardless, as before:
+  // the stream refresher then heals a stream-less copy once servers appear.
+  const convert = async (f: Due, matchedIndex: number, method: string, detail: string): Promise<boolean> => {
     // If the feed lists the same match under several entries, publish the
     // copy carrying streams.
     const finalIndex = bestVariantIndex(all, matchedIndex);
     if (finalIndex !== matchedIndex) detail += " → switched to the copy carrying streams";
     const m = all[finalIndex];
+    const hasServers = (m.servers?.length ?? 0) > 0;
+    if (!hasServers && Date.now() < f.kickoff * 1000) {
+      await logState(d1, f.matchId, {
+        title: `${f.home} vs ${f.away}`,
+        kickoff: f.kickoff,
+        status: "waiting",
+        attempts: pagesFetched,
+        method,
+        detail: `${detail} — found in the feed but no stream servers yet; checking again next minute`,
+      });
+      outcomes.push({ fixture: f.matchId, matched: true, published: false, waitingForStreams: true, method });
+      return false;
+    }
     const altId = `alt-${m.home_team_name.replace(/\s+/g, "")}-${m.away_team_name.replace(/\s+/g, "")}-${m.match_time}`;
     await setMatchFlag(d1, altId, true, {
       title: `${m.home_team_name} vs ${m.away_team_name}`,
@@ -349,13 +372,21 @@ export async function GET(req: Request) {
       live_id: altId,
     });
     outcomes.push({ fixture: f.matchId, matched: true, live: altId, method });
+    return true;
   };
 
   // Scan the WHOLE live section before matching. The feed lists one match
   // under several entries — different spellings, sometimes different kickoff
   // times — and only some carry streams. Stopping at the first hit used to
   // publish a dud while a 14-server copy sat on a later page.
-  while (pagesFetched < MAX_SCAN_PAGES && !feedEnded && !pastLiveSection && !apiFailed) {
+  //
+  // The provider lists ALL live matches before ALL upcoming ones. Because we
+  // now start before kickoff, the fixture may still sit in the upcoming
+  // section, so once the live section ends we keep reading while the pages
+  // still hold entries kicking off around our fixtures (the upcoming list is
+  // in kickoff order), and stop at the first page that is entirely later.
+  const upcomingCutoff = latestKickoff + UPCOMING_SCAN_WINDOW_SEC;
+  while (pagesFetched < MAX_SCAN_PAGES && !feedEnded && !apiFailed) {
     const batch = await fetchRapidPage("robot kickoff", pagesFetched + 1);
     if (batch === null) {
       apiFailed = true;
@@ -364,11 +395,11 @@ export async function GET(req: Request) {
     pagesFetched++;
     all.push(...batch);
     if (batch.length < PAGE_SIZE) feedEnded = true;
-    // The provider lists ALL live matches before ALL upcoming ones. A page
-    // with zero live entries means we're past the live section — a match
-    // that already kicked off can't appear on any later page. We still
-    // process this page (it holds the earliest upcoming entries), then stop.
     if (!batch.some((m) => m.match_status === "live")) pastLiveSection = true;
+    if (pastLiveSection) {
+      const anyNearOurKickoffs = batch.some((m) => Number(m.match_time || 0) <= upcomingCutoff);
+      if (!anyNearOurKickoffs) break;
+    }
   }
 
   // Match once against the complete candidate set — so bestVariantIndex can
@@ -392,11 +423,13 @@ export async function GET(req: Request) {
         // The scan is already complete, so a medium match has nothing deeper
         // to wait for — accept it rather than dropping the fixture.
         if (ai.index !== null && (ai.confidence === "high" || ai.confidence === "medium")) {
+          // A "waiting for streams" verdict is already logged by convert and
+          // is deliberately not pending: it was found, just not published yet.
           await convert(
             f,
             ai.index,
             "ai",
-            `AI matched with ${ai.confidence} confidence across the full live section (${scanNote}; ${ai.inputTokens}+${ai.outputTokens} tokens)`
+            `AI matched with ${ai.confidence} confidence across the scanned feed (${scanNote}; ${ai.inputTokens}+${ai.outputTokens} tokens)`
           );
         } else {
           stillPending.push(f);
@@ -419,8 +452,11 @@ export async function GET(req: Request) {
 
   if (all.length > 0) await saveMatchesCache(d1, all);
 
-  // Anything still pending has been proven absent from the scanned live
-  // section — no retry loop.
+  // Anything still pending is absent from the scanned feed right now. Before
+  // the give-up deadline that just means "not listed yet" — the feed often
+  // adds a match only around kickoff — so the next tick looks again. After
+  // the deadline a completed scan is the final word: no retry loop.
+  const nowMs = Date.now();
   for (const f of pending) {
     if (apiFailed) {
       await logState(d1, f.matchId, {
@@ -428,6 +464,20 @@ export async function GET(req: Request) {
         kickoff: f.kickoff,
         status: "pending",
         detail: "RapidAPI request failed mid-scan — will retry next minute",
+      });
+      outcomes.push({ fixture: f.matchId, matched: false, retry: true });
+      continue;
+    }
+    if (nowMs < f.deadlineMs) {
+      const minsToKickoff = Math.round((f.kickoff * 1000 - nowMs) / 60_000);
+      await logState(d1, f.matchId, {
+        title: `${f.home} vs ${f.away}`,
+        kickoff: f.kickoff,
+        status: "pending",
+        attempts: pagesFetched,
+        detail: `Not in the feed yet (${scanNote}${pastLiveSection ? ", live section + nearby upcoming" : ""}) — ${
+          minsToKickoff > 0 ? `${minsToKickoff} min to kickoff` : "kickoff passed"
+        }, checking again next minute`,
       });
       outcomes.push({ fixture: f.matchId, matched: false, retry: true });
       continue;

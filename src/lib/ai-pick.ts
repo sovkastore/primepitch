@@ -1,7 +1,7 @@
 // AI big-game picker — given today's BSD fixture list and the admin's
-// criteria, Claude selects every fixture that qualifies (no maximum).
+// criteria, the model selects every fixture that qualifies (no maximum).
 // Throws on API failure so the caller can fall back to keyword rules.
-import Anthropic from "@anthropic-ai/sdk";
+import { groqJson } from "@/lib/groq";
 
 export interface PickFixture {
   id: string | number;
@@ -35,63 +35,47 @@ const PICK_SCHEMA = {
   },
   required: ["picks"],
   additionalProperties: false,
-} as const;
+};
 
 export async function pickBigGames(
   criteria: string,
   fixtures: PickFixture[]
 ): Promise<AiPickResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
-
-  const client = new Anthropic({ apiKey });
-
   const lines = fixtures
     .map((f) => `${f.id}: ${f.home} vs ${f.away} — ${f.league || "unknown league"} — ${f.eventDate}`)
     .join("\n");
 
-  const response = await client.messages.create({
-    model: "claude-opus-5",
-    max_tokens: 6000,
-    output_config: {
-      effort: "low",
-      format: { type: "json_schema", schema: PICK_SCHEMA },
-    },
-    messages: [
-      {
-        role: "user",
-        content:
-          `You select which football fixtures a streaming site should feature today. ` +
-          `Select EVERY fixture that matches the criteria below — there is no maximum. ` +
-          `Select nothing that doesn't match. League and team names may be abbreviated, ` +
-          `transliterated, or in another language; judge what they refer to. Be careful with ` +
-          `same-named leagues from other countries (e.g. Brazilian "Serie A" is NOT the Italian one). ` +
-          `Only pick fixtures you are CERTAIN qualify — if you are unsure (for example whether a ` +
-          `club currently plays in a listed division), leave it out; never pick "just in case". ` +
-          `A rule about clubs from a league's first division means the club must currently play in ` +
-          `that first division — second-division clubs do not qualify.\n\n` +
-          `CRITERIA:\n${criteria}\n\n` +
-          `TODAY'S FIXTURES:\n${lines}\n\n` +
-          `Return the ids of every qualifying fixture.`,
-      },
-    ],
+  const result = await groqJson<{ picks?: { id: string; reason: string }[] }>({
+    schemaName: "big_game_picks",
+    schema: PICK_SCHEMA,
+    maxTokens: 6000,
+    prompt:
+      `You select which football fixtures a streaming site should feature today. ` +
+      `Select EVERY fixture that matches the criteria below — there is no maximum. ` +
+      `Select nothing that doesn't match. League and team names may be abbreviated, ` +
+      `transliterated, or in another language; judge what they refer to. Be careful with ` +
+      `same-named leagues from other countries (e.g. Brazilian "Serie A" is NOT the Italian one). ` +
+      `Only pick fixtures you are CERTAIN qualify — if you are unsure (for example whether a ` +
+      `club currently plays in a listed division), leave it out; never pick "just in case". ` +
+      `A rule about clubs from a league's first division means the club must currently play in ` +
+      `that first division — second-division clubs do not qualify.\n\n` +
+      `CRITERIA:\n${criteria}\n\n` +
+      `TODAY'S FIXTURES:\n${lines}\n\n` +
+      `Return the ids of every qualifying fixture.`,
   });
 
-  if (response.stop_reason === "refusal") throw new Error("AI request was refused");
-
-  const text = response.content.find((b) => b.type === "text")?.text;
-  if (!text) throw new Error("AI returned no text content");
-  const parsed = JSON.parse(text) as { picks: { id: string; reason: string }[] };
-
   const validIds = new Set(fixtures.map((f) => String(f.id)));
+  const picks = Array.isArray(result.data.picks) ? result.data.picks : [];
   return {
-    picks: (parsed.picks || []).filter((p) => validIds.has(String(p.id))),
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
+    picks: picks
+      .filter((p) => p && typeof p.id === "string" && validIds.has(String(p.id)))
+      .map((p) => ({ id: String(p.id), reason: typeof p.reason === "string" ? p.reason : "" })),
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
   };
 }
 
-// Keyword fallback when the AI is unavailable. Coarser than Claude (e.g. it
+// Keyword fallback when the AI is unavailable. Coarser than the model (e.g. it
 // can't reliably tell apart same-named foreign leagues) but keeps the daily
 // pick running.
 const LEAGUE_KEYWORDS = [

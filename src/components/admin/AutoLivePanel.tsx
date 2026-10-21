@@ -46,6 +46,7 @@ interface PickRunResult {
 const STATUS_STYLES: Record<string, string> = {
   converted: "bg-emerald-100 text-emerald-700",
   pending: "bg-amber-100 text-amber-700",
+  waiting: "bg-amber-100 text-amber-700",
   given_up: "bg-red-100 text-red-700",
   refresh: "bg-sky-100 text-sky-700",
   expired: "bg-gray-200 text-gray-600",
@@ -173,9 +174,10 @@ export default function AutoLivePanel({ section = "all" }: { section?: "all" | "
       <div>
         <h1 className="text-xl font-bold text-gray-900">🤖 Auto-Live Robot</h1>
         <p className="text-[13px] text-gray-500 mt-1">
-          Runs every minute. When an active BSD fixture passes kickoff, it makes one RapidAPI
-          request, lets the AI find the matching stream (name-rules as backup), makes it visible
-          and hides the upcoming fixture.
+          Runs every minute. From 5 minutes before an active BSD fixture&apos;s kickoff it scans
+          the RapidAPI feed, lets the AI find the matching stream (name-rules as backup) and, as
+          soon as that stream has servers, makes it visible and hides the upcoming fixture. It
+          keeps looking every minute until 3 minutes after kickoff before giving up.
         </p>
       </div>
 
@@ -186,7 +188,7 @@ export default function AutoLivePanel({ section = "all" }: { section?: "all" | "
             disabled={testing}
             className="text-[12px] font-bold text-white bg-violet-600 hover:bg-violet-700 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
           >
-            {testing ? "Asking Claude…" : "🧪 Test AI Matching"}
+            {testing ? "Asking the AI…" : "🧪 Test AI Matching"}
           </button>
           <button
             onClick={loadLog}
@@ -272,7 +274,7 @@ export default function AutoLivePanel({ section = "all" }: { section?: "all" | "
           </h3>
           {entries.length === 0 ? (
             <p className="text-[13px] text-gray-400 py-2">
-              Nothing yet — activity appears here when an active fixture reaches kickoff.
+              Nothing yet — activity appears here from 5 minutes before an active fixture&apos;s kickoff.
             </p>
           ) : (
             <div className="divide-y divide-gray-50">
