@@ -21,6 +21,7 @@ function Chip({
   label,
   active,
   logo,
+  emoji,
   chipRef,
   invertInactive,
 }: {
@@ -28,6 +29,7 @@ function Chip({
   label: string;
   active: boolean;
   logo?: string;
+  emoji?: string;
   chipRef?: React.Ref<HTMLAnchorElement>;
   invertInactive?: boolean;
 }) {
@@ -46,7 +48,9 @@ function Chip({
           active ? "bg-emerald-500 shadow-lg shadow-emerald-500/25" : "bg-gray-100 hover:bg-gray-200"
         }`}
       >
-        {showImg ? (
+        {emoji ? (
+          <span className="text-lg leading-none">{emoji}</span>
+        ) : showImg ? (
           <img
             src={logo}
             alt={label}
@@ -68,7 +72,7 @@ function Chip({
   );
 }
 
-// Football subcategory nav: All → Alt → World Cup 2026 → enabled competitions.
+// Football subcategory nav: All → Big Matches → enabled competitions.
 export default function LeagueNav({ active }: { active: "all" | "wc" | "alt" | number }) {
   const [leagues, setLeagues] = useState<LeagueConfig[]>([]);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -95,8 +99,7 @@ export default function LeagueNav({ active }: { active: "all" | "wc" | "alt" | n
     <section className="max-w-[1400px] mx-auto px-4 lg:px-6 pb-1">
       <div ref={scrollerRef} className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
         <Chip href="/" label="All" active={active === "all"} logo="/icons/sports/football.svg" chipRef={active === "all" ? activeRef : undefined} />
-        <Chip href="/alt" label="Alt" active={active === "alt"} logo="/icons/sports/football.svg" chipRef={active === "alt" ? activeRef : undefined} />
-        <Chip href="/world-cup" label="World Cup 2026" active={active === "wc"} logo="/icons/brands/fifa.svg" chipRef={active === "wc" ? activeRef : undefined} invertInactive />
+        <Chip href="/alt" label="Big Matches" active={active === "alt"} emoji="🔥" chipRef={active === "alt" ? activeRef : undefined} />
         {leagues.map((l) => (
           <Chip
             key={l.league_id}

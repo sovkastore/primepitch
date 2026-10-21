@@ -49,7 +49,7 @@ async function hmac(secret: string, msg: string): Promise<string> {
   return b64url(sig);
 }
 
-export interface PartnerSession { pid: string; code: string; name?: string }
+export interface PartnerSession { pid: string; code: string; name?: string; sid?: string }
 
 export async function signSession(p: PartnerSession): Promise<string> {
   const payload = { ...p, exp: Date.now() + TTL_MS };
@@ -66,7 +66,7 @@ export async function verifySession(token: string | null | undefined): Promise<P
   try {
     const payload = JSON.parse(b64urlToStr(body)) as PartnerSession & { exp: number };
     if (!payload?.exp || Date.now() > payload.exp) return null;
-    return { pid: payload.pid, code: payload.code, name: payload.name };
+    return { pid: payload.pid, code: payload.code, name: payload.name, sid: payload.sid };
   } catch {
     return null;
   }
@@ -81,8 +81,11 @@ export async function requirePartnerSession(token: string | null | undefined): P
   const d1 = await getD1();
   if (!d1) return null;
   const row = await d1.prepare(
-    `SELECT suspended, banned FROM d1_partners WHERE code = ?`
-  ).bind(sess.code).first<{ suspended: number; banned: number }>();
+    `SELECT suspended, banned, session_id FROM d1_partners WHERE code = ?`
+  ).bind(sess.code).first<{ suspended: number; banned: number; session_id: string | null }>();
   if (!row || row.suspended || row.banned) return null;
+  // One device at a time: a newer login replaces session_id, and any older
+  // cookie (different sid) stops working on its next request.
+  if (row.session_id && sess.sid !== row.session_id) return null;
   return sess;
 }

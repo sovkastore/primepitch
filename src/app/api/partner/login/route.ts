@@ -20,7 +20,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    const token = await signSession({ pid: String(row.id), code: String(row.code), name: String(row.name) });
+    // New login = the only live session. Whoever was signed in before is out.
+    const sid = crypto.randomUUID();
+    await d1.prepare("UPDATE d1_partners SET session_id = ? WHERE id = ?").bind(sid, row.id).run();
+    const token = await signSession({ pid: String(row.id), code: String(row.code), name: String(row.name), sid });
     const res = NextResponse.json({ ok: true });
     res.cookies.set(PARTNER_COOKIE, token, {
       httpOnly: true, sameSite: "lax", secure: true, path: "/",

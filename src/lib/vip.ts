@@ -49,7 +49,7 @@ export const VIP_COPY = {
     },
     {
       title: "VIP Streams: 100% ad-free.",
-      body: "Every European competition and every match in the top 5 leagues, on our own servers. Nothing opens, ever.",
+      body: "Every European competition and every match in the top 5 leagues, on our own servers — **100% ad-free**.",
       href: "/alt",
       more: {
         title: "What you get on VIP Streams",
@@ -67,7 +67,7 @@ export const VIP_COPY = {
     {
       title: "Other sports: ad-free too.",
       body:
-        "Basketball, tennis, cricket, UFC, F1 and every other sport on the main site — 95% ad-free. PrimePitch shows you nothing. Those streams run on third-party players, so your first tap on play may open one tab: close it, go back, and the whole match plays with nothing else interrupting you.",
+        "Basketball, tennis, cricket, UFC, F1 and every other sport on the main site — **95% ad-free**. PrimePitch shows you nothing. Those streams run on third-party players, so your first tap on play may open one tab: close it, go back, and the whole match plays with nothing else interrupting you.",
     },
   ],
 };
