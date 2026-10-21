@@ -3,7 +3,7 @@ import { getD1 } from "@/lib/d1";
 import { isAdminRequest } from "@/lib/admin-auth";
 import { grantVip, hashPassword, normalizeEmail, isValidEmail, vipActive } from "@/lib/user-auth";
 import { VIP_COINS } from "@/lib/vip";
-import { npConfigured, npCurrencies, npStatus, npGetPayment } from "@/lib/nowpayments";
+import { npConfigured, npCurrencies, npStatus, npGetPayment, npMinAmount } from "@/lib/nowpayments";
 import { activateOrderManually, applyPaymentStatus, type OrderRow } from "@/lib/vip-orders";
 import { isVipLive, setVipLive } from "@/lib/vip-live";
 
@@ -24,7 +24,16 @@ export async function GET(request: NextRequest) {
       if (!(await npConfigured())) return NextResponse.json({ ok: false, error: "API key or IPN secret missing on the worker." });
       const [st, cur] = await Promise.all([npStatus(), npCurrencies()]);
       const have = new Set((cur.currencies || []).map((c) => String(c).toLowerCase()));
-      const coins = VIP_COINS.map((c) => ({ id: c.id, symbol: c.symbol, network: c.network, available: have.has(c.id) }));
+      // Each coin's smallest accepted payment (same-coin payout), in USD, so
+      // it is obvious which coins can take the $5 plan.
+      const mins = await Promise.all(VIP_COINS.map(async (c) => {
+        try { return await npMinAmount(c.id); } catch { return { min: NaN, usd: NaN }; }
+      }));
+      const coins = VIP_COINS.map((c, i) => ({
+        id: c.id, symbol: c.symbol, network: c.network, available: have.has(c.id),
+        min: Number.isFinite(mins[i].min) ? mins[i].min : null,
+        minUsd: Number.isFinite(mins[i].usd) ? mins[i].usd : null,
+      }));
       return NextResponse.json({ ok: true, status: st?.message || "OK", coins });
     } catch (e: any) {
       return NextResponse.json({ ok: false, error: e?.message || "NOWPayments error" });

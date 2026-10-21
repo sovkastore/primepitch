@@ -91,12 +91,14 @@ export async function npEstimate(usd: number, coin: string): Promise<number> {
   return Number(r.estimated_amount);
 }
 
-// Smallest payment NOWPayments accepts in `coin`.
-export async function npMinAmount(coin: string): Promise<number> {
-  const r = await call<{ min_amount: number | string }>(
-    `/min-amount?currency_from=${encodeURIComponent(coin)}&fiat_equivalent=usd`
+// Smallest payment NOWPayments accepts in `coin`, paid out in the same coin
+// (we hold a payout wallet for every coin we offer, so nothing is converted).
+// `fiatEquivalent` is that minimum in USD.
+export async function npMinAmount(coin: string): Promise<{ min: number; usd: number }> {
+  const r = await call<{ min_amount: number | string; fiat_equivalent?: number | string }>(
+    `/min-amount?currency_from=${encodeURIComponent(coin)}&currency_to=${encodeURIComponent(coin)}&fiat_equivalent=usd`
   );
-  return Number(r.min_amount);
+  return { min: Number(r.min_amount), usd: Number(r.fiat_equivalent ?? NaN) };
 }
 
 export function npCreatePayment(input: {
@@ -115,6 +117,9 @@ export function npCreatePayment(input: {
       order_id: input.orderId,
       order_description: input.description,
       ipn_callback_url: input.ipnUrl,
+      // The customer covers NOWPayments' fee on top of the price, so the full
+      // price lands in our wallet.
+      is_fee_paid_by_user: true,
     },
   });
 }

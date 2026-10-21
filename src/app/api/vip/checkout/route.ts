@@ -44,10 +44,11 @@ export async function POST(request: NextRequest) {
 
   // Too small for this coin? Say so before NOWPayments does, with the number.
   try {
-    const [min, est] = await Promise.all([npMinAmount(coin.id), npEstimate(plan.priceUsd, coin.id)]);
+    const [{ min, usd }, est] = await Promise.all([npMinAmount(coin.id), npEstimate(plan.priceUsd, coin.id)]);
     if (Number.isFinite(min) && Number.isFinite(est) && est < min) {
+      const approx = Number.isFinite(usd) && usd > 0 ? ` (about $${usd.toFixed(2)})` : "";
       return NextResponse.json({
-        error: `$${plan.priceUsd} is below the smallest ${coin.symbol} payment the network allows (${min} ${coin.symbol}). Choose USDT on TRC20, TRX or LTC instead.`,
+        error: `The smallest ${coin.symbol} payment accepted on ${coin.network.split(" · ")[0]} is ${min} ${coin.symbol}${approx}, more than this plan costs. Pick the 3-month plan, or pay with a different coin.`,
         code: "TOO_SMALL",
       }, { status: 400 });
     }
