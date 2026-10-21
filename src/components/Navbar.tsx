@@ -90,15 +90,6 @@ export default function Navbar() {
              </div>
           </Link>}
 
-          <Link href="/world-cup" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-3 rounded-2xl border border-emerald-50 bg-emerald-50/50">
-             <span className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0 text-emerald-500 shadow-sm">
-               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                 <path d="M12 2a1 1 0 0 0-1 1v2.53a5.002 5.002 0 0 0-4 4.92V11c0 1.307-.813 2.547-1.895 3.197a1 1 0 0 0-.105 1.743A3.01 3.01 0 0 0 7 19h10a3.01 3.01 0 0 0 2-3.06a1 1 0 0 0-.105-1.743C17.813 13.547 17 12.307 17 11V10.45a5.002 5.002 0 0 0-4-4.92V3a1 1 0 0 0-1-1zm3 8h-6V10.45a3.001 3.001 0 0 1 6 0V11z" />
-               </svg>
-             </span>
-             <div className="text-[14px] text-gray-900">FIFA World Cup 2026</div>
-          </Link>
-
           <Link href="/alt" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 p-3 rounded-2xl border border-red-50 bg-red-50/50">
              <span className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0 text-red-500 shadow-sm">
                <span className="text-xl">🔥</span>

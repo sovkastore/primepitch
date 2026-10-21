@@ -207,12 +207,12 @@ export default function VipClient() {
                 <span className="font-black text-gray-900">
                   {"href" in l && l.href ? <Link href={l.href} className="underline underline-offset-4 decoration-emerald-300 hover:decoration-emerald-500">{l.title}</Link> : l.title}
                 </span>{" "}
-                {l.body}
+                {l.body.split(/\*\*(.+?)\*\*/).map((part, i) => i % 2 === 1 ? <span key={i} className="font-black text-emerald-600">{part}</span> : part)}
                 {"more" in l && l.more ? (
                   <>
                     {" "}
                     <button type="button" onClick={() => setMoreOpen(true)} className="font-bold text-emerald-700 underline underline-offset-4 decoration-emerald-300 hover:decoration-emerald-600">
-                      More
+                      Click to see more benefits
                     </button>
                   </>
                 ) : null}

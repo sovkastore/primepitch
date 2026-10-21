@@ -180,7 +180,7 @@ export default function AltPage() {
           </div>
           <div className="text-center">
             <Logo size="sm" />
-            <p className="text-gray-600 text-xs mt-2">Loading alternative matches...</p>
+            <p className="text-gray-600 text-xs mt-2">Loading big matches...</p>
           </div>
         </div>
       </div>
@@ -199,21 +199,21 @@ export default function AltPage() {
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-8 min-h-screen">
-      <div className="mb-6 flex items-center">
+      <div className="mb-6">
         <Link href="/" className="inline-flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-900 transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           <span className="font-semibold">Back</span>
         </Link>
-        <div className="ml-auto"><VipPromo compact /></div>
+        <div className="flex justify-center mt-4 empty:hidden"><VipPromo /></div>
       </div>
 
       <div className="mb-8">
         <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight flex items-center gap-3">
-          Alternative <span className="text-emerald-600">Matches</span>
+          Big <span className="text-emerald-600">Matches</span>
         </h1>
-        <p className="text-gray-500 text-sm mt-1">Backup streams for selected matches.</p>
+        <p className="text-gray-500 text-sm mt-1">Our own streams for the matches that matter.</p>
       </div>
 
       {globalNotice && (
@@ -228,7 +228,7 @@ export default function AltPage() {
       )}
 
       {sortedDates.length === 0 ? (
-        <div className="text-center py-20 text-gray-500">No alternative matches available right now.</div>
+        <div className="text-center py-20 text-gray-500">No big matches right now.</div>
       ) : (
         <div className="space-y-12">
           {sortedDates.map(date => (
