@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { getD1 } from "@/lib/d1";
 import { getMatches, type Match } from "@/lib/api";
 import { USER_COOKIE, isActiveVip } from "@/lib/user-auth";
+import { staffAdFree } from "@/lib/staff-adfree";
 
 // Public: ad configuration the client uses to decide whether to inject any ad
 // tags. When master is false, the site injects nothing at all.
@@ -124,6 +125,12 @@ export async function GET(request: NextRequest) {
   // on the next load.
   const userToken = request.cookies.get(USER_COOKIE)?.value;
   if (userToken && (await isActiveVip(userToken))) {
+    return NextResponse.json(VIP_EMPTY, { headers: { "Cache-Control": "no-store" } });
+  }
+
+  // Logged-in admins and partners get the VIP experience too, unless they've
+  // switched the ads back on to test them.
+  if (await staffAdFree(request)) {
     return NextResponse.json(VIP_EMPTY, { headers: { "Cache-Control": "no-store" } });
   }
 

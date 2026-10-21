@@ -33,11 +33,13 @@ export default function Navbar() {
   const [vipMe, setVipMe] = useState<{ email: string; vip: boolean } | null>(null);
   // VIP stays out of the menu until it has launched (or for a signed-in VIP).
   const [vipLive, setVipLive] = useState(false);
+  // Admin / partner in VIP mode (ads off by login) — same pill as a paid VIP.
+  const [staffVip, setStaffVip] = useState(false);
 
   // One check per page load: powers the VIP pill in the top bar and the menu
   // entry. Cheap when there is no account cookie (no DB read).
   useEffect(() => {
-    fetch("/api/vip/me", { cache: "no-store" }).then(r => r.json()).then(d => { setVipMe(d?.me || null); setVipLive(d?.live === true || !!d?.me); }).catch(() => {});
+    fetch("/api/vip/me", { cache: "no-store" }).then(r => r.json()).then(d => { setVipMe(d?.me || null); setVipLive(d?.live === true || !!d?.me); setStaffVip(!!d?.staff && d?.staffAds !== true); }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -55,7 +57,7 @@ export default function Navbar() {
           </svg>
         </button>
         <div className="flex-1 flex justify-center"><Link href="/"><Logo size="md" /></Link></div>
-        {vipMe?.vip ? (
+        {vipMe?.vip || staffVip ? (
           <Link href="/vip" aria-label="VIP account" className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-400 text-gray-900 px-2 h-7 text-[10px] font-black tracking-wide">
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8Z" /></svg>
             VIP
