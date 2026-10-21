@@ -4,7 +4,7 @@ export interface Env {
   DB: D1Database;
 }
 
-const WC_URL = "https://xellnetwork.xyz/api/world-cup";
+const WC_URL = "https://primepitchsports.cc/api/world-cup";
 const WC_TOPICS = ["football", "football:world-cup"];
 const SOON_MIN = 15;
 
@@ -37,7 +37,7 @@ const TEAM_ALIASES: Record<string, string> = {
 const canon = (x: string) => { const n = norm(x); return TEAM_ALIASES[n] || n; };
 const keyOf = (f: Fixture) => `wc:${norm(f.home.name)}|${norm(f.away.name)}`;
 
-const fold = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const fold = (s: string) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const canonFold = (x: string) => { const n = fold(x); return TEAM_ALIASES[n] || n; };
 const teamKeyOf = (f: Fixture) => [canonFold(f.home.name), canonFold(f.away.name)].sort().join("|");
 

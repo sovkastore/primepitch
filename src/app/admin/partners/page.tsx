@@ -29,7 +29,7 @@ interface Confirm {
   run: (value: string) => void;
 }
 
-const SITE = "https://xellnetwork.xyz";
+const SITE = "https://primepitchsports.cc";
 const money = (n: unknown) => {
   const v = Number(n) || 0;
   if (Math.abs(v) > 0 && Math.abs(v) < 0.01) {
@@ -336,10 +336,10 @@ export default function PartnersAdmin() {
   function editSplit(p: Partner) {
     ask({
       title: `Set ${p.name}'s split`,
-      body: "Internal only \u2014 the partner never sees this number. Changing it affects only earnings from future uploads; past earnings stay at the old rate.",
+      body: "Internal only — the partner never sees this number. Changing it affects only earnings from future uploads; past earnings stay at the old rate.",
       confirmLabel: "Save split",
       input: { label: "Their share (%)", placeholder: "50" },
-      run: (v) => { const n = Number(v); if (!Number.isFinite(n) || n < 0 || n > 100) { setMsg({ type: "err", text: "Enter 0\u2013100" }); return; } post({ action: "split", code: p.code, split: n }, `${p.name}: split set to ${n}%.`); },
+      run: (v) => { const n = Number(v); if (!Number.isFinite(n) || n < 0 || n > 100) { setMsg({ type: "err", text: "Enter 0–100" }); return; } post({ action: "split", code: p.code, split: n }, `${p.name}: split set to ${n}%.`); },
     }, String(p.revenue_split ?? 50));
   }
   function setZone(p: Partner) {
@@ -438,7 +438,7 @@ export default function PartnersAdmin() {
     ask({
       title: p.full_stats ? `Limit ${p.name} to own people?` : `Show ${p.name} platform-wide stats?`,
       body: p.full_stats
-        ? `${p.name} will only see THEIR OWN referred visitors \u2014 not the whole platform's numbers.`
+        ? `${p.name} will only see THEIR OWN referred visitors — not the whole platform's numbers.`
         : `${p.name} will see whole-platform totals next to their own. (Default for new partners is own-people-only.)`,
       confirmLabel: p.full_stats ? "Limit to own" : "Show platform-wide",
       run: () => post({ action: "fullstats", code: p.code, full_stats: !p.full_stats }, `${p.name}: stats view updated.`),
@@ -477,7 +477,7 @@ export default function PartnersAdmin() {
   function rename(p: Partner) {
     ask({
       title: `Rename ${p.name}?`,
-      body: "Changes their display name only \u2014 code and login stay the same.",
+      body: "Changes their display name only — code and login stay the same.",
       confirmLabel: "Save name", input: { label: "New display name" },
       run: (v) => { const nn = v.trim(); if (!nn || nn === p.name) { setConfirm(null); return; } post({ code: p.code, name: nn, email: p.email, active: p.active }, `Renamed to ${nn}.`); },
     }, p.name);
@@ -738,7 +738,7 @@ export default function PartnersAdmin() {
           </div>
           <button onClick={createPartner} disabled={busy}
             className="mt-4 px-5 py-2.5 rounded-xl bg-[#3cac3b] text-white text-sm font-bold hover:bg-[#2e8e2d] disabled:opacity-60 transition-colors">
-            {busy ? "Saving\u2026" : "Add partner"}
+            {busy ? "Saving…" : "Add partner"}
           </button>
         </div>
       )}
@@ -993,7 +993,7 @@ export default function PartnersAdmin() {
               <button onClick={() => setApprove(null)} className="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200">Cancel</button>
               <button onClick={doApprove} disabled={busy}
                 className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60">
-                {busy ? "Creating\u2026" : "Create partner"}
+                {busy ? "Creating…" : "Create partner"}
               </button>
             </div>
           </div>
