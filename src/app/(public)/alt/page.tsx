@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { findScore, type ScoreInfo } from "@/lib/score-match";
-import { LIVE_EARLY_MIN } from "@/lib/api";
 import Link from "next/link";
 import Logo from "@/components/Logo";
 
@@ -28,6 +27,8 @@ const COUNTDOWN_WINDOW_MS = 60 * 60_000;
 // No football match can be over sooner than this after kickoff, so a
 // "finished" score signal before it is bad data, not a real full time.
 const FULL_TIME_EARLIEST_MS = 70 * 60_000;
+// The alt page goes live by the clock this many minutes before kickoff.
+const LIVE_EARLY_MIN = 5;
 
 function countdownLabel(msLeft: number): string {
   const total = Math.max(0, Math.floor(msLeft / 1000));

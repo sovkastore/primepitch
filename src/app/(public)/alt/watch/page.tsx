@@ -109,7 +109,7 @@ function AltWatchContent() {
       if (!document.hidden) m = await load();
       if (stopped) return;
       const ko = Number(m?.match_time || 0) * 1000;
-      const waiting = !!m && (m.servers?.length ?? 0) === 0 && ko > 0 && Date.now() >= ko - 10 * 60_000 && Date.now() <= ko + 15 * 60_000;
+      const waiting = !!m && (m.servers?.length ?? 0) === 0 && ko > 0 && Date.now() >= ko - 5 * 60_000 && Date.now() <= ko + 15 * 60_000;
       timer = setTimeout(run, waiting ? 15_000 : 60_000);
     };
     const onVisible = () => { if (!document.hidden) { if (timer) clearTimeout(timer); run(); } };
@@ -185,7 +185,7 @@ function AltWatchContent() {
             now > Number(match.match_time) * 1000 + 70 * 60_000;
           const isEnded =
             match.match_status === "ended" || (!!score?.ended && couldBeOver) || endedByClock;
-          const liveByClock = now > 0 && Number(match.match_time) > 0 && now >= Number(match.match_time) * 1000 - 10 * 60_000;
+          const liveByClock = now > 0 && Number(match.match_time) > 0 && now >= Number(match.match_time) * 1000 - 5 * 60_000;
           const scoreText =
             score && score.homeScore != null && score.awayScore != null
               ? ` • ${score.homeScore} - ${score.awayScore}${
