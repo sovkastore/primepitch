@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { findScore, type ScoreInfo } from "@/lib/score-match";
+import { LIVE_EARLY_MIN } from "@/lib/api";
 import Link from "next/link";
 import Logo from "@/components/Logo";
 
@@ -147,8 +148,8 @@ export default function AltPage() {
       const now = Date.now();
       return matchesRef.current.some((m) => {
         const ko = Number(m.match_time) * 1000;
-        const playable = (m.servers?.length ?? 0) > 0 && m.match_status !== "ended";
-        return !playable && Math.abs(ko - now) < 8 * 60_000;
+        const hasServers = (m.servers?.length ?? 0) > 0;
+        return !hasServers && m.match_status !== "ended" && now >= ko - LIVE_EARLY_MIN * 60_000 && now <= ko + 10 * 60_000;
       });
     };
     const run = async () => {
@@ -250,12 +251,20 @@ export default function AltPage() {
                     now > Number(match.match_time) * 1000 + FULL_TIME_EARLIEST_MS;
                   const isEnded =
                     match.match_status === "ended" || (!!score?.ended && couldBeOver) || endedByClock;
-                  // Mock matches (from BSD) don't have servers yet, so they are not clickable
-                  const isMock = match.servers && match.servers.length === 0;
-                  const isPlayable = !isEnded && !isMock;
+                  // Like the main site, a match is live by the CLOCK from
+                  // LIVE_EARLY_MIN before kickoff: the card opens and the watch
+                  // page shows the servers as soon as they exist. Before that
+                  // window a fixture with no servers yet is just upcoming.
+                  const hasServers = (match.servers?.length ?? 0) > 0;
+                  const liveByClock = now > 0 && Number(match.match_time) > 0 && now >= Number(match.match_time) * 1000 - LIVE_EARLY_MIN * 60_000;
+                  const isPlayable = !isEnded && (hasServers || liveByClock);
                   const hasScore = score != null && score.homeScore != null && score.awayScore != null;
                   const CardWrapper = isPlayable ? Link : "div";
-                  const wrapperProps = isPlayable ? { href: `/alt/watch?id=${matchId}`, className: "block group" } : { className: "block group opacity-75 cursor-default" };
+                  // A fixture the cron hasn't published yet is opened by its own
+                  // flag id, so the watch page can follow it to the real match.
+                  const isMockFixture = !hasServers && typeof match.match_id === "string" && /^(bsd|manual)-/.test(match.match_id);
+                  const linkId = isMockFixture ? String(match.match_id) : matchId;
+                  const wrapperProps = isPlayable ? { href: `/alt/watch?id=${encodeURIComponent(linkId)}`, className: "block group" } : { className: "block group opacity-75 cursor-default" };
                   
                   return (
                     <CardWrapper 
@@ -268,7 +277,7 @@ export default function AltPage() {
                             <span className="text-xs font-semibold text-gray-500 truncate max-w-[70%]">{match.league_name}</span>
                             {isEnded ? (
                               <span className="text-[11px] text-gray-600 bg-gray-100 px-3 py-1 rounded-full font-medium border border-gray-200">Ended</span>
-                            ) : match.match_status === "live" ? (
+                            ) : match.match_status === "live" || liveByClock ? (
                               <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full uppercase tracking-wider">
                                 <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
                                 LIVE
