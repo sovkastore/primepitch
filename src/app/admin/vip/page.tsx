@@ -12,6 +12,7 @@ type Order = {
   id: string; user_id: string; email: string | null; plan: string; months: number; price_usd: number;
   pay_currency: string; pay_amount: number | null; pay_address: string | null; payment_id: string | null;
   status: string; actually_paid: number | null; activated_at: string | null; created_at: string; updated_at: string;
+  commission_usd?: number | null; commission_partner?: string | null; ref_code?: string | null;
 };
 type Stats = { users: number; active_vip: number; revenue_usd: number; open_orders: number };
 type Data = { live: boolean; stats: Stats; users: User[]; orders: Order[] };
@@ -279,6 +280,11 @@ export default function AdminVipPage() {
                     <button disabled={!!busy} onClick={() => act({ action: "recheck_order", orderId: o.id }, "Checked with NOWPayments")} className="rounded-xl border border-gray-200 px-3 py-1.5 text-[12px] font-bold text-gray-700">Re-check</button>
                   )}
                   {o.activated_at && <span className="text-[11px] text-emerald-700 font-semibold self-center">activated {fmt(o.activated_at)}</span>}
+                  {o.commission_partner ? (
+                    <span className="text-[11px] text-amber-800 font-semibold self-center">partner {o.commission_partner} earned ${Number(o.commission_usd || 0).toFixed(2)}</span>
+                  ) : o.ref_code ? (
+                    <span className="text-[11px] text-gray-400 self-center">ref {o.ref_code}</span>
+                  ) : null}
                 </div>
               </div>
             );
