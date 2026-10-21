@@ -144,24 +144,24 @@ export function getUpcomingTime(match: Match): string {
 }
 
 export const SPORT_ICONS: Record<string, string> = {
-  football: "\u26BD",
-  basketball: "\uD83C\uDFC0",
-  "american-football": "\uD83C\uDFC8",
-  hockey: "\uD83C\uDFD2",
-  baseball: "\u26BE",
-  "motor-sports": "\uD83C\uDFCE\uFE0F",
-  fight: "\uD83E\uDD4A",
-  ufc: "\uD83E\uDD4A",
-  wwe: "\uD83C\uDFAD",
-  boxing: "\uD83E\uDD4A",
-  tennis: "\uD83C\uDFBE",
-  rugby: "\uD83C\uDFC9",
-  golf: "\u26F3",
-  billiards: "\uD83C\uDFB1",
-  afl: "\uD83C\uDFC9",
-  darts: "\uD83C\uDFAF",
-  cricket: "\uD83C\uDFCF",
-  other: "\uD83C\uDFAE",
+  football: "⚽",
+  basketball: "🏀",
+  "american-football": "🏈",
+  hockey: "🏒",
+  baseball: "⚾",
+  "motor-sports": "🏎️",
+  fight: "🥊",
+  ufc: "🥊",
+  wwe: "🎭",
+  boxing: "🥊",
+  tennis: "🎾",
+  rugby: "🏉",
+  golf: "⛳",
+  billiards: "🎱",
+  afl: "🏉",
+  darts: "🎯",
+  cricket: "🏏",
+  other: "🎮",
 };
 
 export const SPORT_LABELS: Record<string, string> = {
@@ -237,7 +237,7 @@ export function matchFlagKeys(match?: Match | null): string[] {
 export function normTeamName(s: string): string {
   return (s || "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // fold accents: á -> a
+    .replace(/[̀-ͯ]/g, "") // fold accents: á -> a
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 }
@@ -303,13 +303,18 @@ export function bothTeamsHaveVisuals(match?: Match | null): boolean {
   return hasTeamVisual(match.teams?.home) && hasTeamVisual(match.teams?.away);
 }
 
-// Streamed.pk rule: A match is only marked as LIVE if its official kickoff time has arrived (<= Date.now()).
-// If a 3rd-party broadcast server turns on early for an upcoming fixture, suppress it from the Live shelf
-// until its official scheduled kickoff time arrives (keeping it in Upcoming with its scheduled time pill).
-// Admin-created live events (source "admin") are always kept immediately.
+// A fixture joins the Live list this many minutes before its official kickoff.
+export const LIVE_EARLY_MIN = 10;
+
+// A match goes on the Live shelf from LIVE_EARLY_MIN minutes before its official
+// kickoff. If a 3rd-party broadcast server turns on earlier than that for an
+// upcoming fixture, keep it in Upcoming (with its scheduled time pill) until the
+// window opens. Admin-created live events (source "admin") are always kept.
 export function suppressPrematureLive(live: Match[], allMatches: Match[]): Match[] {
   if (!live || !live.length) return [];
-  const now = Date.now();
+  // "Now" shifted forward by the early window: anything kicking off within
+  // LIVE_EARLY_MIN minutes counts as live already.
+  const now = Date.now() + LIVE_EARLY_MIN * 60_000;
 
   const futureSchedule = new Map<string, Match>();
   for (const m of allMatches) {
@@ -329,7 +334,7 @@ export function suppressPrematureLive(live: Match[], allMatches: Match[]): Match
     const tk = normTeamKey(m);
     const scheduled = (tk && tk.includes("|") ? futureSchedule.get(tk) : undefined) || (m.id ? futureSchedule.get(m.id) : undefined);
     if (scheduled && scheduled.date > now) {
-      // Official kickoff is still in the future! Keep in Upcoming, do not show in Live yet.
+      // Official kickoff is still more than the early window away — keep in Upcoming.
       return false;
     }
 

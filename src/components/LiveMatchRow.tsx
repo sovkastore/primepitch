@@ -1,140 +1,93 @@
 "use client";
 
-import Link from "next/link";
-import TeamBadge from "@/components/TeamBadge";
-import { Match, getWatchHref, SPORT_LABELS, isFinishedStatus, showVersus, bothTeamsHaveVisuals } from "@/lib/api";
+import { useEffect, useState } from "react";
+import MatchRow from "@/components/MatchRow";
+import { Match, isFinishedStatus } from "@/lib/api";
 import type { LiveScore } from "@/lib/use-batch-scores";
 
-export default function LiveMatchRow({ match, score = null }: { match: Match; score?: LiveScore | null }) {
+// Left cell of a live row. Three states:
+//   • kickoff still ahead (the match joined the live list early) → MM:SS countdown
+//   • live → pulsing LIVE, with the score and minute when the feed has them
+//   • finished → grey FT with the final score
+function LiveCell({ match, score, ended }: { match: Match; score: LiveScore | null; ended: boolean }) {
+  const kickoff = match.date || 0;
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    setNow(Date.now());
+    if (!kickoff || kickoff <= Date.now()) return; // already started — nothing to count down
+    const i = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(i);
+  }, [kickoff]);
+
+  const hasScore = !!score && Number.isFinite(score.home) && Number.isFinite(score.away);
+  const scoreText = hasScore ? `${score!.home}-${score!.away}` : "";
+
+  if (ended) {
+    return (
+      <>
+        <p className="text-[10px] sm:text-[11px] font-extrabold text-gray-400 tracking-wide">FT</p>
+        {hasScore && <p className="text-[10px] font-bold text-gray-500 tabular-nums mt-0.5">{scoreText}</p>}
+      </>
+    );
+  }
+
+  const diff = now === null || !kickoff ? 0 : kickoff - now;
+  if (diff > 0) {
+    const total = Math.floor(diff / 1000);
+    const mm = String(Math.floor(total / 60)).padStart(2, "0");
+    const ss = String(total % 60).padStart(2, "0");
+    return (
+      <>
+        <p className="text-[13px] sm:text-[15px] font-extrabold text-red-500 tabular-nums leading-none">{mm}:{ss}</p>
+        <p className="text-[7px] sm:text-[8px] font-bold text-red-500/80 tracking-widest mt-1 flex items-center justify-center gap-1">
+          <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" /> STARTS IN
+        </p>
+      </>
+    );
+  }
+
+  const detail = hasScore
+    ? score!.period === "HT"
+      ? `${scoreText} · HT`
+      : score!.minute
+        ? `${scoreText} · ${score!.minute}'`
+        : scoreText
+    : "";
+
+  return (
+    <>
+      <p className="text-[10px] sm:text-[11px] font-extrabold text-red-500 tracking-wide flex items-center justify-center gap-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
+      </p>
+      {detail && <p className="text-[10px] font-bold text-gray-700 tabular-nums mt-0.5 whitespace-nowrap">{detail}</p>}
+    </>
+  );
+}
+
+// Live-fixture row: the same compact row as Upcoming, with LIVE / score / FT in
+// the left cell. Ended rows are not clickable — an honest "this finished".
+export default function LiveMatchRow({
+  match,
+  score = null,
+  showSport = true,
+}: {
+  match: Match;
+  score?: LiveScore | null;
+  showSport?: boolean;
+}) {
   if (!match) return null;
-  const href = getWatchHref(match);
-  const versus = showVersus(match);
-  const useTeamLayout = versus && bothTeamsHaveVisuals(match);
-  const homeName = match.teams?.home?.name || "";
-  const awayName = match.teams?.away?.name || "";
-  const titleText =
-    versus && homeName && awayName
-      ? `${homeName} vs ${awayName}`
-      : (match.title || "Live Match");
-  const label = (match.category && SPORT_LABELS[match.category]) || match.category || "";
   // Ended = admin forced it (manual "End now"), or the score feed reports the
   // match finished (extra-time / penalties safe).
   const ended = match.ended === true || isFinishedStatus(score?.status);
-  const hot = match.hot === true && !ended;
 
-  const inner = (
-    <div
-      className={
-        "rounded-2xl card-lift p-4 overflow-hidden " +
-        (hot
-          ? "bg-white border-2 border-red-300 ring-1 ring-red-200 animate-hot-glow"
-          : "bg-white border border-gray-100")
-      }
-    >
-      {/* Thin accent */}
-      <div className={`h-1 -mx-4 -mt-4 mb-3 ${ended ? "bg-gray-200" : "accent-live"}`} />
-      {/* Top: LIVE / FULL TIME badge + sport */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5">
-          {ended ? (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 border border-gray-200 rounded-lg text-[9px] font-black text-gray-500 tracking-wide">
-              FULL TIME
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 border border-red-100 rounded-lg text-[9px] font-black text-red-500 tracking-wide">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              LIVE
-            </span>
-          )}
-          {hot && (
-            <span className="inline-flex items-center gap-0.5 rounded-lg bg-gradient-to-r from-red-600 via-red-500 to-orange-500 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-white ring-1 ring-red-300/70 animate-hot-glow">
-              <span className="animate-hot-flame">🔥</span> HOT
-            </span>
-          )}
-        </div>
-        <span className="text-[10px] font-semibold text-gray-400 truncate max-w-[55%] text-right">{score?.league || label}</span>
-      </div>
-
-      {useTeamLayout ? (
-        <div className="flex items-center gap-3">
-          {/* Home team */}
-          <div className="flex-1 flex flex-col items-center gap-2">
-            <TeamBadge
-              badge={match.teams?.home?.badge}
-              name={homeName}
-              size="lg"
-              sport={match.category}
-            />
-            <p className="text-[12px] font-bold text-gray-900 text-center truncate w-full">
-              {homeName}
-            </p>
-          </div>
-
-          {/* Score or VS */}
-          {score ? (
-            <div className="flex flex-col items-center shrink-0">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-900 rounded-lg">
-                <span className="text-sm font-black text-white tabular-nums">{score.home}</span>
-                <span className="text-[10px] text-gray-400 font-bold">-</span>
-                <span className="text-sm font-black text-white tabular-nums">{score.away}</span>
-              </div>
-              {ended ? (
-                <span className="text-[8px] font-bold text-gray-400 mt-1">FT</span>
-              ) : score.period === "HT" ? (
-                <span className="text-[8px] font-bold text-amber-500 mt-1">HT</span>
-              ) : score.minute ? (
-                <span className="text-[8px] font-bold text-emerald-500 mt-1">{score.minute}&apos;</span>
-              ) : null}
-            </div>
-          ) : (
-            <span className="text-[11px] text-gray-400 font-extrabold tracking-wider shrink-0">VS</span>
-          )}
-
-          {/* Away team */}
-          <div className="flex-1 flex flex-col items-center gap-2">
-            <TeamBadge
-              badge={match.teams?.away?.badge}
-              name={awayName}
-              size="lg"
-              sport={match.category}
-            />
-            <p className="text-[12px] font-bold text-gray-900 text-center truncate w-full">
-              {awayName}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="text-center">
-          <p className="text-[13px] font-bold text-gray-900">{titleText}</p>
-          {score && (
-            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-900 rounded-lg">
-              <span className="text-sm font-black text-white tabular-nums">{score.home}</span>
-              <span className="text-[10px] text-gray-400 font-bold">-</span>
-              <span className="text-sm font-black text-white tabular-nums">{score.away}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* WATCH / ENDED button */}
-      <div className="mt-3">
-        {ended ? (
-          <span className="flex items-center justify-center gap-2 w-full py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-[11px] font-black text-gray-400 tracking-wide cursor-not-allowed select-none">
-            ENDED
-          </span>
-        ) : (
-          <span className="flex items-center justify-center gap-2 w-full py-2.5 btn-gradient rounded-xl text-[11px] font-black text-white tracking-wide">
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-            </svg>
-            WATCH
-          </span>
-        )}
-      </div>
-    </div>
+  return (
+    <MatchRow
+      match={match}
+      tone={ended ? "ended" : "live"}
+      showSport={showSport}
+      clickable={!ended}
+      left={<LiveCell match={match} score={score} ended={ended} />}
+    />
   );
-
-  // Ended cards are not clickable — they're an honest "this finished" state.
-  if (ended) return <div className="block select-none">{inner}</div>;
-  return <Link href={href} className="block group">{inner}</Link>;
 }

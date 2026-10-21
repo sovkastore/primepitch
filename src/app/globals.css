@@ -151,6 +151,23 @@ body {
   vertical-align: middle;
 }
 
+/* Live section: same kicker, red and pulsing. */
+.kicker-dot-live::before {
+  background: #ef4444;
+  animation: kickerPulse 1.6s ease-in-out infinite;
+}
+@keyframes kickerPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45); }
+  50%      { opacity: 0.6; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+
+/* Fixture rows: stop mobile Chrome's automatic text boosting from enlarging
+   the team names past the width we lay out for (Firefox never did this). */
+.match-row {
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+}
+
 /* Admin-toggled HOT badge — a soft, STILL glow (no scaling/movement) so it
    reads as special without being distracting. */
 @keyframes hotGlow {

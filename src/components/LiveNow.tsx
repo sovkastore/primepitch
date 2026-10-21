@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import LiveMatchRow from "@/components/LiveMatchRow";
 import { Match, getMatchKey } from "@/lib/api";
 import { useBatchScores } from "@/lib/use-batch-scores";
@@ -22,18 +21,12 @@ export default function LiveNow({ matches }: { matches: Match[] }) {
 
   return (
     <section className="max-w-[1400px] mx-auto px-4 lg:px-6 py-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-          </span>
-          <h2 className="text-[13px] font-extrabold text-gray-900 tracking-wider uppercase">Live Now</h2>
-          <span className="text-[11px] text-gray-400 font-semibold ml-1">{matches.length} streams</span>
-        </div>
+      {/* Same kicker as "● UPCOMING" below, with a pulsing red dot instead. */}
+      <div className="mb-4">
+        <h2 className="text-[13px] font-extrabold text-gray-900 tracking-wider uppercase kicker-dot kicker-dot-live">Live</h2>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {sortedVisible.map((match) => (
           <LiveMatchRow key={getMatchKey(match)} match={match} score={scores[getMatchKey(match)] || null} />
         ))}

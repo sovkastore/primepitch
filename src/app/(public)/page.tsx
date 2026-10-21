@@ -7,7 +7,7 @@ import PromoBanner from "@/components/PromoBanner";
 import LiveNow from "@/components/LiveNow";
 import TodayMatches from "@/components/Upcoming";
 import Logo from "@/components/Logo";
-import { Match, getLiveMatches, getMatchFlags, getMatchKey, getMatchStatus, dedupeMatches, suppressPrematureLive, isFlagged, normTeamKey } from "@/lib/api";
+import { Match, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches, suppressPrematureLive, isFlagged, normTeamKey, LIVE_EARLY_MIN } from "@/lib/api";
 import { visibleInterval } from "@/lib/poll";
 import { readPageCache, writePageCache } from "@/lib/page-cache";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
@@ -144,13 +144,13 @@ export default function HomePage() {
   // Filter out admin-hidden matches.
   const mergedLive = liveMatches.filter((m) => !isFlagged(m, hiddenIds) && !hiddenTitles.has(normTeamKey(m)));
 
-  // Automatically move upcoming matches to the Live section if their kickoff time has arrived (<= 0)
-  // and they haven't ended (> -120 mins). This gives them a WATCH button instead of sitting in
-  // Upcoming saying "STARTING...", allowing users to go to the watch page and see the "Starting soon" banner.
+  // Move a fixture from Upcoming into the Live list 10 minutes before kickoff
+  // (its row counts down, then reads LIVE), and keep it there until it has
+  // clearly ended (> -120 mins) even if no stream has been published.
   const newlyLive = matches.filter((m) => {
     if (isFlagged(m, hiddenIds) || hiddenTitles.has(normTeamKey(m))) return false;
     const diffMin = (m.date - Date.now()) / 1000 / 60;
-    return diffMin <= 0 && diffMin > -120;
+    return diffMin <= LIVE_EARLY_MIN && diffMin > -120;
   });
 
   const isPopularMatch = (m?: Match | null) => {
