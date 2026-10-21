@@ -30,13 +30,17 @@ export default function DisclaimerFooter() {
 
           {/* Nav Links */}
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 mt-10">
-            <Link href="/help" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">Privacy Policy</Link>
+            <Link href="/about" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">About</Link>
             <span className="w-1 h-1 rounded-full bg-gray-700" />
-            <Link href="/help" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">Terms of Service</Link>
+            <Link href="/privacy" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">Privacy Policy</Link>
             <span className="w-1 h-1 rounded-full bg-gray-700" />
-            <Link href="/help" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">DMCA</Link>
+            <Link href="/terms" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">Terms of Service</Link>
             <span className="w-1 h-1 rounded-full bg-gray-700" />
-            <Link href="/help" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">Contact</Link>
+            <Link href="/dmca" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">DMCA</Link>
+            <span className="w-1 h-1 rounded-full bg-gray-700" />
+            <Link href="/contact" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">Contact</Link>
+            <span className="w-1 h-1 rounded-full bg-gray-700" />
+            <Link href="/help" className="text-[12px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4">Help</Link>
           </div>
 
           {/* Copyright */}

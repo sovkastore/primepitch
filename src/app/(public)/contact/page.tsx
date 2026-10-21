@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { CONTACT_EMAIL } from "@/components/InfoPage";
 
 type PublicSocial = { id: string; label: string; url: string };
 
@@ -25,13 +27,28 @@ export default function ContactPage() {
         </p>
       </div>
 
+      {/* Email first — works even when no social channel is switched on. */}
+      <a
+        href={`mailto:${CONTACT_EMAIL}`}
+        className="flex items-center justify-between px-4 py-3 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-sm font-semibold text-gray-800"
+      >
+        <span>
+          Email us
+          <span className="block text-[12px] font-medium text-gray-500">{CONTACT_EMAIL}</span>
+        </span>
+        <span className="text-emerald-600">↗</span>
+      </a>
+      <p className="text-[12px] text-gray-500 text-center">
+        Copyright or takedown requests: see our <Link href="/dmca" className="font-semibold text-emerald-700 underline underline-offset-4">DMCA page</Link>.
+      </p>
+
       {!loaded && (
         <p className="text-center text-sm text-gray-500">Loading…</p>
       )}
 
       {loaded && links.length === 0 && (
         <p className="text-center text-sm text-gray-500">
-          Contact channels are being set up. Please check back soon.
+          More channels are being set up &mdash; email is the quickest way to reach us for now.
         </p>
       )}
 
