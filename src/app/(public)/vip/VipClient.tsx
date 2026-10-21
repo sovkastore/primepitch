@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { VIP_PLANS, VIP_COINS, VIP_CONTACT, VIP_COPY, type PlanId, type CoinId } from "@/lib/vip";
+import { qrModules, qrPath } from "@/lib/qr";
 
 type Me = { id: string; email: string; vip: boolean; vipUntil: string | null };
 type Order = {
@@ -269,6 +270,15 @@ export default function VipClient() {
             <button type="submit" disabled={authBusy} className="w-full rounded-xl bg-gray-900 text-white font-black py-3 text-[14px] disabled:opacity-60">
               {authBusy ? "One moment…" : mode === "signup" ? "Create account" : "Log in"}
             </button>
+            {mode === "login" && (
+              <p className="text-[12px] text-gray-500 leading-relaxed">
+                Forgot your password? Message us on{" "}
+                <a href={VIP_CONTACT.telegram} target="_blank" rel="noopener noreferrer" className="font-bold text-gray-800 underline underline-offset-4">Telegram</a>{" "}
+                or{" "}
+                <a href={VIP_CONTACT.whatsapp} target="_blank" rel="noopener noreferrer" className="font-bold text-gray-800 underline underline-offset-4">WhatsApp</a>{" "}
+                with your account email and we&rsquo;ll reset it.
+              </p>
+            )}
             <p className="text-[12px] text-gray-500 leading-relaxed">
               An account is just where your VIP lives. One person at a time: if someone else logs in with it, the first device is signed out.
             </p>
@@ -330,6 +340,7 @@ export default function VipClient() {
 
               <div>
                 <div className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-1">To this address</div>
+                {order.address && <AddressQr text={order.address} />}
                 <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 font-mono text-[13px] break-all text-gray-900 leading-relaxed">{order.address}</div>
                 <button type="button" onClick={() => order.address && copy(order.address, "address")} className="mt-2 w-full rounded-xl bg-gray-900 text-white font-black py-3 text-[14px]">{copied === "address" ? "Address copied" : "Copy address"}</button>
               </div>
@@ -366,6 +377,29 @@ export default function VipClient() {
           </a>
         </div>
       </section>
+    </div>
+  );
+}
+
+// The address as a QR code so a phone wallet can scan it from a desktop screen.
+function AddressQr({ text }: { text: string }) {
+  const { path, size } = useMemo(() => {
+    try { return qrPath(qrModules(text)); } catch { return { path: "", size: 0 }; }
+  }, [text]);
+  if (!path) return null;
+  const quiet = 2;
+  return (
+    <div className="flex justify-center mb-3">
+      <svg
+        viewBox={`${-quiet} ${-quiet} ${size + quiet * 2} ${size + quiet * 2}`}
+        className="w-44 h-44 rounded-xl border border-gray-200 bg-white"
+        shapeRendering="crispEdges"
+        role="img"
+        aria-label="Payment address QR code"
+      >
+        <rect x={-quiet} y={-quiet} width={size + quiet * 2} height={size + quiet * 2} fill="#fff" />
+        <path d={path} fill="#111827" />
+      </svg>
     </div>
   );
 }
