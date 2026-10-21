@@ -11,6 +11,7 @@ import { Match, getLiveMatches, getMatchFlags, getMatchKey, dedupeMatches, suppr
 import { visibleInterval } from "@/lib/poll";
 import { readPageCache, writePageCache } from "@/lib/page-cache";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
+import StaffAdsToggle from "@/components/StaffAdsToggle";
 
 const SPORTS = [
   "football", "basketball", "american-football", "hockey", "baseball",
@@ -216,6 +217,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen">
       <div className="flex-1 pb-10">
+        <StaffAdsToggle />
         <SportsNav activeSport={activeSport} onSelect={selectSport} />
         {activeSport === "football" && <LeagueNav active="all" />}
         {activeSport === "football" && (
@@ -250,4 +252,3 @@ export default function HomePage() {
     </div>
   );
 }
-
