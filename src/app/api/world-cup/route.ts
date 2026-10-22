@@ -241,9 +241,10 @@ export async function GET() {
     }
 
     const data = { groups: stData.groups || {}, fixtures };
-    // The tournament is over: once BSD answers properly (standings OK and
-    // fixtures present) freeze for good so BSD is never called again.
-    if (fixtures.length > 0 && stRes.ok) await writeFrozen(data);
+    // The tournament is over: once BSD answers properly (both calls succeed,
+    // even if it now has no World Cup data) freeze for good so BSD is never
+    // called again.
+    if (fxRes.ok && stRes.ok) await writeFrozen(data);
     cache = { data, ts: now };
     await writeShared(data, now);
     return NextResponse.json(data);
