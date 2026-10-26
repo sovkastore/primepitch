@@ -55,23 +55,57 @@ export function nameSimilarity(a: string, b: string): number {
   return Math.max(wordScore, bigramScore);
 }
 
+// Light clean-up that keeps every word (unlike normalizeTeamName, which drops
+// "deportivo", "real", "fc"…), used for the loose same-kickoff check below.
+function rawWords(name: string): string[] {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3);
+}
+
+// Loose "could be the same club" check: shared word, or one word abbreviates
+// the other ("dep" / "deportivo").
+function looseSameTeam(a: string, b: string): boolean {
+  const wa = rawWords(a), wb = rawWords(b);
+  for (const x of wa) for (const y of wb) {
+    if (x === y || x.startsWith(y) || y.startsWith(x)) return true;
+  }
+  return nameSimilarity(normalizeTeamName(a), normalizeTeamName(b)) >= 0.45;
+}
+
 // Are these two feed entries the same real match? Same kickoff window and the
 // team pairs are clearly the same, allowing one spelling to differ
 // ("FC Bayern München" vs "FC Bayern Munich") as long as the other team is a
 // solid match.
 export function sameFixture(
-  x: { home: string; away: string; time: number },
-  y: { home: string; away: string; time: number },
+  x: { home: string; away: string; time: number; rawHome?: string; rawAway?: string },
+  y: { home: string; away: string; time: number; rawHome?: string; rawAway?: string },
   windowSec = 3 * 3600,
 ): boolean {
   if (x.time && y.time && Math.abs(x.time - y.time) > windowSec) return false;
-  const pair = (h1: string, a1: string, h2: string, a2: string) => {
+  // Same kickoff (within 15 min): a club cannot play two games at once, so one
+  // clear team match plus a loose match on the other side is enough
+  // ("RC Deportivo" vs "Dep. La Coruna" next to the same Atlético Madrid).
+  const sameKickoff = !!(x.time && y.time && Math.abs(x.time - y.time) <= 15 * 60);
+  const pair = (h1: string, a1: string, h2: string, a2: string, rh1?: string, ra1?: string, rh2?: string, ra2?: string) => {
     const s1 = nameSimilarity(h1, h2), s2 = nameSimilarity(a1, a2);
     // 0.72 keeps "bayern munchen"/"bayern munich" (≈0.78) together and
     // "manchester united"/"manchester city" (≈0.64) apart.
-    return (s1 >= 0.85 && s2 >= 0.72) || (s2 >= 0.85 && s1 >= 0.72);
+    if ((s1 >= 0.85 && s2 >= 0.72) || (s2 >= 0.85 && s1 >= 0.72)) return true;
+    if (sameKickoff) {
+      if (s1 >= 0.85 && looseSameTeam(ra1 || a1, ra2 || a2)) return true;
+      if (s2 >= 0.85 && looseSameTeam(rh1 || h1, rh2 || h2)) return true;
+    }
+    return false;
   };
-  return pair(x.home, x.away, y.home, y.away) || pair(x.home, x.away, y.away, y.home);
+  return (
+    pair(x.home, x.away, y.home, y.away, x.rawHome, x.rawAway, y.rawHome, y.rawAway) ||
+    pair(x.home, x.away, y.away, y.home, x.rawHome, x.rawAway, y.rawAway, y.rawHome)
+  );
 }
 
 const KICKOFF_TOLERANCE_SECONDS = 30 * 60;

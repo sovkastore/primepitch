@@ -42,6 +42,8 @@ function bestVariantIndex(matches: RapidMatch[], idx: number): number {
     h: normalizeTeamName(m.home_team_name || ""),
     a: normalizeTeamName(m.away_team_name || ""),
     t: Number(m.match_time || 0),
+    rh: m.home_team_name || "",
+    ra: m.away_team_name || "",
   });
   const score = (m: RapidMatch) =>
     ((m.servers?.length ?? 0) > 0 ? 1000 : 0) +
@@ -52,7 +54,7 @@ function bestVariantIndex(matches: RapidMatch[], idx: number): number {
   for (let i = 0; i < matches.length; i++) {
     if (i === best) continue;
     const c = norm(matches[i]);
-    const same = sameFixture({ home: target.h, away: target.a, time: target.t }, { home: c.h, away: c.a, time: c.t });
+    const same = sameFixture({ home: target.h, away: target.a, time: target.t, rawHome: target.rh, rawAway: target.ra }, { home: c.h, away: c.a, time: c.t, rawHome: c.rh, rawAway: c.ra });
     if (same && score(matches[i]) > score(matches[best])) best = i;
   }
   return best;

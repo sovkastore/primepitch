@@ -1,7 +1,7 @@
 "use client";
 
 import LiveMatchRow from "@/components/LiveMatchRow";
-import { Match, getMatchKey } from "@/lib/api";
+import { Match, getMatchKey, isFinishedStatus } from "@/lib/api";
 import { useBatchScores } from "@/lib/use-batch-scores";
 
 export default function LiveNow({ matches }: { matches: Match[] }) {
@@ -9,12 +9,17 @@ export default function LiveNow({ matches }: { matches: Match[] }) {
   // ONE request covers scores for every visible card (was one request per card).
   const scores = useBatchScores(visible);
 
+  // Order: HOT live matches first, then the other live matches with the most
+  // recent kickoff on top, and finished (FT) matches sink to the bottom.
+  const isEnded = (m: Match) => m.ended === true || isFinishedStatus(scores[getMatchKey(m)]?.status);
   const sortedVisible = [...visible].sort((a, b) => {
-    const aEnded = a.ended === true || (scores[getMatchKey(a)]?.status && ["Finished", "Match Finished", "FT", "AET", "PEN"].includes(scores[getMatchKey(a)]?.status || ""));
-    const bEnded = b.ended === true || (scores[getMatchKey(b)]?.status && ["Finished", "Match Finished", "FT", "AET", "PEN"].includes(scores[getMatchKey(b)]?.status || ""));
-    if (aEnded && !bEnded) return 1;
-    if (!aEnded && bEnded) return -1;
-    return 0;
+    const aEnded = isEnded(a), bEnded = isEnded(b);
+    if (aEnded !== bEnded) return aEnded ? 1 : -1;
+    if (!aEnded) {
+      const aHot = a.hot === true, bHot = b.hot === true;
+      if (aHot !== bHot) return aHot ? -1 : 1;
+    }
+    return (b.date || 0) - (a.date || 0);
   });
 
   if (matches.length === 0) return null;
