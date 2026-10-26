@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getD1 } from "@/lib/d1";
+import { edgeMemo } from "@/lib/edge-memo";
 
 // Lightweight, self-contained admin auth — zero Supabase dependency.
 // Admin sessions use the same HMAC-signed cookie pattern as partner auth.
@@ -9,22 +10,20 @@ import { getD1 } from "@/lib/d1";
 export const ADMIN_COOKIE = "pp_admin";
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-let cachedSecret: { at: number; val: string } | null = null;
-
+// Read through edgeMemo: one database read per city every 10 minutes, with a
+// KV backup — so during a traffic rush a slow database no longer logs the
+// admin out (that used to send you back to the login page on big-match nights).
 async function getSecret(): Promise<string> {
-  if (cachedSecret && Date.now() - cachedSecret.at < 5 * 60 * 1000) return cachedSecret.val;
-  const d1 = await getD1();
-  if (!d1) throw new Error("D1_BINDING_MISSING");
-  const row = await d1.prepare(`SELECT value FROM d1_site_settings WHERE key = 'admin_session_secret'`).first<{ value: string }>();
-  if (row?.value) {
-    cachedSecret = { at: Date.now(), val: row.value };
-    return row.value;
-  }
-  // Auto-generate a secret on first use
-  const newSecret = crypto.randomUUID() + "-" + crypto.randomUUID();
-  await d1.prepare(`INSERT OR REPLACE INTO d1_site_settings (key, value, updated_at) VALUES ('admin_session_secret', ?, datetime('now'))`).bind(newSecret).run();
-  cachedSecret = { at: Date.now(), val: newSecret };
-  return newSecret;
+  return edgeMemo("admin_session_secret", 10 * 60_000, async () => {
+    const d1 = await getD1();
+    if (!d1) throw new Error("D1_BINDING_MISSING");
+    const row = await d1.prepare(`SELECT value FROM d1_site_settings WHERE key = 'admin_session_secret'`).first<{ value: string }>();
+    if (row?.value) return row.value;
+    // Auto-generate a secret on first use
+    const newSecret = crypto.randomUUID() + "-" + crypto.randomUUID();
+    await d1.prepare(`INSERT OR REPLACE INTO d1_site_settings (key, value, updated_at) VALUES ('admin_session_secret', ?, datetime('now'))`).bind(newSecret).run();
+    return newSecret;
+  }, { kv: true });
 }
 
 function b64url(bytes: ArrayBuffer | Uint8Array): string {

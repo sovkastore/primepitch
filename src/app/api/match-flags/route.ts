@@ -116,7 +116,11 @@ export async function GET() {
     return NextResponse.json(result);
   } catch (e) {
     console.error("DB error in match-flags:", e);
-    // If DB is down, serve stale cache so the user sees something!
-    return NextResponse.json(cache?.data ?? { hidden: [], featured: [], hot: [], popular: [], hiddenTitles: [], notices: {} });
+    // If DB is down, serve this instance's last good copy; with none, say so
+    // (503) rather than an empty list — an empty answer made the Big Matches
+    // page show "no matches" during the big-match rush. The edge layer then
+    // keeps serving its last good shared copy.
+    if (cache?.data) return NextResponse.json(cache.data, { headers: { "x-pp-degraded": "1" } });
+    return NextResponse.json({ error: "flags temporarily unavailable" }, { status: 503 });
   }
 }
