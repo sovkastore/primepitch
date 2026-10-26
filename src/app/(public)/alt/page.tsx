@@ -197,6 +197,26 @@ export default function AltPage() {
 
   const sortedDates = Object.keys(matchesByDay).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
+  // Ended = admin force-end, OR the score feed says full-time (only trusted
+  // once the match could plausibly be over), OR the clock says it must be
+  // over (kickoff + 130 min). Shared by the card and the ordering below.
+  const matchEnded = (match: ProMatch) => {
+    const matchId = `alt-${match.home_team_name.replace(/\\s+/g, '')}-${match.away_team_name.replace(/\\s+/g, '')}-${match.match_time}`;
+    const score = findScore(scores, matchId, match.home_team_name, match.away_team_name, match.match_id);
+    const ko = Number(match.match_time) * 1000;
+    const endedByClock = now > 0 && ko > 0 && now > ko + 130 * 60_000;
+    const couldBeOver = now > 0 && ko > 0 && now > ko + FULL_TIME_EARLIEST_MS;
+    return match.match_status === "ended" || (!!score?.ended && couldBeOver) || endedByClock;
+  };
+  // Within each day, ended matches sink to the bottom; the rest keep kickoff order.
+  for (const date of sortedDates) {
+    matchesByDay[date] = [...matchesByDay[date]].sort((a, b) => {
+      const ae = matchEnded(a), be = matchEnded(b);
+      if (ae !== be) return ae ? 1 : -1;
+      return Number(a.match_time) - Number(b.match_time);
+    });
+  }
+
   return (
     <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-8 min-h-screen">
       <div className="mb-6">
@@ -239,21 +259,7 @@ export default function AltPage() {
                   // Reconstruct a stable ID for the watch page instead of relying on array index
                   const matchId = `alt-${match.home_team_name.replace(/\\s+/g, '')}-${match.away_team_name.replace(/\\s+/g, '')}-${match.match_time}`;
                   const score = findScore(scores, matchId, match.home_team_name, match.away_team_name, match.match_id);
-                  // Ended = admin force-end, OR the score feed says full-time,
-                  // OR the clock says the match must be over (kickoff + 130min)
-                  const endedByClock =
-                    now > 0 &&
-                    Number(match.match_time) > 0 &&
-                    now > Number(match.match_time) * 1000 + 130 * 60_000;
-                  // A score feed can wrongly report a fixture finished before it
-                  // has even kicked off — only trust that flag once the match
-                  // could plausibly be over.
-                  const couldBeOver =
-                    now > 0 &&
-                    Number(match.match_time) > 0 &&
-                    now > Number(match.match_time) * 1000 + FULL_TIME_EARLIEST_MS;
-                  const isEnded =
-                    match.match_status === "ended" || (!!score?.ended && couldBeOver) || endedByClock;
+                  const isEnded = matchEnded(match);
                   // Like the main site, a match is live by the CLOCK from
                   // LIVE_EARLY_MIN before kickoff: the card opens and the watch
                   // page shows the servers as soon as they exist. Before that
