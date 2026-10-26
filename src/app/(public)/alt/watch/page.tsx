@@ -271,7 +271,16 @@ function AltWatchContent() {
                     : "bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700 hover:border-gray-300"
                 }`}
               >
-                {server.name} {server.type && <span className="text-[10px] uppercase opacity-50 ml-2">({server.type})</span>}
+                {server.name}
+                {serverQuality(server.url) && (
+                  <span
+                    className={`ml-2 text-[10px] font-extrabold px-1.5 py-0.5 rounded align-middle ${
+                      serverQuality(server.url) === "HD" ? "bg-emerald-600 text-white" : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {serverQuality(server.url)}
+                  </span>
+                )}
                 {server.url.startsWith("http://") && <span className="block text-[9px] text-red-400 mt-1">HTTP Only (May require new tab)</span>}
               </button>
             ))}
@@ -280,6 +289,16 @@ function AltWatchContent() {
       </div>
     </div>
   );
+}
+
+// HD / SD from the stream link itself — the provider names its renditions
+// "..._lhd.m3u8" / "..._lsd.m3u8" or "/hd-..." / "/sd-...". Nothing shown
+// when the link doesn't say.
+function serverQuality(url: string): "HD" | "SD" | null {
+  const path = (url || "").split("?")[0].toLowerCase();
+  if (/(_lhd|_hd)\.m3u8$|\/(hd|fhd)[-_]/.test(path)) return "HD";
+  if (/(_lsd|_sd)\.m3u8$|\/sd[-_]/.test(path)) return "SD";
+  return null;
 }
 
 export default function AltWatchPage() {
