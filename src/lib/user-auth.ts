@@ -1,4 +1,5 @@
 import { getD1 } from "@/lib/d1";
+import { edgeMemo } from "@/lib/edge-memo";
 
 // ---------------------------------------------------------------------------
 // Member accounts (VIP).
@@ -43,26 +44,23 @@ export type Me = {
 };
 
 // ---- secret ---------------------------------------------------------------
-let cachedSecret: { at: number; val: string } | null = null;
-
+// Read through edgeMemo: one database read per city every 10 minutes, with a
+// KV backup, so a busy database can't sign people out.
 async function getSecret(): Promise<string> {
-  if (cachedSecret && Date.now() - cachedSecret.at < 5 * 60 * 1000) return cachedSecret.val;
-  const d1 = await getD1();
-  if (!d1) throw new Error("D1_BINDING_MISSING");
-  const row = await d1
-    .prepare(`SELECT value FROM d1_site_settings WHERE key = 'user_session_secret'`)
-    .first<{ value: string }>();
-  if (row?.value) {
-    cachedSecret = { at: Date.now(), val: row.value };
-    return row.value;
-  }
-  const fresh = crypto.randomUUID() + "-" + crypto.randomUUID();
-  await d1
-    .prepare(`INSERT OR REPLACE INTO d1_site_settings (key, value, updated_at) VALUES ('user_session_secret', ?, datetime('now'))`)
-    .bind(fresh)
-    .run();
-  cachedSecret = { at: Date.now(), val: fresh };
-  return fresh;
+  return edgeMemo("user_session_secret", 10 * 60_000, async () => {
+    const d1 = await getD1();
+    if (!d1) throw new Error("D1_BINDING_MISSING");
+    const row = await d1
+      .prepare(`SELECT value FROM d1_site_settings WHERE key = 'user_session_secret'`)
+      .first<{ value: string }>();
+    if (row?.value) return row.value;
+    const fresh = crypto.randomUUID() + "-" + crypto.randomUUID();
+    await d1
+      .prepare(`INSERT OR REPLACE INTO d1_site_settings (key, value, updated_at) VALUES ('user_session_secret', ?, datetime('now'))`)
+      .bind(fresh)
+      .run();
+    return fresh;
+  }, { kv: true });
 }
 
 // ---- encoding helpers -----------------------------------------------------

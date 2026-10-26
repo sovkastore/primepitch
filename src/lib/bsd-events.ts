@@ -1,4 +1,5 @@
 import { getD1 } from "@/lib/d1";
+import { edgeMemo, edgeMemoForget } from "@/lib/edge-memo";
 
 // One shared copy of the BSD live-events feed for the whole site.
 //
@@ -64,7 +65,7 @@ export interface BsdEventsResult {
 // Per-instance memory cache so a burst of requests in the same instance
 // doesn't each read D1. Short on purpose: D1 is the source of truth.
 let local: { row: CacheRow; readAt: number } | null = null;
-const LOCAL_MS = 5_000;
+const LOCAL_MS = 10_000;
 
 function parseRateLimit(res: Response): Partial<BsdStatus> {
   const out: Partial<BsdStatus> = {};
@@ -151,14 +152,32 @@ export async function getBsdEvents(source: string): Promise<BsdEventsResult> {
   const d1 = await getD1();
   if (!d1) return { events: [], ageMs: Infinity, refreshed: false };
 
-  let row = ((await readRow(d1, CACHE_KEY)) as CacheRow | null) ?? empty;
-  const fresh = now - row.fetchedAt < REFRESH_MS;
-  const paused = now < row.pausedUntil;
-  // Another instance started a refresh moments ago — let it finish rather
-  // than firing a duplicate call for the same minute.
-  const claimedByOther = now - row.claimedAt < 15_000 && row.claimedAt > row.fetchedAt;
+  // The ~450 KB copy is shared per city through the edge cache (edgeMemo),
+  // so the database is read about once per 15 s per city instead of once per
+  // instance every 5 s. Only when that copy says a refresh is due is the row
+  // re-read from the database itself, so two cities never both call BSD for
+  // the same minute.
+  const canRefresh = (r: CacheRow) =>
+    !(now - r.fetchedAt < REFRESH_MS) && // not fresh
+    !(now < r.pausedUntil) && // not paused (429 backoff)
+    // Another instance started a refresh moments ago — let it finish rather
+    // than firing a duplicate call for the same minute.
+    !(now - r.claimedAt < 15_000 && r.claimedAt > r.fetchedAt);
 
-  if (fresh || paused || claimedByOther) {
+  let row: CacheRow = empty;
+  try {
+    row = ((await edgeMemo(CACHE_KEY, 15_000, () => readRow(d1, CACHE_KEY))) as CacheRow | null) ?? empty;
+  } catch {
+    if (local) return { events: local.row.events, ageMs: now - local.row.fetchedAt, refreshed: false };
+  }
+  if (canRefresh(row)) {
+    try {
+      row = ((await readRow(d1, CACHE_KEY)) as CacheRow | null) ?? empty;
+    } catch {
+      /* database busy: keep the shared copy */
+    }
+  }
+  if (!canRefresh(row)) {
     local = { row, readAt: now };
     return { events: row.events, ageMs: now - row.fetchedAt, refreshed: false };
   }
@@ -195,6 +214,7 @@ export async function getBsdEvents(source: string): Promise<BsdEventsResult> {
       row = { events: data.results || [], fetchedAt: now, claimedAt: now, pausedUntil: 0 };
       await writeRow(d1, CACHE_KEY, row);
       await writeRow(d1, STATUS_KEY, status);
+      await edgeMemoForget(CACHE_KEY);
       local = { row, readAt: now };
       return { events: row.events, ageMs: 0, refreshed: true };
     }
