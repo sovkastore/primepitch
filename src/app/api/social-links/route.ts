@@ -32,6 +32,6 @@ export async function GET() {
     cache = { data: result, ts: now };
     return NextResponse.json(result);
   } catch {
-    return NextResponse.json(cache?.data ?? { links: [] });
+    return NextResponse.json(cache?.data ?? { links: [] }, { headers: { "x-pp-degraded": "1" } });
   }
 }

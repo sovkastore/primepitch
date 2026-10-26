@@ -67,7 +67,11 @@ export async function GET(req: Request) {
       }
     }
 
-    return NextResponse.json({ matches: allMatches });
+    // An empty list straight from the provider is not stored as the shared copy.
+    return NextResponse.json(
+      { matches: allMatches },
+      allMatches.length === 0 ? { headers: { "x-pp-degraded": "1" } } : undefined
+    );
   } catch (error) {
     console.error("Error fetching pro matches:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

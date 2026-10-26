@@ -20,6 +20,6 @@ export async function GET() {
     cache = { data: result, ts: now };
     return NextResponse.json(result);
   } catch {
-    return NextResponse.json(null);
+    return NextResponse.json(null, { headers: { "x-pp-degraded": "1" } });
   }
 }

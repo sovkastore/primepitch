@@ -49,6 +49,6 @@ export async function GET() {
     cache = { data: cfg, ts: now };
     return NextResponse.json(cfg);
   } catch {
-    return NextResponse.json(cache?.data ?? EMPTY);
+    return NextResponse.json(cache?.data ?? EMPTY, { headers: { "x-pp-degraded": "1" } });
   }
 }

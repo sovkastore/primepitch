@@ -24,3 +24,9 @@ RAPID_API_KEYS = "a66c882b1cmsh00421cb207b98e2p1a82f2jsnd2f8280065c7,ad280313aem
 binding = "DB"
 database_name = "primepitch_db"
 database_id = "25e024c8-f8fa-4e64-b927-df0ae95b1147"
+
+# Edge snapshots + last-good copies (see worker.js and src/lib/edge-memo.ts):
+# visitors are served copies, so database load doesn't grow with the crowd.
+[[kv_namespaces]]
+binding = "SNAP"
+id = "3bb67bd493ef42368a692774c229b846"

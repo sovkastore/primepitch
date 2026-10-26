@@ -20,6 +20,7 @@ export async function GET() {
       return NextResponse.json({ on: false, message: "" });
     }
   } catch {
-    return NextResponse.json({ on: false, message: "" });
+    // Database unreachable: answer "off" but don't let the edge layer store it.
+    return NextResponse.json({ on: false, message: "" }, { headers: { "x-pp-degraded": "1" } });
   }
 }

@@ -13,6 +13,6 @@ export async function GET() {
     const cfg = row?.value ? JSON.parse(row.value) : { enabled: false };
     return NextResponse.json(cfg);
   } catch {
-    return NextResponse.json({ enabled: false });
+    return NextResponse.json({ enabled: false }, { headers: { "x-pp-degraded": "1" } });
   }
 }

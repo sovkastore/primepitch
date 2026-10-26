@@ -33,6 +33,6 @@ export async function GET() {
     return NextResponse.json(payload);
   } catch (err: any) {
     console.error("GET leagues error:", err);
-    return NextResponse.json(cache?.data ?? { leagues: [] });
+    return NextResponse.json(cache?.data ?? { leagues: [] }, { headers: { "x-pp-degraded": "1" } });
   }
 }

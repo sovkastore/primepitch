@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const now = Date.now();
-  const { events } = await getBsdEvents("alt-scores");
+  const { events, ageMs } = await getBsdEvents("alt-scores");
 
   // bsd fixture id -> live alt id, recorded by the robot at conversion
   const links: Record<string, string> = {};
@@ -60,6 +60,8 @@ export async function GET() {
 
   return NextResponse.json(
     { scores },
-    { headers: { "Cache-Control": "public, max-age=30" } }
+    // No score copy younger than 15 min = the database/BSD is failing; mark it
+    // so the edge layer keeps its last good copy instead of storing this.
+    { headers: { "Cache-Control": "public, max-age=30", ...(ageMs > 15 * 60_000 ? { "x-pp-degraded": "1" } : {}) } }
   );
 }
