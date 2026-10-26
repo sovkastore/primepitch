@@ -79,6 +79,8 @@ export default function AltPage() {
   // up without a page refresh — the same way the main site works.
   useEffect(() => {
     let stopped = false;
+    // true when the last load failed, so the next try comes sooner
+    let lastFailed = false;
     async function load() {
       try {
         const [res, flagsRes] = await Promise.all([
@@ -86,6 +88,9 @@ export default function AltPage() {
           fetch(`/api/match-flags?t=${Date.now()}`, { cache: "no-store" })
         ]);
         if (stopped) return;
+        // A failed answer (busy server) must never wipe the list: keep what
+        // is on screen and try again shortly.
+        if (!res.ok || !flagsRes.ok) throw new Error(`matches ${res.status} / flags ${flagsRes.status}`);
         
         const data = await res.json();
         const flagsData = await flagsRes.json();
@@ -136,10 +141,14 @@ export default function AltPage() {
         }, {} as Record<string, ProMatch[]>);
 
         if (!stopped) { matchesRef.current = matchList; setMatches(matchList); }
+        lastFailed = false;
+        if (!stopped) setLoading(false);
       } catch (e) {
         console.error("Failed to load pro matches:", e);
-      } finally {
-        if (!stopped) setLoading(false);
+        lastFailed = true;
+        // Keep the spinner on a first-load failure instead of "no matches";
+        // once something is on screen it simply stays there.
+        if (!stopped && matchesRef.current.length > 0) setLoading(false);
       }
     }
     // Normally every 45 s; every 15 s while any match is within 8 minutes of
@@ -158,7 +167,7 @@ export default function AltPage() {
       if (stopped) return;
       if (!document.hidden) await load();
       if (stopped) return;
-      timer = setTimeout(run, nearKickoff() ? 15_000 : 45_000);
+      timer = setTimeout(run, lastFailed ? 5_000 : nearKickoff() ? 15_000 : 45_000);
     };
     const onVisible = () => { if (!document.hidden) { if (timer) clearTimeout(timer); run(); } };
     document.addEventListener("visibilitychange", onVisible);
