@@ -30,6 +30,7 @@ interface FlagSets {
   forceEnded: Set<string>;
   hot: Set<string>;
   popular: Set<string>;
+  ok: boolean; // false when the database could not be read (flags missing)
 }
 
 import { getD1 } from "@/lib/d1";
@@ -43,6 +44,7 @@ async function getFlags(): Promise<FlagSets> {
   const forceEnded = new Set<string>();
   const hot = new Set<string>();
   const popular = new Set<string>();
+  let ok = false;
   try {
     const d1 = await getD1();
     if (d1) {
@@ -64,11 +66,12 @@ async function getFlags(): Promise<FlagSets> {
         if (r.hot) hot.add(r.match_id);
         if (r.popular) popular.add(r.match_id);
       }
+      ok = true;
     }
   } catch {
     /* DB timeout or match_flags may not exist — degrade to no flags */
   }
-  return { hidden, forcedLive, disableAuto, featured, renames, forceEnded, hot, popular };
+  return { hidden, forcedLive, disableAuto, featured, renames, forceEnded, hot, popular, ok };
 }
 
 async function getOverrideBacked(): Promise<Map<string, Match>> {
@@ -285,9 +288,15 @@ export async function GET() {
       .sort((a, b) => b.f - a.f || a.i - b.i)
       .map((x) => ({ ...x.m, isLive: true }));
 
-    cache = { data: finalMatches, ts: now };
-    return NextResponse.json({ matches: finalMatches });
+    // Degraded = the database or streamed.pk failed for this answer. It is
+    // still served, but the edge layer won't store it as the shared copy.
+    const degraded = !flags.ok || !liveRes.ok;
+    if (!degraded) cache = { data: finalMatches, ts: now };
+    return NextResponse.json(
+      { matches: finalMatches },
+      degraded ? { headers: { "x-pp-degraded": "1" } } : undefined
+    );
   } catch {
-    return NextResponse.json({ matches: cache?.data ?? [] });
+    return NextResponse.json({ matches: cache?.data ?? [] }, { headers: { "x-pp-degraded": "1" } });
   }
 }

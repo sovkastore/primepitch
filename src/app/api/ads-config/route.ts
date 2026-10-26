@@ -1,3 +1,4 @@
+import { edgeMemo } from "@/lib/edge-memo";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -158,10 +159,15 @@ export async function GET(request: NextRequest) {
     const d1 = await getD1();
     if (!d1) throw new Error("DB unavailable");
 
+    // Shared per city (edgeMemo) instead of one 38 KB database read per
+    // instance; parsed per request because the code below edits the object.
     const fetchConfig = (async () => {
-      const row = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind("ads_config").first<{ value: string }>();
-      if (!row) return null;
-      return typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const raw = await edgeMemo("ads_config", 30_000, async () => {
+        const row = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind("ads_config").first<{ value: string }>();
+        if (!row) return null;
+        return typeof row.value === "string" ? row.value : JSON.stringify(row.value);
+      });
+      return raw ? JSON.parse(raw) : null;
     })();
 
     const dataValue = await Promise.race([
@@ -200,7 +206,9 @@ export async function GET(request: NextRequest) {
     // ---- Partner popunder swap / dedicated format (manual switch: partner_ads) ----
     if (cfg.master && ref !== "none") {
       try {
-        const adRow = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind("partner_ads").first<{ value: string }>();
+        const adRow = await edgeMemo("partner_ads", 30_000, () =>
+          d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind("partner_ads").first<{ value: string }>()
+        );
         const adValue = adRow?.value ? (typeof adRow.value === 'string' ? JSON.parse(adRow.value) : adRow.value) : null;
         
         if (adValue === true || adValue === "true") {
