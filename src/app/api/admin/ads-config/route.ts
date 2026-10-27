@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
@@ -282,6 +283,8 @@ function cleanPopTimed(v: unknown): PopTimed {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const body = (await request.json()) as Partial<AdsConfig>;
 
