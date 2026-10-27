@@ -45,6 +45,24 @@ const RULES = {
   "/api/help-content": { fresh: 300, params: [], snapshot: true },
 };
 
+// Per-match endpoints: one copy per match (the path carries the match id),
+// shared by everyone watching that match.
+const PREFIX_RULES = [
+  { prefix: "/api/match-streams/", rule: { fresh: 20, params: ["title", "sport", "kickoff"], snapshot: false } },
+  { prefix: "/api/match-meta/", rule: { fresh: 30, params: [], snapshot: false } },
+  { prefix: "/api/stream-override/", rule: { fresh: 20, params: [], snapshot: false } },
+];
+// The watch page reads the public ad settings from here too (GET only;
+// saving still goes straight to the app).
+RULES["/api/admin/ads-config"] = { fresh: 30, params: [], snapshot: false };
+RULES["/api/tv-channels"] = { fresh: 60, params: [], snapshot: false };
+
+function ruleFor(pathname) {
+  if (RULES[pathname]) return RULES[pathname];
+  for (const r of PREFIX_RULES) if (pathname.startsWith(r.prefix) && pathname.length > r.prefix.length) return r.rule;
+  return null;
+}
+
 const MAX_STALE_SEC = 6 * 3600; // a copy this old is still better than nothing
 const ORIGIN_TIMEOUT_MS = 10_000;
 const LOCK_SEC = 15; // one refresher per city at a time
@@ -78,7 +96,8 @@ async function cacheGet(key) {
     const r = await caches.default.match(new Request(CACHE_HOST + key));
     if (!r) return null;
     const at = Number(r.headers.get("x-snap-at") || 0);
-    return { at, ct: r.headers.get("content-type"), body: await r.text() };
+    const fresh = Number(r.headers.get("x-snap-fresh") || 0);
+    return { at, ct: r.headers.get("content-type"), body: await r.text(), ...(fresh > 0 ? { fresh } : {}) };
   } catch {
     return null;
   }
@@ -92,6 +111,7 @@ async function cachePut(key, snap) {
         headers: {
           "content-type": snap.ct || "application/json",
           "x-snap-at": String(snap.at),
+          ...(snap.fresh ? { "x-snap-fresh": String(snap.fresh) } : {}),
           "cache-control": `public, max-age=${MAX_STALE_SEC}`,
         },
       })
@@ -159,7 +179,10 @@ function refresh(key, env, ctx, { useCache }) {
       return { snap: null, res: null };
     }
     if (!isCleanJson(res)) return { snap: null, res };
-    const snap = { at: Date.now(), ct: res.headers.get("content-type"), body: await res.text() };
+    // A route can ask for a shorter life for this answer (e.g. "no streams
+    // yet" right before kickoff) with x-edge-fresh: <seconds>.
+    const f = Number(res.headers.get("x-edge-fresh") || 0);
+    const snap = { at: Date.now(), ct: res.headers.get("content-type"), body: await res.text(), ...(f > 0 ? { fresh: f } : {}) };
     mem.set(key, snap);
     if (useCache) await cachePut(key, snap);
     return { snap, res: null };
@@ -171,16 +194,16 @@ function refresh(key, env, ctx, { useCache }) {
 async function edgeServe(request, env, ctx, path, rule) {
   const url = new URL(request.url);
   const key = snapKey(path, rule, url);
-  const freshMs = rule.fresh * 1000;
   const now = Date.now();
+  const freshOf = (snap) => (snap.fresh || rule.fresh) * 1000;
   // The Cache API does nothing on *.workers.dev; there KV is the shared layer.
   const useCache = !url.hostname.endsWith(".workers.dev");
 
   const m = mem.get(key);
-  if (m && now - m.at < freshMs) return respond(m, "mem");
+  if (m && now - m.at < freshOf(m)) return respond(m, "mem");
 
   let shared = useCache ? await cacheGet(key) : null;
-  if (shared && now - shared.at < freshMs) {
+  if (shared && now - shared.at < freshOf(shared)) {
     mem.set(key, shared);
     return respond(shared, "hit");
   }
@@ -226,9 +249,12 @@ export default {
   async fetch(request, env, ctx) {
     if (request.method === "GET") {
       const url = new URL(request.url);
-      const rule = RULES[url.pathname];
-      // (The layer's own refreshes call the app directly, never through here.)
-      if (rule && url.searchParams.get("admin") !== "true") {
+      const rule = ruleFor(url.pathname);
+      // Admins (signed-in cookie) always see the live answer, so a change they
+      // just made shows at once. (The layer's own refreshes call the app
+      // directly, never through here.)
+      const isAdmin = /(?:^|;\s*)pp_admin=/.test(request.headers.get("cookie") || "");
+      if (rule && !isAdmin && url.searchParams.get("admin") !== "true") {
         return edgeServe(request, env, ctx, url.pathname, rule);
       }
     }

@@ -1,6 +1,7 @@
 export interface Env {
   TRACKER: DurableObjectNamespace;
   CRON_SECRET: string;
+  SITE_URL?: string;
 }
 
 export class TrackerObject {
@@ -152,11 +153,120 @@ export class TrackerObject {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Sharding. One Durable Object handles its requests one at a time, so a single
+// "GLOBAL" counter tops out around a thousand-odd heartbeats a second — about
+// 30-40k viewers at one heartbeat every 30 s. Visitors are spread over SHARDS
+// counters by a hash of their visitor id (the same visitor always lands on the
+// same shard, so nobody is counted twice), and /stats adds the shards up.
+// 32 shards = room for well over 500k concurrent viewers.
+// ---------------------------------------------------------------------------
+const SHARDS = 32;
+const STATS_CACHE_MS = 5_000;
+
+function shardOf(visitorId: string): number {
+  // FNV-1a — fast, stable, evenly spread.
+  let h = 0x811c9dc5;
+  for (let i = 0; i < visitorId.length; i++) {
+    h ^= visitorId.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0) % SHARDS;
+}
+
+function shardStub(env: Env, n: number) {
+  return env.TRACKER.get(env.TRACKER.idFromName(`SHARD-${n}`));
+}
+
+type Bucket = { total: number; refs: Record<string, number> };
+type Stats = {
+  total: number;
+  total_online: number;
+  watchers_total: number;
+  matches: Record<string, Bucket>;
+  pages: Record<string, Bucket>;
+};
+
+function mergeInto(into: Record<string, Bucket>, from: Record<string, Bucket> | undefined) {
+  for (const [k, b] of Object.entries(from || {})) {
+    const t = (into[k] ||= { total: 0, refs: {} });
+    t.total += b.total || 0;
+    for (const [r, n] of Object.entries(b.refs || {})) t.refs[r] = (t.refs[r] || 0) + n;
+  }
+}
+
+let statsCache: { at: number; body: string } | null = null;
+let statsInflight: Promise<string> | null = null;
+
+async function mergedStats(env: Env): Promise<string> {
+  if (statsCache && Date.now() - statsCache.at < STATS_CACHE_MS) return statsCache.body;
+  if (statsInflight) return statsInflight;
+  statsInflight = (async () => {
+    const parts = await Promise.all(
+      Array.from({ length: SHARDS }, (_, n) =>
+        shardStub(env, n)
+          .fetch("https://shard/stats")
+          .then((r) => (r.ok ? (r.json() as Promise<Stats>) : null))
+          .catch(() => null)
+      )
+    );
+    const out: Stats = { total: 0, total_online: 0, watchers_total: 0, matches: {}, pages: {} };
+    for (const p of parts) {
+      if (!p) continue;
+      out.total += p.total || 0;
+      out.watchers_total += p.watchers_total || 0;
+      mergeInto(out.matches, p.matches);
+      mergeInto(out.pages, p.pages);
+    }
+    out.total_online = out.total;
+    const body = JSON.stringify(out);
+    statsCache = { at: Date.now(), body };
+    return body;
+  })().finally(() => {
+    statsInflight = null;
+  });
+  return statsInflight;
+}
+
+const CORS = { "Access-Control-Allow-Origin": "*" };
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const id = env.TRACKER.idFromName("GLOBAL");
-    const obj = env.TRACKER.get(id);
-    return obj.fetch(request);
+    const url = new URL(request.url);
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          ...CORS,
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      });
+    }
+
+    if (request.method === "GET" && url.pathname === "/stats") {
+      const body = await mergedStats(env);
+      return new Response(body, { status: 200, headers: { "Content-Type": "application/json", ...CORS } });
+    }
+
+    if (request.method === "POST" && (url.pathname === "/ping" || url.pathname === "/join")) {
+      // Read the body once to find the visitor's shard, then hand it on.
+      const text = await request.text();
+      let vid = "";
+      try {
+        vid = String((JSON.parse(text) as { visitor_id?: string }).visitor_id || "");
+      } catch {
+        return new Response("bad request", { status: 400, headers: CORS });
+      }
+      const stub = shardStub(env, shardOf(vid || crypto.randomUUID()));
+      return stub.fetch(`https://shard${url.pathname}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: text,
+      });
+    }
+
+    return new Response("not found", { status: 404, headers: CORS });
   },
   
   async scheduled(event: any, env: Env, ctx: ExecutionContext) {
