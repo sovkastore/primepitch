@@ -27,25 +27,22 @@ export interface ResolvedStreams {
 const TTL = 12_000;
 const cache = new Map<string, { data: ResolvedStreams; ts: number }>();
 
+// Servers from the match feeds (ppv.st primary, streamfree backup; see feed.ts).
+// Kept under the old "echo" name so the rest of the resolver is unchanged.
 async function echoStreams(source: string, id: string): Promise<ResolvedStream[]> {
   try {
-    const res = await fetch(`https://streamed.pk/api/stream/${source}/${id}`, {
-      signal: AbortSignal.timeout(6000),
-      headers: { "User-Agent": "primepitch" }
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (!Array.isArray(data)) return [];
-    return data
-      .map((s, i: number) => ({
-        id: s.id || `echo-${i}`,
-        streamNo: typeof s.streamNo === "number" ? s.streamNo : i + 1,
+    const { getFeedMatchStreams } = await import("@/lib/feed");
+    const list = await getFeedMatchStreams(source, id);
+    return list
+      .filter((s) => !!s.embedUrl)
+      .map((s, i) => ({
+        id: s.id || `feed-${i}`,
+        streamNo: s.streamNo || i + 1,
         language: s.language || "English",
         hd: !!s.hd,
         embedUrl: s.embedUrl,
         source: s.source || source,
-      }))
-      .filter((s: ResolvedStream) => !!s.embedUrl);
+      }));
   } catch {
     return [];
   }

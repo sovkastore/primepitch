@@ -1,7 +1,6 @@
 import { normTitle } from "./match-merge";
 import { getCountryFlagUrl } from "./country-flags";
 
-const BASE_URL = "https://streamed.pk/api";
 
 export interface MatchTeam {
   name: string;
@@ -49,8 +48,7 @@ async function fetchWithCache<T>(url: string): Promise<T> {
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data as T;
   }
-  const res = await fetch(url, { 
-    next: { revalidate: 30 },
+  const res = await fetch(url, {
     headers: { "User-Agent": "primepitch" }
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -59,28 +57,48 @@ async function fetchWithCache<T>(url: string): Promise<T> {
   return data as T;
 }
 
+// streamed.pk closed (27 Oct 2026). Matches now come from ppv.st (primary) and
+// streamfree (backup) via src/lib/feed.ts on the server. In the browser we go
+// through our own /api/matches route, which is edge-cached for everyone.
+const SPORT_LIST = [
+  "football", "basketball", "american-football", "hockey", "baseball",
+  "motor-sports", "fight", "tennis", "rugby", "golf", "billiards",
+  "afl", "darts", "cricket", "other",
+];
+
 export async function getSports(): Promise<Sport[]> {
-  return fetchWithCache<Sport[]>(`${BASE_URL}/sports`);
+  return SPORT_LIST.map((id) => ({ id, name: SPORT_LABELS[id] || id }));
 }
 
 export async function getMatches(sport: string): Promise<Match[]> {
-  return fetchWithCache<Match[]>(`${BASE_URL}/matches/${sport}`);
+  if (typeof window === "undefined") {
+    const { getFeedMatches } = await import("@/lib/feed");
+    return getFeedMatches(sport);
+  }
+  return fetchWithCache<Match[]>(`/api/matches?sport=${encodeURIComponent(sport)}`);
 }
 
 export async function getAllMatches(): Promise<Match[]> {
   const sports = await getSports();
   const all = await Promise.all(
     sports.map(async (s) => {
-      let matches = await getMatches(s.id);
-      matches = matches.filter((m: any) => !m.category || m.category === s.id);
-      return matches.map((m) => ({ ...m, category: s.id }));
+      try {
+        const matches = await getMatches(s.id);
+        return matches.filter((m) => !m.category || m.category === s.id).map((m) => ({ ...m, category: s.id }));
+      } catch {
+        return [] as Match[];
+      }
     })
   );
   return dedupeMatches(all.flat());
 }
 
 export async function getStreams(source: string, id: string): Promise<Stream[]> {
-  return fetchWithCache<Stream[]>(`${BASE_URL}/stream/${source}/${id}`);
+  if (typeof window === "undefined") {
+    const { getFeedMatchStreams } = await import("@/lib/feed");
+    return getFeedMatchStreams(source, id);
+  }
+  return [];
 }
 
 // Live matches that actually have a playable stream (echo source or an admin
@@ -188,11 +206,12 @@ export const SPORT_LABELS: Record<string, string> = {
 export function getBadgeUrl(badge: string): string {
   // The `badge` endpoint returns a clean, square (200x200) crest. The `proxy`
   // endpoint returns a 444x250 landscape image with the crest clipped top/bottom.
-  return `https://streamed.pk/api/images/badge/${badge}.webp`;
+  // Feeds now give full image URLs; anything else has no image host left.
+  return /^https?:\/\//.test(badge) ? badge : "";
 }
 
 export function getPosterUrl(poster: string): string {
-  return `https://streamed.pk${poster}`;
+  return /^https?:\/\//.test(poster) ? poster : "";
 }
 
 export function getWatchHref(match: Match): string {
