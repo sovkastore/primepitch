@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
@@ -44,6 +45,8 @@ async function insertWithFallback(rows: Record<string, unknown>[]) {
 }
 
 export async function GET(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(request.url);
     const match_id = searchParams.get("match_id");
@@ -69,6 +72,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const { match_id, match_title, match_data, replace_original, streams, embed_url, source, server_label, append, position, hd } =
       await request.json();
@@ -132,6 +137,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const { id, enabled, replace_original, server_label, match_id, position } = await request.json();
     
@@ -166,6 +173,8 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(request.url);
     const match_id = searchParams.get("match_id");

@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 import { resolveStreams } from "@/lib/streams";
@@ -42,7 +43,9 @@ function keyOf(m: Match): string {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   const now = Date.now();
   if (cache && now - cache.ts < TTL) return NextResponse.json(cache.data);
 

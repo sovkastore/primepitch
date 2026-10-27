@@ -1,9 +1,12 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
 const num = (v: unknown) => (v != null && !Number.isNaN(Number(v)) ? Number(v) : 0);
 
 export async function GET(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const d1 = await getD1();
 
