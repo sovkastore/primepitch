@@ -252,7 +252,8 @@ export async function GET() {
       interstitial: { ...DEFAULTS.interstitial, ...(stored.interstitial ?? {}) },
     });
   } catch {
-    return NextResponse.json(DEFAULTS);
+    // Database unreachable: defaults, but not stored as the shared copy.
+    return NextResponse.json(DEFAULTS, { headers: { "x-pp-degraded": "1" } });
   }
 }
 
