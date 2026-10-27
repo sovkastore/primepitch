@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// Server-side proxy for streamed.pk's per-sport match list.
+// Per-sport match list from the feeds (ppv.st + streamfree, see lib/feed.ts).
+// (Originally a proxy for streamed.pk, which closed in Oct 2026.)
 //
 // The homepage used to fetch streamed.pk DIRECTLY from the visitor's browser and
 // gate its loading screen on that call with no timeout. Any visitor whose network
@@ -29,20 +30,12 @@ export async function GET(req: Request) {
   if (hit && now - hit.ts < TTL) return NextResponse.json(hit.data);
 
   try {
-    const res = await fetch(`https://streamed.pk/api/matches/${sport}`, {
-      signal: AbortSignal.timeout(8000),
-      headers: { "User-Agent": "primepitch" },
-    });
-    const j = res.ok ? await res.json() : [];
-    let data = Array.isArray(j) ? j : [];
-    
-    // Filter out matches that don't belong to this sport (Streamed.pk bug workaround)
-    data = data.filter((m: any) => !m.category || m.category === sport);
-
+    const { getFeedMatches } = await import("@/lib/feed");
+    const data = await getFeedMatches(sport);
     cache.set(sport, { data, ts: now });
     return NextResponse.json(data);
   } catch {
-    // streamed.pk slow/unreachable from the server - serve last good data (or empty).
-    return NextResponse.json(hit?.data ?? []);
+    // both feeds slow/unreachable - serve last good data (or empty).
+    return NextResponse.json(hit?.data ?? [], { headers: { "x-pp-degraded": "1" } });
   }
 }
