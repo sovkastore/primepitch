@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 import { setMatchFlag } from "@/lib/match-flags";
@@ -9,7 +10,9 @@ import { setMatchFlag } from "@/lib/match-flags";
 // team names + time.
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const d1 = await getD1();
     if (!d1) return NextResponse.json({ fixtures: [] });
@@ -34,6 +37,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     const home = String(body.home || "").trim();

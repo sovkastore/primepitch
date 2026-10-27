@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { partnerMatches } from "@/lib/matches-engine";
 import { getPartnerOverviewD1, getPartnerPulseD1, getPartnerAnalyticsD1, getPartnerVisitorsD1 } from "@/lib/partner-engine";
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 // Read-only partner breakdowns for the main admin's p/ pages.
 // Same data the partner sees, but admin can pick any partner via ?code=.
 export async function GET(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(request.url);
     const stat = searchParams.get("stat") || "overview";

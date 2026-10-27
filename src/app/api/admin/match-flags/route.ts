@@ -1,10 +1,13 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
 // Admin: per-match flags (hide / force-live / featured / disable auto-fallback).
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const d1 = await getD1();
     if (!d1) return NextResponse.json({ flags: [] });
@@ -17,6 +20,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const { match_id, match_data, hidden, hide_one, forced_live, featured, disable_auto, auto_fallback, display_title, force_ended, hot, popular, custom_notice, alt_visible } =
       await request.json();

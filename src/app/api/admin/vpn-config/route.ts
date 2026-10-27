@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
@@ -25,7 +26,9 @@ const DEFAULTS: VpnConfig = {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const d1 = await getD1();
     if (!d1) return NextResponse.json(DEFAULTS);
@@ -38,6 +41,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const body = await request.json() as Partial<VpnConfig>;
     const clean: VpnConfig = {

@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
@@ -16,7 +17,9 @@ const ALLOWED = new Set(DEFAULTS.map((d) => d.id));
 // Admin: read every social link (including disabled) for editing.
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const d1 = await getD1();
     if (!d1) return NextResponse.json({ links: DEFAULTS });
@@ -31,6 +34,8 @@ export async function GET() {
 
 // Admin: save the full set of links (toggle + URL per channel).
 export async function POST(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     const incoming = Array.isArray(body?.links) ? (body.links as SocialLink[]) : [];

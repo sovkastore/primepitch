@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
@@ -49,6 +50,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await adminGuard(request);
+  if (denied) return denied;
   try {
     const d1 = await getD1();
     if (!d1) return NextResponse.json({ error: "DB down" }, { status: 500 });
@@ -73,6 +76,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const denied = await adminGuard(request);
+  if (denied) return denied;
   try {
     const d1 = await getD1();
     if (!d1) return NextResponse.json({ error: "DB down" }, { status: 500 });
