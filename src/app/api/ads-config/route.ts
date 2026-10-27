@@ -54,10 +54,12 @@ async function finishedPairs(): Promise<Set<string>> {
 
     const since = new Date(Date.now() - 12 * 3_600_000).toISOString();
     
-    const fetchFinished = (async () => {
+    // Shared per city for 30 s (edgeMemo) — this ran once per Worker
+    // instance every 15 s, which adds up with hundreds of instances.
+    const fetchFinished = edgeMemo("finished_pairs_12h", 30_000, async () => {
       const res = await d1.prepare("SELECT home_team, away_team FROM d1_push_match_state WHERE finished = 1 AND updated_at >= ?").bind(since).all();
       return res.results;
-    })();
+    });
 
     const data = await Promise.race([
       fetchFinished,
