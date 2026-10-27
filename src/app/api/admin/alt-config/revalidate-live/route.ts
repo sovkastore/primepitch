@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getD1 } from "@/lib/d1";
@@ -7,6 +8,8 @@ import { saveMatchesCache } from "@/lib/match-cache";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const denied = await adminGuard(req as unknown as Request);
+  if (denied) return denied;
   try {
     // Optional ?page=N: fetch a specific feed page. Page 1 replaces the cache;
     // deeper pages MERGE into it (a match fetched again is refreshed) so the

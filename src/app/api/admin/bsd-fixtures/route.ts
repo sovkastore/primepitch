@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 import { countBsdRequest } from "@/lib/bsd-events";
 
@@ -8,6 +9,8 @@ const BSD_API = "https://sports.bzzoiro.com/api/events/";
 const BSD_KEY = process.env.BSD_API_KEY || "";
 
 export async function GET(req: Request) {
+  const denied = await adminGuard(req as unknown as Request);
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(req.url);
     const date = searchParams.get("date"); // e.g., '2026-08-09'

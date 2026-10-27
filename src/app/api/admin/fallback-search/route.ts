@@ -1,7 +1,10 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { searchFallbackStreams } from "@/lib/fallback-streams";
 
 export async function GET(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(request.url);
     const title = searchParams.get("title");

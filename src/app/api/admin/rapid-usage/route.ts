@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 
@@ -12,7 +13,9 @@ function dailyLimit(): number {
   return Math.max(1, keys.length) * 50; // 50 requests/day per key
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   const limit = dailyLimit();
   try {
     const d1 = await getD1();

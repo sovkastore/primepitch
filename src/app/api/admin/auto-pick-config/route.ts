@@ -1,10 +1,13 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 import { getAutoPickConfig, saveAutoPickConfig, DEFAULT_CRITERIA } from "@/lib/auto-pick";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   const d1 = await getD1();
   if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
   const config = await getAutoPickConfig(d1);
@@ -22,6 +25,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   const d1 = await getD1();
   if (!d1) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
   const body = await request.json();

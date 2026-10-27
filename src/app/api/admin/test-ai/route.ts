@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 import { findAiMatch } from "@/lib/ai-match";
 
@@ -5,7 +6,9 @@ import { findAiMatch } from "@/lib/ai-match";
 // the Groq model and returns the verdict + token usage.
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   const started = Date.now();
   try {
     const kickoff = Math.floor(Date.now() / 1000);

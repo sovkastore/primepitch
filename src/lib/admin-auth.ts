@@ -86,3 +86,20 @@ export async function isAdminRequest(request: NextRequest): Promise<boolean> {
     return false;
   }
 }
+
+// Guard for /api/admin/* handlers: works with a plain Request (reads the
+// pp_admin cookie from the header). Returns a 401 response to send back, or
+// null when the caller is a signed-in admin.
+export async function adminGuard(request: Request): Promise<Response | null> {
+  try {
+    const m = /(?:^|;\s*)pp_admin=([^;]+)/.exec(request.headers.get("cookie") || "");
+    const session = await verifyAdminSession(m ? decodeURIComponent(m[1]) : null);
+    if (session) return null;
+  } catch {
+    /* fall through to 401 */
+  }
+  return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    status: 401,
+    headers: { "content-type": "application/json" },
+  });
+}

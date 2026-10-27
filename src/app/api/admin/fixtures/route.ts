@@ -1,3 +1,4 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,9 @@ function keyOf(m: Match): string {
   return s ? `${s.source}--${s.id}` : m.id;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const matches = await getMatches("football");
     const fixtures = matches

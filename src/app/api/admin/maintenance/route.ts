@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
-import { isAdminRequest } from "@/lib/admin-auth";
+import { isAdminRequest, adminGuard } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,9 @@ export const dynamic = "force-dynamic";
 const KEY = "maintenance";
 const DEFAULTS = { on: false, message: "", disable_tracking: false, timeouts_enabled: true };
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await adminGuard(request as unknown as Request);
+  if (denied) return denied;
   try {
     const d1 = await getD1();
     if (!d1) return NextResponse.json(DEFAULTS);
