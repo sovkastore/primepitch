@@ -12,7 +12,6 @@ import { resolveStreams } from "@/lib/streams";
 // hidden matches or ones with no server at all, never on a single source coming
 // back empty. Featured matches float to the top.
 
-const LIVE_URL = "https://streamed.pk/api/matches/live";
 const TTL = 12_000; // short so admin hide / force-live / disable-auto reflect quickly
 let cache: { data: Match[]; ts: number } | null = null;
 
@@ -162,15 +161,16 @@ export async function GET() {
 
   try {
     const [liveRes, flags, overrideBacked, finishedKeys] = await Promise.all([
-      fetch(LIVE_URL, { 
-        signal: AbortSignal.timeout(8000),
-        headers: { "User-Agent": "primepitch" }
-      }),
+      // Live set from the feeds (ppv.st + streamfree, lib/feed.ts).
+      import("@/lib/feed")
+        .then((f) => f.getFeedLive())
+        .then((data) => ({ ok: true, data }))
+        .catch(() => ({ ok: false, data: [] as Match[] })),
       getFlags(),
       getOverrideBacked(),
       getFinishedWcKeys(),
     ]);
-    const curated: Match[] = liveRes.ok ? await liveRes.json() : [];
+    const curated: Match[] = liveRes.data;
 
     // Clean up any forcedLive entries in D1 that have expired
     const expiredForced = Array.from(flags.forcedLive.entries()).filter(([_, m]) => isRealMatchOver(m, finishedKeys));
