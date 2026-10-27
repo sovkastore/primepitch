@@ -15,12 +15,14 @@ export async function GET(
     const matchId = decodeURIComponent(raw);
 
     const d1 = await getD1();
+    // A timed-out lookup must not be stored by the edge layer as "no match".
+    let failed = !d1;
     if (d1) {
       const ovPromise = d1.prepare("SELECT match_data FROM d1_stream_overrides WHERE match_id = ? AND enabled = 1 ORDER BY position ASC LIMIT 1").bind(matchId).first() as any;
       const ov = await Promise.race([
         ovPromise,
         new Promise<any>((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 3000))
-      ]).catch(() => null);
+      ]).catch(() => { failed = true; return null; });
       if (ov) {
         const m = ov.match_data ? (typeof ov.match_data === 'string' ? JSON.parse(ov.match_data) : ov.match_data) : {
           id: matchId,
@@ -36,7 +38,7 @@ export async function GET(
       const fl = await Promise.race([
         flPromise,
         new Promise<any>((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 3000))
-      ]).catch(() => null);
+      ]).catch(() => { failed = true; return null; });
       if (fl) {
         const matchData = fl.match_data ? (typeof fl.match_data === 'string' ? JSON.parse(fl.match_data) : fl.match_data) : null;
         return NextResponse.json({
@@ -46,9 +48,9 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({ match: null, custom_notice: null });
+    return NextResponse.json({ match: null, custom_notice: null }, failed ? { headers: { "x-pp-degraded": "1" } } : undefined);
   } catch {
     // If DB is slow or down, return null so the watch page doesn't hang
-    return NextResponse.json({ match: null, custom_notice: null });
+    return NextResponse.json({ match: null, custom_notice: null }, { headers: { "x-pp-degraded": "1" } });
   }
 }

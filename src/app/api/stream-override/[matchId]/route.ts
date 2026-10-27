@@ -8,7 +8,7 @@ export async function GET(
   try {
     const { matchId } = await params;
     const d1 = await getD1();
-    if (!d1) return NextResponse.json({ overrides: [], replace_original: false });
+    if (!d1) return NextResponse.json({ overrides: [], replace_original: false }, { headers: { "x-pp-degraded": "1" } });
 
     const { results } = await d1.prepare(
       "SELECT embed_url, source, server_label, replace_original FROM d1_stream_overrides WHERE match_id = ? AND enabled = 1 ORDER BY created_at ASC"
@@ -27,6 +27,6 @@ export async function GET(
       replace_original: Boolean(data[0].replace_original) ?? false,
     });
   } catch {
-    return NextResponse.json({ overrides: [], replace_original: false });
+    return NextResponse.json({ overrides: [], replace_original: false }, { headers: { "x-pp-degraded": "1" } });
   }
 }

@@ -13,7 +13,7 @@ import { getD1 } from "@/lib/d1";
 async function autoFlags(
   matchId: string,
   sport: string
-): Promise<{ disableAuto: boolean; allowFootballAuto: boolean; notice: string | null }> {
+): Promise<{ disableAuto: boolean; allowFootballAuto: boolean; notice: string | null; ok: boolean }> {
   const isFootball = sport.toLowerCase() === "football";
   try {
     const d1 = await getD1();
@@ -30,9 +30,9 @@ async function autoFlags(
     const enabled =
       af === true ? true : af === false ? false : !isFootball && !data?.disable_auto;
     const notice = data?.custom_notice ? String(data.custom_notice).trim() : null;
-    return { disableAuto: !enabled, allowFootballAuto: enabled && isFootball, notice };
+    return { disableAuto: !enabled, allowFootballAuto: enabled && isFootball, notice, ok: true };
   } catch {
-    return { disableAuto: isFootball, allowFootballAuto: false, notice: null }; // degrade to sport default
+    return { disableAuto: isFootball, allowFootballAuto: false, notice: null, ok: false }; // degrade to sport default
   }
 }
 
@@ -66,7 +66,12 @@ export async function GET(
     const kickoff = kickoffRaw ? Number(kickoffRaw) : NaN;
     const gateAuto = Number.isFinite(kickoff) && kickoff > 0 && Date.now() < kickoff;
 
-    const { disableAuto, allowFootballAuto, notice } = await autoFlags(rawId, sport);
+    const { disableAuto, allowFootballAuto, notice, ok: flagsOk } = await autoFlags(rawId, sport);
+    // Shared-copy hints for the edge layer (worker.js): a database failure is
+    // never stored as everyone's answer, and "no streams yet" lives only 5 s so
+    // the servers show up quickly once they exist.
+    const edgeHeaders = (streamCount: number): HeadersInit =>
+      !flagsOk ? { "x-pp-degraded": "1" } : streamCount === 0 ? { "x-edge-fresh": "5" } : {};
     const result = await resolveStreams({ source, id, title, sport, disableAuto, gateAuto, allowFootballAuto });
 
     // An admin-curated set (replace_original) is the final word — show exactly it.
@@ -103,19 +108,25 @@ export async function GET(
               }
             }
           }
-          return NextResponse.json({
-            ...result,
-            notice: notice || null,
-            streams: merged.map((st, i) => ({ ...st, streamNo: i + 1 })),
-          });
+          return NextResponse.json(
+            {
+              ...result,
+              notice: notice || null,
+              streams: merged.map((st, i) => ({ ...st, streamNo: i + 1 })),
+            },
+            { headers: edgeHeaders(merged.length) }
+          );
         }
       } catch {
         // any feed lookup error → fall back to the primary source only
       }
     }
 
-    return NextResponse.json({ ...result, notice: notice || null });
+    return NextResponse.json({ ...result, notice: notice || null }, { headers: edgeHeaders(result.streams.length) });
   } catch {
-    return NextResponse.json({ streams: [], replace_original: false, serving: "none", notice: null });
+    return NextResponse.json(
+      { streams: [], replace_original: false, serving: "none", notice: null },
+      { headers: { "x-pp-degraded": "1" } }
+    );
   }
 }
