@@ -28,6 +28,10 @@ const FEED_FRESH_MS = 60_000; // both feeds ask for ~1 request a minute
 const FETCH_TIMEOUT_MS = 8_000;
 const PPV_DEFAULT_DOMAINS = ["ppv.st", "ppv.tj", "ppvs.pk", "ppv.rw", "ppv.ms", "ppv.bi", "ppv.ug"];
 const SF_BASE = "https://streamfree.top";
+// ppv.st currently blocks Cloudflare's server IPs ("IP blocked"). Paused so we
+// don't keep hitting them while we ask for an unblock — flip to true after.
+// While false, the site runs on streamfree alone.
+const PPV_ENABLED = false;
 
 // Our sport ids (the ones the site has always used) ← each feed's categories.
 const PPV_SPORT: Record<string, string> = {
@@ -149,6 +153,7 @@ async function ppvDomains(): Promise<string[]> {
 }
 
 async function ppvFeed(): Promise<PpvFeed> {
+  if (!PPV_ENABLED) throw new Error("ppv paused");
   return edgeMemo("ppv_feed", FEED_FRESH_MS, async () => {
     const domains = await ppvDomains();
     let lastErr: unknown = null;
