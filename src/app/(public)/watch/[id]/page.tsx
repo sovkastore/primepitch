@@ -34,6 +34,10 @@ const SOURCE_META: Record<string, { name: string; note: string; rank: number }> 
   delta: { name: "Delta", note: "Okayish backup", rank: 2 },
   golf: { name: "Golf", note: "Third party (more ads), but very stable", rank: 3 },
   echo: { name: "Echo", note: "Great quality overall", rank: 4 },
+  // Current feeds. Same note on both on purpose: neither group is presented
+  // as better than the other.
+  ppv: { name: "Prime", note: "Tap a server to watch", rank: 1 },
+  sf: { name: "Nova", note: "Tap a server to watch", rank: 2 },
   // Any other source falls back to a title-cased name + generic note (rank 9).
   // Add entries here to give a source a custom name / note / order.
 };
