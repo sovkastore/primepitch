@@ -28,10 +28,13 @@ const FEED_FRESH_MS = 60_000; // both feeds ask for ~1 request a minute
 const FETCH_TIMEOUT_MS = 8_000;
 const PPV_DEFAULT_DOMAINS = ["ppv.st", "ppv.tj", "ppvs.pk", "ppv.rw", "ppv.ms", "ppv.bi", "ppv.ug"];
 const SF_BASE = "https://streamfree.top";
-// ppv.st currently blocks Cloudflare's server IPs ("IP blocked"). Paused so we
-// don't keep hitting them while we ask for an unblock — flip to true after.
-// While false, the site runs on streamfree alone.
-const PPV_ENABLED = false;
+// ppv.st blocks Cloudflare's shared server IPs unless the request carries our
+// developer key (X-DevKey, given by ppv support). The key lives only in the
+// Cloudflare secret PPV_DEVKEY — never in code. No key → ppv is skipped and
+// the site runs on streamfree alone.
+const ppvKey = (): string => process.env.PPV_DEVKEY || "";
+// What viewers see on streamfree servers (our private codename for that source).
+const SF_LABEL = "Nova";
 
 // Our sport ids (the ones the site has always used) ← each feed's categories.
 const PPV_SPORT: Record<string, string> = {
@@ -124,9 +127,9 @@ interface SfFeed {
 
 // ---- fetching ---------------------------------------------------------------
 
-async function getJson<T>(url: string): Promise<T> {
+async function getJson<T>(url: string, extra: Record<string, string> = {}): Promise<T> {
   const res = await fetch(url, {
-    headers: { "User-Agent": "primepitch", accept: "application/json" },
+    headers: { "User-Agent": "primepitch", accept: "application/json", ...extra },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
@@ -139,7 +142,7 @@ async function ppvDomains(): Promise<string[]> {
     return await edgeMemo("ppv_domains", 6 * 3600_000, async () => {
       for (const d of PPV_DEFAULT_DOMAINS) {
         try {
-          const j = await getJson<{ domains?: string[] }>(`https://api.${d}/api/ping`);
+          const j = await getJson<{ domains?: string[] }>(`https://api.${d}/api/ping`, { "X-DevKey": ppvKey() });
           if (Array.isArray(j.domains) && j.domains.length) return j.domains;
         } catch {
           /* try the next one */
@@ -153,13 +156,13 @@ async function ppvDomains(): Promise<string[]> {
 }
 
 async function ppvFeed(): Promise<PpvFeed> {
-  if (!PPV_ENABLED) throw new Error("ppv paused");
+  if (!ppvKey()) throw new Error("ppv key missing");
   return edgeMemo("ppv_feed", FEED_FRESH_MS, async () => {
     const domains = await ppvDomains();
     let lastErr: unknown = null;
     for (const d of domains) {
       try {
-        const j = await getJson<PpvFeed & { success?: boolean }>(`https://api.${d}/api/streams`);
+        const j = await getJson<PpvFeed & { success?: boolean }>(`https://api.${d}/api/streams`, { "X-DevKey": ppvKey() });
         if (Array.isArray(j.streams)) return { streams: j.streams };
       } catch (e) {
         lastErr = e;
@@ -366,7 +369,7 @@ export async function getFeedStreams(source: string, id: string): Promise<Stream
       return {
         id: `sf-${id}-${i}`,
         streamNo: i + 1,
-        language: q ? `${q}p` : "StreamFree",
+        language: q ? `${SF_LABEL} ${q}p` : SF_LABEL,
         hd: !!q && Number(q) >= 720,
         embedUrl: url,
         source: "sf",
