@@ -364,12 +364,17 @@ export async function getFeedStreams(source: string, id: string): Promise<Stream
   if (source === "sf") {
     const feed = await sfFeed();
     const s = (feed.streams || []).find((x) => x.stream_key === id);
+    // Same quality twice → "Nova 1080p", "Nova 1080p 2" so viewers can tell them apart.
+    const seen = new Map<string, number>();
     return (s?.sources || []).map((url, i) => {
       const q = /(\d{3,4})p/i.exec(url)?.[1];
+      const base = q ? `${SF_LABEL} ${q}p` : SF_LABEL;
+      const n = (seen.get(base) || 0) + 1;
+      seen.set(base, n);
       return {
         id: `sf-${id}-${i}`,
         streamNo: i + 1,
-        language: q ? `${SF_LABEL} ${q}p` : SF_LABEL,
+        language: n > 1 ? `${base} ${n}` : base,
         hd: !!q && Number(q) >= 720,
         embedUrl: url,
         source: "sf",
