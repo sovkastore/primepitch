@@ -271,7 +271,9 @@ export default {
         ? "/api/cron/auto-pick"
         : event.cron === "5 * * * *"
           ? "/api/cron/sync-ga4"
-          : "/api/cron/auto-live";
+          : event.cron === "0 5 * * *"
+            ? "/api/cron/alt-refresh"
+            : "/api/cron/auto-live";
     const request = new Request(`${origin}${path}`, {
       headers: { authorization: `Bearer ${env.CRON_SECRET || "secret"}` },
     });

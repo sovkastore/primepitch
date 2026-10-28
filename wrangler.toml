@@ -7,7 +7,8 @@ compatibility_flags = ["nodejs_compat"]
 # Every minute: auto-live kickoff check. 00:00 UTC (01:00 WAT): daily big-game
 # picker — right after midnight, so the new day's games are set as the date changes.
 # Hourly at :05: GA4 visitor/partner analytics sync.
-crons = ["* * * * *", "0 0 * * *", "5 * * * *"]
+# 05:00 UTC (06:00 WAT): daily Big Matches list refresh.
+crons = ["* * * * *", "0 0 * * *", "5 * * * *", "0 5 * * *"]
 
 [assets]
 directory = ".open-next/assets"

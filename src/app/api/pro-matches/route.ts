@@ -3,6 +3,17 @@ import { getD1 } from "@/lib/d1";
 import { fetchRapidPage } from "@/lib/rapid-fetch";
 import { saveMatchesCache } from "@/lib/match-cache";
 
+// Matches that kicked off more than this long ago are over: drop them from
+// the list so yesterday's games clear themselves (no API call needed).
+const DROP_AFTER_MS = 3 * 3600_000;
+function dropOld<T extends { match_time?: string | number }>(list: T[]): T[] {
+  const cutoff = Date.now() - DROP_AFTER_MS;
+  return list.filter((m) => {
+    const ko = Number(m?.match_time) * 1000;
+    return !ko || ko >= cutoff;
+  });
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -36,13 +47,13 @@ export async function GET(req: Request) {
           // If auto-fetch is ON, check if cache is fresh
           if (auto_fetch && age_minutes < cache_minutes) {
              console.log(`[Cache Hit] Returning D1 cache (age: ${age_minutes.toFixed(1)} mins)`);
-             return NextResponse.json({ matches: JSON.parse(cacheRow.data) });
+             return NextResponse.json({ matches: dropOld(JSON.parse(cacheRow.data)) });
           }
           
           // If auto-fetch is OFF, NEVER expire the cache automatically (manual clear only)
           if (!auto_fetch) {
              console.log(`[Cache Hit] Returning D1 cache (manual fetch mode)`);
-             return NextResponse.json({ matches: JSON.parse(cacheRow.data) });
+             return NextResponse.json({ matches: dropOld(JSON.parse(cacheRow.data)) });
           }
         } else if (!auto_fetch) {
            console.log(`[Cache Miss] Auto-fetch is OFF and cache is empty. Returning empty matches.`);
@@ -69,7 +80,7 @@ export async function GET(req: Request) {
 
     // An empty list straight from the provider is not stored as the shared copy.
     return NextResponse.json(
-      { matches: allMatches },
+      { matches: dropOld(allMatches) },
       allMatches.length === 0 ? { headers: { "x-pp-degraded": "1" } } : undefined
     );
   } catch (error) {
