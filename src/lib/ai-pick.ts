@@ -8,6 +8,8 @@ export interface PickFixture {
   home: string;
   away: string;
   league: string;
+  /** country/region of the competition as the feed gives it ("Spain", "Europe", "Africa"…) */
+  country?: string;
   eventDate: string;
 }
 
@@ -39,11 +41,27 @@ const PICK_SCHEMA = {
 
 export async function pickBigGames(
   criteria: string,
-  fixtures: PickFixture[]
+  fixtures: PickFixture[],
+  /** current first-division clubs, e.g. { "La Liga": [...], "Premier League": [...] } */
+  topClubs?: Record<string, string[]>
 ): Promise<AiPickResult> {
   const lines = fixtures
-    .map((f) => `${f.id}: ${f.home} vs ${f.away} — ${f.league || "unknown league"} — ${f.eventDate}`)
+    .map(
+      (f) =>
+        `${f.id}: ${f.home} vs ${f.away} — ${f.league || "unknown league"}` +
+        `${f.country ? ` (${f.country})` : ""} — ${f.eventDate}`
+    )
     .join("\n");
+  const clubBlock =
+    topClubs && Object.keys(topClubs).length
+      ? `CURRENT FIRST-DIVISION CLUBS THIS SEASON (authoritative — use these lists, not your ` +
+        `memory, to decide whether a club is a current top-5 first-division club; a club not ` +
+        `listed here is NOT one):\n` +
+        Object.entries(topClubs)
+          .map(([league, teams]) => `${league}: ${teams.join(", ")}`)
+          .join("\n") +
+        `\n\n`
+      : "";
 
   const result = await groqJson<{ picks?: { id: string; reason: string }[] }>({
     schemaName: "big_game_picks",
@@ -58,7 +76,10 @@ export async function pickBigGames(
       `Only pick fixtures you are CERTAIN qualify — if you are unsure (for example whether a ` +
       `club currently plays in a listed division), leave it out; never pick "just in case". ` +
       `A rule about clubs from a league's first division means the club must currently play in ` +
-      `that first division — second-division clubs do not qualify.\n\n` +
+      `that first division — second-division clubs do not qualify. Each fixture shows the ` +
+      `competition's country/region in brackets — use it to tell e.g. the UEFA Champions League ` +
+      `(Europe) from other continents' Champions Leagues.\n\n` +
+      clubBlock +
       `CRITERIA:\n${criteria}\n\n` +
       `TODAY'S FIXTURES:\n${lines}\n\n` +
       `Return the ids of every qualifying fixture.`,

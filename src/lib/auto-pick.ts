@@ -5,7 +5,7 @@ import { getD1 } from "@/lib/d1";
 import { setMatchFlag } from "@/lib/match-flags";
 import { pickBigGames, pickBigGamesFallback, type PickFixture } from "@/lib/ai-pick";
 import { countBsdRequest } from "@/lib/bsd-events";
-import { ensureTopClubs, loadTopClubs, makeClubChecker, isTop5DomesticCup } from "@/lib/top-clubs";
+import { ensureTopClubs, loadTopClubs, makeClubChecker, isTop5DomesticCup, TOP_LEAGUES } from "@/lib/top-clubs";
 
 const BSD_API = "https://sports.bzzoiro.com/api/events/";
 // BSD serves at most 200 events per page. A busy day has more than that, and
@@ -166,15 +166,31 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
     home: f.home_team,
     away: f.away_team,
     league: f.league?.name || "",
+    country: f.league?.country || "",
     eventDate: f.event_date,
   }));
+
+  // Current top-flight clubs (saved once per season, see top-clubs.ts): given
+  // to the AI so it doesn't rely on its out-of-date memory, and used below to
+  // double-check every cup pick by code.
+  let clubs = null;
+  try {
+    clubs = await ensureTopClubs(d1);
+  } catch {
+    clubs = await loadTopClubs(d1);
+  }
+  const clubLists: Record<string, string[]> = {};
+  for (const L of TOP_LEAGUES) {
+    const teams = clubs?.leagues?.[L.key]?.teams;
+    if (teams?.length) clubLists[`${L.name} (${L.country})`] = teams;
+  }
 
   // AI first, keyword rules as fallback
   let picks: { id: string; reason: string }[];
   let method = "ai";
   let detail = "";
   try {
-    const ai = await pickBigGames(config.criteria, pickInput);
+    const ai = await pickBigGames(config.criteria, pickInput, clubLists);
     picks = ai.picks;
     detail = `AI picked ${picks.length} of ${fixtures.length} (${ai.inputTokens}+${ai.outputTokens} tokens)`;
   } catch (e: unknown) {
@@ -190,12 +206,6 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
   // see top-clubs.ts). If the lists can't be loaded, cup matches are not
   // picked at all rather than guessed.
   const byId = new Map(fixtures.map((f) => [String(f.id), f]));
-  let clubs = null;
-  try {
-    clubs = await ensureTopClubs(d1);
-  } catch {
-    clubs = await loadTopClubs(d1);
-  }
   const checker = makeClubChecker(clubs);
   let cupRejected = 0;
   picks = picks.filter((p) => {
