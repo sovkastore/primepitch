@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import TopClubsPanel from "@/components/admin/TopClubsPanel";
 
 interface LogEntry {
   match_id: string;
@@ -476,6 +477,7 @@ export default function AutoLivePanel({ section = "all" }: { section?: "all" | "
         )}
       </div>
       )}
+      {showPicker && <TopClubsPanel />}
     </div>
   );
 }
