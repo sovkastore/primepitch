@@ -5,6 +5,7 @@ import { getD1 } from "@/lib/d1";
 import { setMatchFlag } from "@/lib/match-flags";
 import { pickBigGames, pickBigGamesFallback, type PickFixture } from "@/lib/ai-pick";
 import { countBsdRequest } from "@/lib/bsd-events";
+import { ensureTopClubs, loadTopClubs, makeClubChecker, isTop5DomesticCup } from "@/lib/top-clubs";
 
 const BSD_API = "https://sports.bzzoiro.com/api/events/";
 // BSD serves at most 200 events per page. A busy day has more than that, and
@@ -49,9 +50,9 @@ interface BsdFixture {
   home_team: string;
   away_team: string;
   event_date: string;
-  league?: { name?: string };
-  home_team_obj?: { short_name?: string };
-  away_team_obj?: { short_name?: string };
+  league?: { name?: string; country?: string };
+  home_team_obj?: { id?: number; short_name?: string };
+  away_team_obj?: { id?: number; short_name?: string };
 }
 
 export interface AutoPickConfig {
@@ -183,10 +184,36 @@ export async function runAutoPick(force = false): Promise<AutoPickSummary> {
     detail = `AI unavailable (${reason}) — keyword fallback picked ${picks.length} of ${fixtures.length}`;
   }
 
+  // Cup check by code, not by the AI's memory: a domestic cup / super cup
+  // match from the top 5 countries is kept only if at least one team is on
+  // the saved list of current top-flight clubs (downloaded once per season,
+  // see top-clubs.ts). If the lists can't be loaded, cup matches are not
+  // picked at all rather than guessed.
+  const byId = new Map(fixtures.map((f) => [String(f.id), f]));
+  let clubs = null;
+  try {
+    clubs = await ensureTopClubs(d1);
+  } catch {
+    clubs = await loadTopClubs(d1);
+  }
+  const checker = makeClubChecker(clubs);
+  let cupRejected = 0;
+  picks = picks.filter((p) => {
+    const f = byId.get(String(p.id));
+    if (!f || !isTop5DomesticCup(f.league?.name || "", f.league?.country)) return true;
+    const ok =
+      checker.ready &&
+      (checker.isTopClub(f.home_team, f.home_team_obj?.id) || checker.isTopClub(f.away_team, f.away_team_obj?.id));
+    if (!ok) cupRejected++;
+    return ok;
+  });
+  if (cupRejected > 0) {
+    detail += ` — ${cupRejected} cup match${cupRejected === 1 ? "" : "es"} rejected (no current top-flight club)`;
+  }
+
   // Activate each pick, unless we already processed it (so an admin turning a
   // pick off stays off — re-runs never re-activate it). The BSD feed sometimes
   // lists the same real-world match under two ids, so also dedupe by teams+day.
-  const byId = new Map(fixtures.map((f) => [String(f.id), f]));
   const activatedTitles = new Set<string>();
   try {
     const { results: priorPicks } = await d1
