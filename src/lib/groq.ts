@@ -25,8 +25,11 @@ export interface GroqJsonRequest {
   maxTokens?: number;
 }
 
+// GROQ_API_KEYS_EXTRA holds keys added later (comma-separated). They go after
+// the original keys so the remembered key index still points at the same key.
 function getKeys(): string[] {
-  return (process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY || "")
+  return [process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY || "", process.env.GROQ_API_KEYS_EXTRA || ""]
+    .join(",")
     .split(",")
     .map((k) => k.trim())
     .filter(Boolean);
