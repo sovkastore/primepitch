@@ -117,7 +117,56 @@ async function ensurePickTable(d1: D1Database) {
     .run();
 }
 
+// Every run records how it went, so the hourly retry knows whether today's
+// picks were made by the AI. If the midnight run failed (BSD down, every Groq
+// key exhausted) or only the keyword fallback ran, the retry runs it again
+// until the AI succeeds — a bad midnight never leaves Big Matches empty.
+const RUN_STATUS_KEY = "auto_pick_last_run";
+
+export interface AutoPickRunStatus {
+  date: string; // UTC day the run picked for
+  ok: boolean;
+  method?: string;
+  at: string;
+}
+
+export async function getAutoPickRunStatus(d1: D1Database): Promise<AutoPickRunStatus | null> {
+  try {
+    const row = await d1.prepare("SELECT value FROM d1_site_settings WHERE key = ?").bind(RUN_STATUS_KEY).first<{ value: string }>();
+    return row?.value ? (JSON.parse(row.value) as AutoPickRunStatus) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function runAutoPick(force = false): Promise<AutoPickSummary> {
+  const summary = await runAutoPickOnce(force);
+  if (summary.ran) {
+    try {
+      const d1 = await getD1();
+      if (d1) {
+        const status: AutoPickRunStatus = {
+          date: new Date().toISOString().split("T")[0],
+          ok: summary.ok,
+          method: summary.method,
+          at: new Date().toISOString(),
+        };
+        await d1
+          .prepare(
+            `INSERT INTO d1_site_settings (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+          )
+          .bind(RUN_STATUS_KEY, JSON.stringify(status))
+          .run();
+      }
+    } catch {
+      /* status is best-effort */
+    }
+  }
+  return summary;
+}
+
+async function runAutoPickOnce(force = false): Promise<AutoPickSummary> {
   const d1 = await getD1();
   if (!d1) return { ok: false, ran: false, error: "DB unavailable" };
   await ensurePickTable(d1);
