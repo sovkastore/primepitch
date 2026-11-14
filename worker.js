@@ -279,5 +279,17 @@ export default {
     });
     ctx.waitUntil(handler.fetch(request, env, ctx));
     if (event.cron === "* * * * *") ctx.waitUntil(snapshotAll(env, ctx));
+    // Hourly: re-run the daily picker if today's run failed or didn't use the AI.
+    if (event.cron === "5 * * * *") {
+      ctx.waitUntil(
+        handler.fetch(
+          new Request(`${origin}/api/cron/auto-pick-retry`, {
+            headers: { authorization: `Bearer ${env.CRON_SECRET || "secret"}` },
+          }),
+          env,
+          ctx
+        )
+      );
+    }
   },
 };
