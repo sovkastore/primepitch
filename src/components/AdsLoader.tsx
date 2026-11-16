@@ -33,9 +33,120 @@ type AdsConfig = {
 // of a single network serving cheap repeats. Wraps back to the first after the
 // last one. The counter lives in localStorage so it survives new tabs.
 const ROTATION_KEY = "pp_pop_rot";
-// The timed rotation keeps its own counter so the two settings never shift
-// each other's place in the loop.
-const TIMED_KEY = "pp_pop_timed";
+
+// ── Pop gate ───────────────────────────────────────────────────────────────
+// A popunder script can't be un-loaded: once on the page it pops on clicks by
+// itself, so loading networks "one at a time" never spaced the pops (tested:
+// with three networks loaded, one tap fired all three, and page changes reset
+// the timer). The gate sits on the pop itself instead: every ad-network pop
+// goes through window.open, so the gate lets one through only when
+//   • the configured gap has passed since the last pop (kept in localStorage,
+//     so it holds across page changes, reloads and tabs), and
+//   • it is that network's turn in the rotation (when the caller can be told
+//     apart; a network that doesn't take its turn is skipped on the next tap).
+// Everything else gets null — the same answer a browser popup blocker gives.
+// The site's own window.open calls (same-origin code) are never touched.
+const POP_LAST_KEY = "pp_pop_last";
+const POP_TURN_KEY = "pp_pop_turn";
+const POP_COUNT_KEY = "pp_pop_count"; // per browser session, for "stop after N"
+
+type PopGate = { ids: string[]; hosts: Record<string, string>; gapMs: number; maxPops: number };
+let popGate: PopGate | null = null;
+let nativeOpen: typeof window.open | null = null;
+let lastPopOk = 0; // time of the last pop let through (this page)
+let skipAttempts: number[] | null = null; // networks that tried out of turn on this tap
+
+export function adTag(id: string): string {
+  return `pp-ad-${id}.js`;
+}
+
+function lsNum(key: string, store: "local" | "session" = "local"): number {
+  try {
+    const v = Number((store === "local" ? localStorage : sessionStorage).getItem(key));
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+function lsSet(key: string, val: number, store: "local" | "session" = "local") {
+  try {
+    (store === "local" ? localStorage : sessionStorage).setItem(key, String(val));
+  } catch {
+    /* storage blocked */
+  }
+}
+
+// Which ad network is calling window.open? Read from the call stack: inline
+// network code is tagged with a sourceURL, script-tag networks by their host.
+// "site" = only this site's own code is on the stack; "ad" = some other
+// third-party script we can't name.
+function popCaller(g: PopGate): string {
+  const st = new Error().stack || "";
+  for (const id of g.ids) if (st.includes(adTag(id))) return id;
+  for (const [host, id] of Object.entries(g.hosts)) if (host && st.includes(host)) return id;
+  const urls = st.match(/https?:\/\/[^\s)]+/g) || [];
+  const foreign = urls.some((u) => {
+    try {
+      return new URL(u).origin !== window.location.origin;
+    } catch {
+      return false;
+    }
+  });
+  return foreign ? "ad" : "site";
+}
+
+function installPopGate() {
+  if (nativeOpen || typeof window === "undefined") return;
+  nativeOpen = window.open.bind(window);
+  const gated = function (this: unknown, ...args: Parameters<typeof window.open>) {
+    const g = popGate;
+    if (!g || !nativeOpen) return nativeOpen!(...args);
+    const who = popCaller(g);
+    if (who === "site") return nativeOpen(...args);
+
+    const now = Date.now();
+    if (now - lsNum(POP_LAST_KEY) < g.gapMs) return null; // too soon after the last pop
+    if (now - lastPopOk < g.gapMs) return null;
+    if (lsNum(POP_COUNT_KEY, "session") >= g.maxPops) return null; // "stop after N" reached
+
+    const n = g.ids.length;
+    const turn = n > 0 ? lsNum(POP_TURN_KEY) % n : 0;
+    const idx = g.ids.indexOf(who);
+    if (idx >= 0 && idx !== turn) {
+      // Not this network's turn. If the network whose turn it is doesn't pop
+      // on this tap (its own cap, failed load…), the turn passes to the next
+      // network in order that tried, so the rotation never stalls.
+      if (!skipAttempts) {
+        skipAttempts = [];
+        const before = lastPopOk;
+        setTimeout(() => {
+          const tried = skipAttempts || [];
+          skipAttempts = null;
+          if (lastPopOk !== before || tried.length === 0) return;
+          const next = tried.reduce((best, i) => ((i - turn + n) % n < (best - turn + n) % n ? i : best));
+          lsSet(POP_TURN_KEY, next);
+        }, 0);
+      }
+      skipAttempts.push(idx);
+      return null;
+    }
+
+    const w = nativeOpen(...args);
+    if (w) {
+      lastPopOk = now;
+      lsSet(POP_LAST_KEY, now);
+      lsSet(POP_COUNT_KEY, lsNum(POP_COUNT_KEY, "session") + 1, "session");
+      if (n > 0) lsSet(POP_TURN_KEY, ((idx >= 0 ? idx : turn) + 1) % n);
+    }
+    return w;
+  };
+  window.open = gated as typeof window.open;
+}
+
+// The site's own new-tab opens (smart / direct links) skip the gate.
+function siteOpen(url: string) {
+  (nativeOpen || window.open)(url, "_blank");
+}
 
 function nextRotationIndex(key: string, length: number): number {
   if (length <= 1) return 0;
@@ -156,7 +267,8 @@ function injectScript(id: string, src: string, zone: string, rawScript?: string)
     script.type = "application/javascript";
     script.dataset.adFormat = id;
     if (zone) script.dataset.exoZone = zone;
-    script.text = jsContent;
+    // Name the code so the pop gate can tell which network is popping.
+    script.text = `${jsContent}\n//# sourceURL=${adTag(id)}`;
     document.head.appendChild(script);
     return;
   }
@@ -240,13 +352,10 @@ export default function AdsLoader() {
         const path = pathname || window.location.pathname;
         if (path.startsWith("/admin") || path.startsWith("/partner")) return; // never on admin or partner portal
         if (!domainAllowed(cfg.domains, window.location.hostname)) return;
-        // ── Timed popunder rotation (fire-spaced) ─────────────────
-        // One network at a time: the first is armed on arrival, and a
-        // popunder fires on the visitor's next click. That click starts the
-        // gap, and only after it has passed is the next network armed — so
-        // pops are spaced by at least the configured number of seconds
-        // instead of several networks being armed together and all firing
-        // on the same tap.
+        // ── Timed popunder rotation ──────────────────────────────
+        // Every network in the list is loaded, and the pop gate (top of this
+        // file) decides which pop goes through: one network per turn, at least
+        // `intervalSeconds` apart, across page changes, reloads and tabs.
         const timed = cfg.popTimed;
         const timedIds =
           timed?.enabled && Array.isArray(timed.formats)
@@ -256,57 +365,46 @@ export default function AdsLoader() {
           placementAllows(cfg.formats[tid].placement, path)
         );
 
-        // A popunder script cannot be un-armed: once loaded it owns its own
-        // document click listeners, and re-injecting it only stacks a second
-        // set on top, so every click fires several pops at once. So each
-        // network is loaded AT MOST ONCE per page — the timer only decides
-        // when each one joins, staggering them instead of piling them up.
-        if (timedEligible.length > 0) {
-          const gapMs =
-            Math.max(5, Math.min(600, Number(timed!.intervalSeconds) || 30)) * 1000;
-          const maxTurns =
-            timed!.stopMode === "max"
-              ? Math.max(1, Math.min(50, Number(timed!.maxTurns) || 1))
-              : Infinity;
-
-          // Start at this visitor's place in the loop so the network that goes
-          // first differs from page to page.
-          const start = nextRotationIndex(TIMED_KEY, timedEligible.length);
-          const queue = timedEligible
-            .map((_, i) => timedEligible[(start + i) % timedEligible.length])
-            .slice(0, Math.min(timedEligible.length, maxTurns));
-
-          let turn = 0;
-          // When the currently armed network went live; 0 = nothing armed.
-          // A pop needs the visitor's click, so a click while a network is
-          // armed is taken as that network's pop.
-          let armedAt = 0;
-          const SETTLE_MS = 1500; // the script needs a moment to attach its own click listener
-
-          const armNext = () => {
-            if (done || turn >= queue.length) return;
-            const tid = queue[turn];
-            turn++;
-            const f = cfg!.formats[tid];
-            const t = setTimeout(() => {
-              if (done) return;
-              injectScript(tid, f.src, f.zone, f.rawScript);
-              armedAt = Date.now();
-            }, delaySeconds(f.delay) * 1000);
-            timers.push(t);
+        if (timedIds.length > 0) {
+          const hosts: Record<string, string> = {};
+          for (const tid of timedIds) {
+            const f = cfg.formats[tid];
+            if (f.rawScript && f.rawScript.trim()) {
+              // Pasted code is named by sourceURL; a pasted loader (e.g. Kadam)
+              // also pulls the real pop script from its own domain, so map
+              // every domain written in the code to this network too.
+              for (const m of f.rawScript.matchAll(/https?:\/\/([a-z0-9.-]+\.[a-z]{2,})/gi)) {
+                hosts[m[1].toLowerCase()] = tid;
+              }
+              continue;
+            }
+            try {
+              if (f.src) hosts[new URL(f.src).host] = tid;
+            } catch {
+              /* not a URL */
+            }
+          }
+          popGate = {
+            ids: timedIds,
+            hosts,
+            gapMs: Math.max(5, Math.min(600, Number(timed!.intervalSeconds) || 30)) * 1000,
+            maxPops:
+              timed!.stopMode === "max"
+                ? Math.max(1, Math.min(50, Number(timed!.maxTurns) || 1))
+                : Infinity,
           };
+          installPopGate();
+        } else {
+          popGate = null;
+        }
 
-          const onPopClick = (e: MouseEvent) => {
-            if (!armedAt || !e.isTrusted || Date.now() - armedAt < SETTLE_MS) return;
-            armedAt = 0;
-            if (turn >= queue.length) return; // every network has had its turn
-            const t = setTimeout(armNext, gapMs);
-            timers.push(t);
-          };
-          document.addEventListener("click", onPopClick, { capture: true });
-          cleanups.push(() => document.removeEventListener("click", onPopClick, { capture: true }));
-
-          armNext(); // first network on arrival; the rest follow each pop + gap
+        for (const tid of timedEligible) {
+          const f = cfg.formats[tid];
+          const t = setTimeout(() => {
+            if (done) return;
+            injectScript(tid, f.src, f.zone, f.rawScript);
+          }, delaySeconds(f.delay) * 1000);
+          timers.push(t);
         }
 
         // Formats taking part in a rotation are driven by that rotation instead
@@ -373,7 +471,7 @@ export default function AdsLoader() {
               if (text.includes("WATCH")) {
                 for (const sl of directLinks) {
                   if (sl.targets["cricket_watch"]) {
-                    window.open(sl.url, "_blank");
+                    siteOpen(sl.url);
                     return; // only open the first matched direct link
                   }
                 }
@@ -398,7 +496,7 @@ export default function AdsLoader() {
             if (key) {
                for (const sl of directLinks) {
                   if (sl.targets[key]) {
-                     window.open(sl.url, "_blank");
+                     siteOpen(sl.url);
                      return; // only open the first matched direct link
                   }
                }
